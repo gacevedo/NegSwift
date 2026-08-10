@@ -81,6 +81,13 @@ Register a file path (no full decode).
 }
 ```
 
+### `discover`
+
+List supported scan files in folder(s). One directory level — matches NegPy desktop discovery.
+
+**Params:** `{ "paths": ["/absolute/path/to/folder"] }`  
+**Result:** `{ "assets": [{ "path": "...", "name": "frame.tif" }, ...] }`
+
 ### `load_config`
 
 **Params:** `{ "path": "..." }`  

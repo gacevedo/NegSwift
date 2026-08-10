@@ -7,6 +7,7 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
+from negswift_engine.discover import discover_assets
 from negswift_engine.render import open_asset, render_preview_base64
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -45,6 +46,13 @@ def _cmd_open(params: dict[str, Any]) -> dict[str, Any]:
         raise ProtocolError("LOAD_FAILED", str(exc)) from exc
 
 
+def _cmd_discover(params: dict[str, Any]) -> dict[str, Any]:
+    paths = params.get("paths")
+    if not isinstance(paths, list) or not paths or not all(isinstance(p, str) for p in paths):
+        raise ProtocolError("INVALID_REQUEST", "params.paths must be a non-empty string array")
+    return {"assets": discover_assets(paths)}
+
+
 def _cmd_render(params: dict[str, Any]) -> dict[str, Any]:
     path = params.get("path")
     if not isinstance(path, str) or not path:
@@ -77,6 +85,7 @@ _HANDLERS: dict[str, Handler] = {
     "ping": _cmd_ping,
     "info": _cmd_info,
     "open": _cmd_open,
+    "discover": _cmd_discover,
     "render": _cmd_render,
 }
 

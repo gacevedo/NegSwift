@@ -401,12 +401,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NegSwift/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				NEGSWIFT_ENGINE_PATH = "$(SRCROOT)/../Engine/.venv/bin/negswift-engine";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				NEGSWIFT_ENGINE_PATH = "$(SRCROOT)/../Engine/.venv/bin/negswift-engine";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gabrielacevedo.NegSwift;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -433,12 +433,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NegSwift/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				NEGSWIFT_ENGINE_PATH = "$(SRCROOT)/../Engine/.venv/bin/negswift-engine";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				NEGSWIFT_ENGINE_PATH = "$(SRCROOT)/../Engine/.venv/bin/negswift-engine";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gabrielacevedo.NegSwift;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

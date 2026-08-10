@@ -78,7 +78,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M10 | PyInstaller / bundle |
 | M11 | Polish |
 
-**Current status:** M2 done; M3 partial (`open`/`render` on protocol; no `cancel` yet); M4 done (Open → preview in canvas). Next: M5 film strip, M6 controls.
+**Current status (2026-08-09):** M0–M5 done (M3 partial). **Next: M6** controls. See status table in [PLAN.md](PLAN.md).
 
 When implementing a milestone, finish its deliverables and checklist items — do not skip ahead to bundling before M9b.
 

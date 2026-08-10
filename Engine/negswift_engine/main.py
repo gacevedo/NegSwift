@@ -9,6 +9,7 @@ from pathlib import Path
 
 from negswift_engine import __version__
 from negswift_engine.config_io import load_config_overrides
+from negswift_engine.discover import discover_assets
 from negswift_engine.render import open_asset, render_preview_png
 
 
@@ -20,6 +21,9 @@ def main() -> None:
     sub.add_parser("info", help="Print engine and NegPy versions")
     open_p = sub.add_parser("open", help="Hash and dimensions for a scan file")
     open_p.add_argument("path")
+
+    discover_p = sub.add_parser("discover", help="List supported scans under folder(s)")
+    discover_p.add_argument("paths", nargs="+")
 
     render_p = sub.add_parser("render", help="Render a preview PNG")
     render_p.add_argument("--path", required=True, help="Absolute path to scan file")
@@ -44,6 +48,8 @@ def main() -> None:
         _cmd_info()
     elif args.command == "open":
         _cmd_open(args.path)
+    elif args.command == "discover":
+        print(json.dumps({"assets": discover_assets(args.paths)}, indent=2))
     elif args.command == "render":
         _cmd_render(args)
     elif args.command == "serve":

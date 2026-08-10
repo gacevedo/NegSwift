@@ -21,6 +21,15 @@ struct RenderResult: Codable, Sendable {
     }
 }
 
+struct DiscoverAsset: Codable, Sendable {
+    let path: String
+    let name: String
+}
+
+struct DiscoverResult: Codable, Sendable {
+    let assets: [DiscoverAsset]
+}
+
 struct EngineInfo: Codable, Sendable, Equatable {
     let protocolVersion: String?
     let negswiftVersion: String
@@ -111,8 +120,16 @@ actor EngineClient {
         try await call(method: "render", params: RenderParams(path: path, longEdgePx: longEdgePx))
     }
 
+    func discover(paths: [String]) async throws -> DiscoverResult {
+        try await call(method: "discover", params: DiscoverParams(paths: paths))
+    }
+
     private struct EmptyParams: Encodable {}
     private struct PingResult: Decodable { let pong: Bool? }
+
+    private struct DiscoverParams: Encodable {
+        let paths: [String]
+    }
 
     private struct RenderParams: Encodable {
         let path: String

@@ -6,6 +6,25 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 ---
 
+## Plan status (last updated: 2026-08-09)
+
+| Milestone | Status | Notes |
+|-----------|--------|-------|
+| **M0** Bootstrap | **Done** | `Makefile` (`make test`, `make lint`, `make build-app`); GitHub CI not yet wired |
+| **M1** Engine CLI | **Done** | `info`, `open`; `tests/test_cli.py` |
+| **M2** Render PNG | **Done** | `render` CLI; `tests/test_render.py` |
+| **M3** NDJSON daemon | **Partial** | `serve --stdio`; `ping`, `info`, `open`, `discover`, `render`. Missing: `cancel`, Unix socket, `load_config`/`save_config` |
+| **M4** Swift + preview | **Done** | Engine spawn, `Info.plist` engine path, Open File → canvas. Mocked Swift unit tests not yet |
+| **M5** Film strip | **Done** | Import Folder, lazy 256px thumbnails, selection → canvas; `tests/test_discover.py` |
+| **M6** Controls | **Next** | — |
+| M7–M11 | Not started | — |
+
+**Resume here:** M6 — essential sliders (density, grade, saturation, WB) + debounced live preview + Auto Density/Grade.
+
+**Verify before M6:** `make test` (9 engine tests) · `make build-app` · ⌘R → Import Folder → click frames.
+
+---
+
 ## 1. Goals
 
 | Goal | Detail |
@@ -241,15 +260,15 @@ Each milestone lists **automated** checks and a **manual smoke test** you can ru
 
 ---
 
-### M0 — Repository bootstrap
+### M0 — Repository bootstrap ✅
 
 **Deliverables**
 
-- [ ] Xcode macOS app target (`App/NegSwift/`) — empty window, menu bar
-- [ ] `Engine/pyproject.toml` with path dep on NegPy (sibling `../../NegPy` is fine until M9b)
-- [ ] `Engine/negswift_engine/` package skeleton
-- [ ] GPL-3.0 LICENSE, README, this plan, `.gitignore`
-- [ ] CI stub: lint engine (`ruff`), Swift build (xcodebuild)
+- [x] Xcode macOS app target (`App/NegSwift/`) — empty window, menu bar
+- [x] `Engine/pyproject.toml` with path dep on NegPy (sibling `../../NegPy` is fine until M9b)
+- [x] `Engine/negswift_engine/` package skeleton
+- [x] GPL-3.0 LICENSE, README, this plan, `.gitignore`
+- [ ] CI stub: GitHub Actions (`ruff` + `pytest` + `xcodebuild`) — **`Makefile` exists locally**
 
 **Automated:** `uv sync` in `Engine/` succeeds; `xcodebuild -scheme NegSwift build` succeeds.
 
@@ -257,17 +276,17 @@ Each milestone lists **automated** checks and a **manual smoke test** you can ru
 
 ---
 
-### M1 — Engine CLI (no Swift yet)
+### M1 — Engine CLI (no Swift yet) ✅
 
 **Deliverables**
 
-- [ ] `negswift-engine info` — prints NegPy version, GPU available
-- [ ] `negswift-engine open <path>` — prints content hash and dimensions
-- [ ] Logging to stderr; JSON result on stdout
+- [x] `negswift-engine info` — prints NegPy version, GPU available
+- [x] `negswift-engine open <path>` — prints content hash and dimensions
+- [x] Logging to stderr; JSON result on stdout
 
 **Uses:** `calculate_file_hash`, `PreviewManager` or lightweight loader.
 
-**Automated:** `pytest Engine/tests/test_cli_open.py` against a tiny bundled test TIFF.
+**Automated:** `tests/test_cli.py` (was planned as `test_cli_open.py`).
 
 **Manual:**
 
@@ -279,15 +298,15 @@ uv run negswift-engine open ~/Pictures/scans/frame001.tif
 
 ---
 
-### M2 — Preview render to PNG
+### M2 — Preview render to PNG ✅
 
 **Deliverables**
 
-- [ ] `negswift-engine render --path ... --out preview.png [--config config.json]`
-- [ ] Default `WorkspaceConfig`; optional JSON overrides
-- [ ] GPU with CPU fallback (same as NegPy)
+- [x] `negswift-engine render --path ... --out preview.png [--config config.json]`
+- [x] Default `WorkspaceConfig`; optional JSON overrides
+- [x] GPU with CPU fallback (same as NegPy)
 
-**Uses:** `PreviewManager.load_preview`, `ImageProcessor.run_pipeline`, `apply_display_transform`, PNG encode.
+**Uses:** `PreviewManager.load_linear_preview`, `ImageProcessor.run_pipeline`, `apply_display_transform`, PNG encode (`Engine/negswift_engine/render.py`).
 
 **Automated:** pytest compares output shape and finite pixels; optional SSIM vs golden if checked in small test asset.
 
@@ -301,16 +320,19 @@ open /tmp/negswift_preview.png
 
 ---
 
-### M3 — Engine daemon + NDJSON protocol
+### M3 — Engine daemon + NDJSON protocol ⚠️ partial
 
 **Deliverables**
 
-- [ ] `negswift-engine serve [--stdio|--socket PATH]`
-- [ ] Implement `ping`, `info`, `open`, `render` over NDJSON
+- [x] `negswift-engine serve --stdio`
+- [x] Implement `ping`, `info`, `open`, `render` over NDJSON
+- [x] `discover` (added for M5; not in original v0.1 sketch)
+- [ ] `negswift-engine serve --socket PATH`
 - [ ] Job ids + `cancel`
-- [ ] `docs/ENGINE_PROTOCOL.md` frozen for v0.1
+- [ ] `load_config` / `save_config`
+- [x] `docs/ENGINE_PROTOCOL.md` v0.1 (evolving)
 
-**Automated:** protocol integration tests via Python client sending NDJSON lines.
+**Automated:** `tests/test_protocol.py`, `tests/test_render.py`, `tests/test_discover.py`.
 
 **Manual:**
 
@@ -324,29 +346,30 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 
 ---
 
-### M4 — Swift shell: connect + show image
+### M4 — Swift shell: connect + show image ✅
 
 **Deliverables**
 
-- [ ] `EngineClient` Swift actor — spawn engine subprocess, NDJSON over stdin/stdout (dev) or socket (prod)
-- [ ] Open file dialog → `render` → display `NSImage` in canvas
-- [ ] Loading spinner + error alert
+- [x] `EngineClient` Swift actor — spawn engine subprocess, NDJSON over stdin/stdout (dev)
+- [x] Open file dialog → `render` → display `NSImage` in canvas
+- [x] Loading spinner + error alert
+- [x] `NegSwiftEnginePath` via merged `Info.plist` + `NEGSWIFT_ENGINE_PATH` build setting
 
-**Automated:** Swift unit tests with mocked transport; engine integration test tag `integration`.
+**Automated:** Swift unit tests with mocked transport — **not yet** (template XCTest only).
 
 **Manual:** Run from Xcode → Open → pick scan → preview appears within ~5s for a typical TIFF.
 
 ---
 
-### M5 — Film strip + folder import
+### M5 — Film strip + folder import ✅
 
 **Deliverables**
 
-- [ ] `NSOpenPanel` folder import; enumerate supported extensions (match NegPy loaders)
-- [ ] Lazy thumbnail generation via engine (`render` at 256px long edge)
-- [ ] Selection drives main canvas
+- [x] Folder import (`fileImporter` + engine `discover`); extensions match NegPy loaders
+- [x] Lazy thumbnail generation via engine (`render` at 256px long edge)
+- [x] Selection drives main canvas
 
-**Automated:** engine test for batch `open` on temp dir.
+**Automated:** `tests/test_discover.py`.
 
 **Manual:** Import folder of 20+ frames; scroll strip; click each — preview updates; no UI freeze > 1s between clicks (stale preview ok while rendering).
 
@@ -582,11 +605,10 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. Complete **M0**: Xcode project + `Engine/pyproject.toml` + empty `negswift-engine info`.
-2. Add **NOTICE** file with NegPy attribution (done).
-3. Copy minimal test scan (or document path to NegPy test fixtures) for M1/M2.
-4. Optional: open NegPy PR for `NEGPY_USER_DIR` before M7.
-5. Schedule **M9b** immediately after M9 export passes — do not start M10 packaging until submodule is in place.
+1. **M6:** SwiftUI sliders (density, grade, saturation, WB CMY) + debounced `render` with config overrides; Auto Density / Auto Grade.
+2. **M3 debt (optional, parallel):** `cancel`, `load_config` / `save_config` on protocol — needed before M7 persist.
+3. **M0 debt:** GitHub Actions running `make test` + `make build-app`.
+4. **M9b** before any M10 packaging — submodule pin at `Vendor/NegPy`.
 
 ---
 

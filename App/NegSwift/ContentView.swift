@@ -8,7 +8,8 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Bindable var engineSession: EngineSession
-    @State private var showImporter = false
+    @State private var showFolderImporter = false
+    @State private var showFileImporter = false
 
     private static let importTypes: [UTType] = [.tiff, .png, .jpeg, .heic, .rawImage]
 
@@ -17,31 +18,61 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Label("NegSwift", systemImage: "film")
                     .font(.headline)
+
+                HStack(spacing: 8) {
+                    Button("Import Folder…") {
+                        showFolderImporter = true
+                    }
+                    .disabled(!engineSession.engineReady)
+
+                    Button("Open File…") {
+                        showFileImporter = true
+                    }
+                    .disabled(!engineSession.engineReady || engineSession.isRenderingPreview)
+                }
+                .controlSize(.small)
+
+                GroupBox("Film Strip") {
+                    FilmStripView(
+                        frames: engineSession.frames,
+                        selectedID: engineSession.selectedFrameID,
+                        onSelect: { id in
+                            Task { await engineSession.selectFrame(id) }
+                        }
+                    )
+                    .frame(minHeight: 120, maxHeight: 280)
+                }
+
                 engineStatusCard
                 Spacer()
             }
             .padding()
-            .frame(minWidth: 220, idealWidth: 260)
+            .frame(minWidth: 240, idealWidth: 280)
         } detail: {
             previewPane
         }
-        .toolbar {
-            ToolbarItem {
-                Button("Open…") {
-                    showImporter = true
-                }
-                .disabled(!engineSession.engineReady || engineSession.isRenderingPreview)
+        .fileImporter(
+            isPresented: $showFolderImporter,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case let .success(urls):
+                guard let url = urls.first else { return }
+                Task { await engineSession.importFolder(at: url) }
+            case let .failure(error):
+                engineSession.noteImportError(error.localizedDescription)
             }
         }
         .fileImporter(
-            isPresented: $showImporter,
+            isPresented: $showFileImporter,
             allowedContentTypes: Self.importTypes,
             allowsMultipleSelection: false
         ) { result in
             switch result {
             case let .success(urls):
                 guard let url = urls.first else { return }
-                Task { await engineSession.renderFile(at: url) }
+                Task { await engineSession.importFileFromPicker(url) }
             case let .failure(error):
                 engineSession.noteImportError(error.localizedDescription)
             }
@@ -51,7 +82,7 @@ struct ContentView: View {
     @ViewBuilder
     private var previewPane: some View {
         ZStack {
-            if engineSession.isRenderingPreview {
+            if engineSession.isRenderingPreview, engineSession.previewImage == nil {
                 ProgressView("Rendering preview…")
             } else if let image = engineSession.previewImage {
                 Image(nsImage: image)
@@ -64,7 +95,7 @@ struct ContentView: View {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.system(size: 48))
                         .foregroundStyle(.secondary)
-                    Text("Open a scan to get started")
+                    Text("Import a folder or open a scan")
                         .foregroundStyle(.secondary)
                     if !engineSession.engineReady {
                         Text("Waiting for engine…")
@@ -109,6 +140,7 @@ struct ContentView: View {
                     statusRow("NegPy", info.negpyVersion)
                     statusRow("Python", info.python)
                     statusRow("GPU", info.gpuAvailable ? (info.gpuBackend ?? "yes") : "CPU fallback")
+                    statusRow("Frames", "\(engineSession.frames.count)")
                     if let path = engineSession.currentPath {
                         statusRow("File", (path as NSString).lastPathComponent)
                     }

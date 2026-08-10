@@ -23,8 +23,13 @@ final class EngineSession {
     private(set) var isRenderingPreview = false
     private(set) var previewError: String?
     private(set) var currentPath: String?
+    private(set) var frames: [ScanFrame] = []
+    private(set) var selectedFrameID: UUID?
 
     private let client = EngineClient()
+    private var scopedFolderURL: URL?
+    private var stripGeneration = 0
+    private var previewGeneration = 0
 
     var engineReady: Bool {
         if case .ready = state { return true }
@@ -48,6 +53,7 @@ final class EngineSession {
 
     func restart() async {
         await client.stop()
+        clearFilmStrip()
         state = .idle
         previewImage = nil
         previewError = nil
@@ -57,6 +63,7 @@ final class EngineSession {
 
     func stop() async {
         await client.stop()
+        clearFilmStrip()
         state = .idle
         previewImage = nil
         previewError = nil
@@ -67,7 +74,70 @@ final class EngineSession {
         previewError = message
     }
 
-    func renderFile(at url: URL) async {
+    func importFolder(at url: URL) async {
+        guard engineReady else { return }
+        stopFolderAccess()
+        if url.startAccessingSecurityScopedResource() {
+            scopedFolderURL = url
+        }
+        stripGeneration += 1
+        let generation = stripGeneration
+        previewError = nil
+        do {
+            let discovered = try await client.discover(paths: [url.path])
+            frames = discovered.assets.map { asset in
+                ScanFrame(
+                    id: UUID(),
+                    url: URL(fileURLWithPath: asset.path),
+                    path: asset.path,
+                    name: asset.name
+                )
+            }
+            if let first = frames.first {
+                await selectFrame(first.id)
+            } else {
+                previewError = "No supported scans found in this folder."
+            }
+            await loadThumbnails(generation: generation)
+        } catch {
+            previewError = error.localizedDescription
+        }
+    }
+
+    func importFile(at url: URL) async {
+        guard engineReady else { return }
+        stripGeneration += 1
+        let generation = stripGeneration
+        let frame = ScanFrame(
+            id: UUID(),
+            url: url,
+            path: url.path,
+            name: url.lastPathComponent
+        )
+        frames = [frame]
+        await selectFrame(frame.id)
+        await loadThumbnails(generation: generation)
+    }
+
+    func importFileFromPicker(_ url: URL) async {
+        let gotAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if gotAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        await importFile(at: url)
+    }
+
+    func selectFrame(_ id: UUID) async {
+        selectedFrameID = id
+        guard let frame = frames.first(where: { $0.id == id }) else { return }
+        previewGeneration += 1
+        let generation = previewGeneration
+        await renderPreview(at: frame.url, generation: generation)
+    }
+
+    private func renderPreview(at url: URL, generation: Int) async {
         guard engineReady else { return }
 
         let gotAccess = url.startAccessingSecurityScopedResource()
@@ -79,10 +149,10 @@ final class EngineSession {
 
         isRenderingPreview = true
         previewError = nil
-        defer { isRenderingPreview = false }
 
         do {
             let result = try await client.render(path: url.path)
+            guard generation == previewGeneration else { return }
             guard let data = result.pngData, let image = NSImage(data: data) else {
                 previewError = "Engine returned an invalid PNG."
                 return
@@ -90,8 +160,49 @@ final class EngineSession {
             previewImage = image
             currentPath = url.path
         } catch {
+            guard generation == previewGeneration else { return }
             previewError = error.localizedDescription
         }
+
+        if generation == previewGeneration {
+            isRenderingPreview = false
+        }
+    }
+
+    private func loadThumbnails(generation: Int) async {
+        for index in frames.indices {
+            guard generation == stripGeneration else { return }
+            frames[index].isLoadingThumbnail = true
+            let path = frames[index].path
+            do {
+                let result = try await client.render(
+                    path: path,
+                    longEdgePx: FilmStripLayout.thumbnailLongEdge
+                )
+                guard generation == stripGeneration else { return }
+                if let data = result.pngData, let image = NSImage(data: data) {
+                    frames[index].thumbnail = image
+                }
+            } catch {
+                // Thumbnail failure is non-fatal; full preview may still work.
+            }
+            if generation == stripGeneration {
+                frames[index].isLoadingThumbnail = false
+            }
+        }
+    }
+
+    private func clearFilmStrip() {
+        stripGeneration += 1
+        previewGeneration += 1
+        stopFolderAccess()
+        frames = []
+        selectedFrameID = nil
+    }
+
+    private func stopFolderAccess() {
+        scopedFolderURL?.stopAccessingSecurityScopedResource()
+        scopedFolderURL = nil
     }
 
     #if DEBUG
@@ -107,6 +218,11 @@ final class EngineSession {
                 gpuBackend: nil
             )
         )
+        session.frames = [
+            ScanFrame(id: UUID(), url: URL(fileURLWithPath: "/preview/a.tif"), path: "/preview/a.tif", name: "a.tif"),
+            ScanFrame(id: UUID(), url: URL(fileURLWithPath: "/preview/b.tif"), path: "/preview/b.tif", name: "b.tif"),
+        ]
+        session.selectedFrameID = session.frames.first?.id
         return session
     }
     #endif

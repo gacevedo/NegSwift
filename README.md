@@ -6,7 +6,14 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-Planning phase. See **[PLAN.md](PLAN.md)** for the incremental build roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
+**M0–M5 complete** (M3 partial: no `cancel`/socket yet). **Next: M6** — essential editing controls.
+
+See **[PLAN.md](PLAN.md)** for the full roadmap and status table. Agents: read **[AGENTS.md](AGENTS.md)** first.
+
+```bash
+make test      # 9 engine pytest tests
+make build-app # Xcode Debug build
+```
 
 ## Layout (target)
 

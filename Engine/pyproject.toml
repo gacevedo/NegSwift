@@ -1,0 +1,40 @@
+[project]
+name = "negswift-engine"
+version = "0.1.0"
+description = "Headless NegPy wrapper for NegSwift"
+readme = "README.md"
+license = "GPL-3.0"
+requires-python = ">=3.13"
+dependencies = [
+    "negpy",
+]
+
+[project.scripts]
+negswift-engine = "negswift_engine.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "ruff>=0.14",
+]
+
+[tool.uv.sources]
+negpy = { path = "../../NegPy", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: needs GPU and real scan file",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["negswift_engine*"]

@@ -1,0 +1,15 @@
+NegSwift
+Copyright (C) 2026 NegSwift contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program incorporates NegPy (https://github.com/marcinz606/NegPy),
+Copyright (C) NegPy contributors, also licensed under GPL-3.0.
+
+When distributed as a binary, NegPy engine components are bundled
+under the same license. Source for NegPy is available at the URL above.
+
+See LICENSE for the full GPL-3.0 text.

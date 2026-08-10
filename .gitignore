@@ -1,0 +1,30 @@
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# Python / uv
+Engine/.venv/
+Engine/__pycache__/
+Engine/**/__pycache__/
+Engine/pyproject.override.toml
+*.egg-info/
+dist/
+*.spec
+
+# Engine runtime
+Engine/.negpy-dev/
+Packaging/out/
+
+# macOS
+.DS_Store
+*.swp

@@ -15,17 +15,17 @@ struct ControlsPanelView: View {
             SidebarSection(title: "Tone", isExpanded: $toneExpanded) {
                 VStack(alignment: .leading, spacing: 14) {
                     autoRow
-                    sliderRow("Print Density", value: densityBinding, range: EditControlRanges.density, format: "%.2f")
-                    sliderRow("ISO-R Grade", value: gradeBinding, range: EditControlRanges.grade, format: "%.0f")
-                    sliderRow("Chroma", value: saturationBinding, range: EditControlRanges.saturation, format: "%.2f")
+                    sliderRow("Print Density", value: densityBinding, range: EditControlRanges.density, defaultValue: EditControlDefaults.density, format: "%.2f")
+                    sliderRow("ISO-R Grade", value: gradeBinding, range: EditControlRanges.grade, defaultValue: EditControlDefaults.grade, format: "%.0f")
+                    sliderRow("Chroma", value: saturationBinding, range: EditControlRanges.saturation, defaultValue: EditControlDefaults.saturation, format: "%.2f")
                 }
             }
 
             SidebarSection(title: "Color", isExpanded: $colorExpanded) {
                 VStack(alignment: .leading, spacing: 8) {
-                    sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
-                    sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
-                    sliderRow("Yellow", value: wbYellowBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+                    sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, defaultValue: EditControlDefaults.whiteBalance, format: "%.2f")
+                    sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, defaultValue: EditControlDefaults.whiteBalance, format: "%.2f")
+                    sliderRow("Yellow", value: wbYellowBinding, range: EditControlRanges.whiteBalance, defaultValue: EditControlDefaults.whiteBalance, format: "%.2f")
                 }
             }
         }
@@ -45,6 +45,7 @@ struct ControlsPanelView: View {
         _ title: String,
         value: Binding<Double>,
         range: ClosedRange<Double>,
+        defaultValue: Double,
         format: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -56,7 +57,7 @@ struct ControlsPanelView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            Slider(value: value, in: range)
+            ResetDefaultSlider(value: value, range: range, defaultValue: defaultValue)
         }
     }
 

@@ -69,12 +69,13 @@ struct GeometryPanelView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            Slider(
+            ResetDefaultSlider(
                 value: Binding(
                     get: { -session.currentEdit.fineRotation },
                     set: { session.setFineRotation(-$0) }
                 ),
-                in: -45 ... 45
+                range: EditControlRanges.fineRotation,
+                defaultValue: EditControlDefaults.fineRotation
             )
         }
     }

@@ -177,4 +177,13 @@ enum EditControlRanges {
     static let grade = 50.0 ... 180.0
     static let saturation = 0.0 ... 2.0
     static let whiteBalance = -1.0 ... 1.0
+    static let fineRotation = -45.0 ... 45.0
+}
+
+enum EditControlDefaults {
+    static let density = 1.0
+    static let grade = 100.0
+    static let saturation = 1.0
+    static let whiteBalance = 0.0
+    static let fineRotation = 0.0
 }

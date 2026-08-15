@@ -13,8 +13,11 @@ struct NegSwiftApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(engineSession: engineSession)
+            ContentView(engineSession: engineSession, showAbout: $showAbout)
                 .frame(minWidth: 900, minHeight: 600)
+                .onAppear {
+                    AppMetadata.syncApplicationIcon()
+                }
                 .task {
                     await engineSession.start()
                 }
@@ -22,9 +25,6 @@ struct NegSwiftApp: App {
                     if phase == .background {
                         Task { await engineSession.flushPendingSaves() }
                     }
-                }
-                .sheet(isPresented: $showAbout) {
-                    AboutView()
                 }
         }
         .commands {

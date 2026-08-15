@@ -7,6 +7,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var engineSession: EngineSession
+    @Binding var showAbout: Bool
     @State private var showExportSheet = false
     @State private var showEngineSheet = false
     @State private var showResetConfirm = false
@@ -21,13 +22,25 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Label("NegSwift", systemImage: "film")
-                                .font(.title3.weight(.semibold))
-                            Text(AppMetadata.appVersion)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        Button {
+                            showAbout = true
+                        } label: {
+                            HStack(alignment: .center, spacing: 6) {
+                                if let icon = AppMetadata.appIcon {
+                                    Image(nsImage: icon)
+                                        .resizable()
+                                        .frame(width: 22, height: 22)
+                                }
+                                Text("NegSwift")
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text(AppMetadata.appVersion)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .help("About NegSwift")
 
                         HStack(spacing: 8) {
                             Button("Open Folder…") {
@@ -126,6 +139,9 @@ struct ContentView: View {
         .sheet(isPresented: $showEngineSheet) {
             EngineSheetView(session: engineSession)
         }
+        .sheet(isPresented: $showAbout) {
+            AboutView()
+        }
         .confirmationDialog(
             "Reset all adjustments?",
             isPresented: $showResetConfirm,
@@ -192,5 +208,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(engineSession: .preview)
+    ContentView(engineSession: .preview, showAbout: .constant(false))
 }

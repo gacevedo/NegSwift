@@ -11,7 +11,7 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            if let icon = NSApp.applicationIconImage {
+            if let icon = AppMetadata.appIcon {
                 Image(nsImage: icon)
                     .resizable()
                     .frame(width: 64, height: 64)

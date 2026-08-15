@@ -208,7 +208,7 @@ actor EngineClient {
         config: FrameEditState? = nil,
         cropPreviewFull: Bool = false
     ) async throws -> RenderResult {
-        let isThumbnail = longEdgePx != nil && config == nil && !cropPreviewFull
+        let isThumbnail = longEdgePx != nil && !cropPreviewFull
         if isThumbnail {
             if let previous = activeThumbnailJobID {
                 try? await cancel(jobID: previous)

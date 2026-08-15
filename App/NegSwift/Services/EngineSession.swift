@@ -38,11 +38,13 @@ final class EngineSession {
     private let client = EngineClient()
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
     private let saveDebounce = DebounceScheduler(interval: DebounceScheduler.saveInterval)
+    private let thumbnailDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
     private var dirtyPaths: Set<String> = []
     private var scopedFolderURL: URL?
     private var scopedFileURLs: [String: URL] = [:]
     private var stripGeneration = 0
     private var previewGeneration = 0
+    private var thumbnailGeneration = 0
     private var isThumbnailLoadRunning = false
     private(set) var isExporting = false
     private(set) var activeExportSettings: ExportSettings?
@@ -177,6 +179,9 @@ final class EngineSession {
             isCropToolActive = false
             isCropOverlayReady = false
             cropPreviewBaseline = nil
+            if let path = selectedFramePath {
+                Task { await refreshThumbnail(for: path) }
+            }
         }
         refreshPreviewNow()
     }
@@ -438,6 +443,7 @@ final class EngineSession {
         if let previousPath, previousPath != frame.path {
             saveDebounce.cancel()
             await persistEdit(for: previousPath)
+            await refreshThumbnail(for: previousPath)
         }
         await ensureEditLoaded(for: frame.path)
         previewDebounce.cancel()
@@ -492,6 +498,7 @@ final class EngineSession {
             if isCropToolActive {
                 isCropOverlayReady = true
             }
+            scheduleDebouncedThumbnailRefresh(for: path)
         } catch is CancellationError {
             return
         } catch {
@@ -501,6 +508,54 @@ final class EngineSession {
 
         if generation == previewGeneration {
             isRenderingPreview = false
+        }
+    }
+
+    private func scheduleDebouncedThumbnailRefresh(for path: String) {
+        if isCropToolActive, path == selectedFramePath { return }
+        thumbnailGeneration += 1
+        let generation = thumbnailGeneration
+        thumbnailDebounce.schedule { [weak self] in
+            guard let self else { return }
+            guard generation == self.thumbnailGeneration else { return }
+            await self.refreshThumbnail(for: path, generation: generation)
+        }
+    }
+
+    private func refreshThumbnail(for path: String, generation: Int? = nil) async {
+        guard engineReady,
+              let index = frames.firstIndex(where: { $0.path == path })
+        else { return }
+        if let generation, generation != thumbnailGeneration { return }
+
+        let frame = frames[index]
+        let gotAccess = beginFileAccess(for: frame.url)
+        defer {
+            if gotAccess {
+                endFileAccess(for: frame.url)
+            }
+        }
+
+        let config = frameEdits[path] ?? FrameEditState()
+        let stripGen = stripGeneration
+        frames[index].isLoadingThumbnail = frames[index].thumbnail == nil
+        defer { frames[index].isLoadingThumbnail = false }
+
+        do {
+            let result = try await client.render(
+                path: path,
+                longEdgePx: FilmStripLayout.thumbnailLongEdge,
+                config: config,
+                cropPreviewFull: false
+            )
+            if let generation, generation != thumbnailGeneration { return }
+            guard stripGen == stripGeneration else { return }
+            guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
+            if let data = result.pngData, let image = NSImage(data: data) {
+                frames[frameIndex].thumbnail = image
+            }
+        } catch {
+            // Thumbnail failure is non-fatal; full preview may still work.
         }
     }
 
@@ -531,10 +586,13 @@ final class EngineSession {
             defer { frames[index].isLoadingThumbnail = false }
 
             let path = frames[index].path
+            let config = frameEdits[path]
             do {
                 let result = try await client.render(
                     path: path,
-                    longEdgePx: FilmStripLayout.thumbnailLongEdge
+                    longEdgePx: FilmStripLayout.thumbnailLongEdge,
+                    config: config,
+                    cropPreviewFull: false
                 )
                 guard generation == stripGeneration else {
                     resetStuckThumbnailSpinners()
@@ -554,6 +612,7 @@ final class EngineSession {
         previewGeneration += 1
         previewDebounce.cancel()
         saveDebounce.cancel()
+        thumbnailDebounce.cancel()
         stopFolderAccess()
         stopFileAccess()
         frames = []

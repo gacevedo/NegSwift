@@ -78,7 +78,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M10 | PyInstaller / bundle |
 | M11 | Polish |
 
-**Current status (2026-08-14):** M0–M6 done (M3 partial). **Next: M7** persist. See status table in [PLAN.md](PLAN.md).
+**Current status (2026-08-14):** M0–M8 done (M3 partial). **Next: M9** export. See [PLAN.md](PLAN.md).
 
 When implementing a milestone, finish its deliverables and checklist items — do not skip ahead to bundling before M9b.
 

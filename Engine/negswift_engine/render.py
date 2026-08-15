@@ -13,7 +13,7 @@ from negpy.infrastructure.display.color_spaces import WORKING_COLOR_SPACE
 from negpy.infrastructure.gpu.resources import GPUTexture
 from negpy.kernel.image.logic import calculate_file_hash, float_to_uint8
 from negpy.kernel.system.config import APP_CONFIG, DEFAULT_WORKSPACE_CONFIG
-from negpy.services.assets.sidecar import load_sidecar
+from negpy.services.assets.sidecar import load_sidecar, write_sidecar
 from negpy.services.rendering.image_processor import ImageProcessor
 from negpy.services.rendering.preview_manager import PreviewManager
 from PIL import Image
@@ -50,6 +50,13 @@ def resolve_config(path: str, overrides: dict[str, Any] | None = None) -> Worksp
     return WorkspaceConfig.from_flat_dict(flat)
 
 
+def save_config_dict(path: str, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Merge overrides onto stored/default config and write a ``.negpy`` sidecar."""
+    config = resolve_config(path, overrides)
+    sidecar_path = write_sidecar(path, config)
+    return {"sidecar_path": sidecar_path}
+
+
 def open_asset(path: str) -> dict[str, Any]:
     pm = _preview_manager_instance()
     f_hash = calculate_file_hash(path)
@@ -69,6 +76,7 @@ def render_preview_png(
     config_overrides: dict[str, Any] | None = None,
     long_edge_px: int | None = None,
     prefer_gpu: bool = True,
+    crop_preview_full: bool = False,
 ) -> tuple[bytes, int, int, dict[str, Any]]:
     """Run the NegPy preview pipeline; return PNG bytes, width, height, metrics."""
     config = resolve_config(path, config_overrides)
@@ -92,6 +100,7 @@ def render_preview_png(
         prefer_gpu=prefer_gpu and APP_CONFIG.use_gpu,
         readback_metrics=False,
         ir_buffer=ir_buffer,
+        crop_preview_full=crop_preview_full,
     )
 
     if isinstance(result, GPUTexture):
@@ -117,12 +126,14 @@ def render_preview_base64(
     config_overrides: dict[str, Any] | None = None,
     long_edge_px: int | None = None,
     prefer_gpu: bool = True,
+    crop_preview_full: bool = False,
 ) -> dict[str, Any]:
     png_bytes, width, height, metrics = render_preview_png(
         path,
         config_overrides=config_overrides,
         long_edge_px=long_edge_px,
         prefer_gpu=prefer_gpu,
+        crop_preview_full=crop_preview_full,
     )
     return {
         "width": width,

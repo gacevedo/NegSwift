@@ -6,6 +6,7 @@
 import AppKit
 import Foundation
 import Observation
+import SwiftUI
 
 @Observable
 @MainActor
@@ -26,10 +27,15 @@ final class EngineSession {
     private(set) var frames: [ScanFrame] = []
     private(set) var selectedFrameID: UUID?
     private(set) var frameEdits: [String: FrameEditState] = [:]
+    private(set) var isCropToolActive = false
+    private(set) var previewPixelSize: CGSize?
 
     private let client = EngineClient()
-    private let previewDebounce = DebounceScheduler()
+    private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
+    private let saveDebounce = DebounceScheduler(interval: DebounceScheduler.saveInterval)
+    private var dirtyPaths: Set<String> = []
     private var scopedFolderURL: URL?
+    private var scopedFileURLs: [String: URL] = [:]
     private var stripGeneration = 0
     private var previewGeneration = 0
 
@@ -58,6 +64,82 @@ final class EngineSession {
     func setAutoExposure(_ value: Bool) { updateEdit { $0.autoExposure = value } }
     func setAutoNormalizeContrast(_ value: Bool) { updateEdit { $0.autoNormalizeContrast = value } }
 
+    func setCropToolActive(_ active: Bool) {
+        guard isCropToolActive != active else { return }
+        isCropToolActive = active
+        if active {
+            initializeCropRectIfNeeded()
+        }
+        refreshPreviewNow()
+    }
+
+    func setFineRotation(_ value: Double) { updateEdit { $0.fineRotation = value } }
+
+    func setAutocropRatio(_ value: String) {
+        guard isCropToolActive else { return }
+        updateEdit { edit in
+            edit.autocropRatio = value
+            if let size = previewPixelSize {
+                edit.manualCropRect = NormalizedRect.centered(
+                    ratioLabel: value,
+                    imageAspect: size.width / max(size.height, 1)
+                )
+            }
+        }
+    }
+
+    func setManualCropRect(_ rect: NormalizedRect) {
+        updateEdit { $0.manualCropRect = rect }
+    }
+
+    func resetCrop() {
+        updateEdit { edit in
+            edit.manualCropRect = nil
+            if isCropToolActive, let size = previewPixelSize {
+                edit.manualCropRect = NormalizedRect.centered(
+                    ratioLabel: edit.autocropRatio,
+                    imageAspect: size.width / max(size.height, 1)
+                )
+            }
+        }
+    }
+
+    func rotateClockwise() { applyRotation(direction: -1) }
+
+    func rotateCounterClockwise() { applyRotation(direction: 1) }
+
+    private func applyRotation(direction: Int) {
+        updateEdit { edit in
+            edit.rotation = (edit.rotation + direction + 4) % 4
+            if let rect = edit.manualCropRect {
+                edit.manualCropRect = rect.rotated(quarterTurnsCCW: direction)
+            }
+        }
+    }
+
+    private func initializeCropRectIfNeeded() {
+        guard let path = selectedFramePath else { return }
+        var edit = frameEdits[path] ?? FrameEditState()
+        guard edit.manualCropRect == nil else { return }
+        let aspect = previewPixelSize.map { $0.width / max($0.height, 1) } ?? 1.5
+        edit.manualCropRect = NormalizedRect.centered(ratioLabel: edit.autocropRatio, imageAspect: aspect)
+        frameEdits[path] = edit
+        dirtyPaths.insert(path)
+    }
+
+    private func refreshPreviewNow() {
+        guard let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else { return }
+        previewDebounce.cancel()
+        previewGeneration += 1
+        let generation = previewGeneration
+        let config = frameEdits[path] ?? FrameEditState()
+        Task {
+            await renderPreview(at: frame.url, generation: generation, config: config)
+        }
+    }
+
     private func updateEdit(_ transform: (inout FrameEditState) -> Void) {
         guard let path = selectedFramePath,
               let frame = frames.first(where: { $0.path == path })
@@ -65,7 +147,43 @@ final class EngineSession {
         var edit = frameEdits[path] ?? FrameEditState()
         transform(&edit)
         frameEdits[path] = edit
+        dirtyPaths.insert(path)
+        scheduleDebouncedSave(for: path)
         scheduleDebouncedPreview(for: frame)
+    }
+
+    private func scheduleDebouncedSave(for path: String) {
+        saveDebounce.schedule { [weak self] in
+            guard let self else { return }
+            await self.persistEdit(for: path)
+        }
+    }
+
+    func flushPendingSaves() async {
+        saveDebounce.cancel()
+        let paths = dirtyPaths
+        for path in paths {
+            await persistEdit(for: path)
+        }
+    }
+
+    private func persistEdit(for path: String) async {
+        guard dirtyPaths.contains(path), let edit = frameEdits[path] else { return }
+        guard let frame = frames.first(where: { $0.path == path }) else { return }
+
+        let gotAccess = beginFileAccess(for: frame.url)
+        defer {
+            if gotAccess {
+                endFileAccess(for: frame.url)
+            }
+        }
+
+        do {
+            _ = try await client.saveConfig(path: path, config: edit)
+            dirtyPaths.remove(path)
+        } catch {
+            previewError = "Could not save edits: \(error.localizedDescription)"
+        }
     }
 
     private func scheduleDebouncedPreview(for frame: ScanFrame) {
@@ -98,6 +216,7 @@ final class EngineSession {
     }
 
     func restart() async {
+        await flushPendingSaves()
         await client.stop()
         clearFilmStrip()
         state = .idle
@@ -108,6 +227,7 @@ final class EngineSession {
     }
 
     func stop() async {
+        await flushPendingSaves()
         await client.stop()
         clearFilmStrip()
         state = .idle
@@ -166,18 +286,20 @@ final class EngineSession {
     }
 
     func importFileFromPicker(_ url: URL) async {
-        let gotAccess = url.startAccessingSecurityScopedResource()
-        defer {
-            if gotAccess {
-                url.stopAccessingSecurityScopedResource()
-            }
+        if url.startAccessingSecurityScopedResource() {
+            scopedFileURLs[url.path] = url
         }
         await importFile(at: url)
     }
 
     func selectFrame(_ id: UUID) async {
+        let previousPath = selectedFramePath
         selectedFrameID = id
         guard let frame = frames.first(where: { $0.id == id }) else { return }
+        if let previousPath, previousPath != frame.path {
+            saveDebounce.cancel()
+            await persistEdit(for: previousPath)
+        }
         await ensureEditLoaded(for: frame.path)
         previewDebounce.cancel()
         previewGeneration += 1
@@ -200,10 +322,10 @@ final class EngineSession {
     private func renderPreview(at url: URL, generation: Int, config: FrameEditState? = nil) async {
         guard engineReady else { return }
 
-        let gotAccess = url.startAccessingSecurityScopedResource()
+        let gotAccess = beginFileAccess(for: url)
         defer {
             if gotAccess {
-                url.stopAccessingSecurityScopedResource()
+                endFileAccess(for: url)
             }
         }
 
@@ -211,13 +333,18 @@ final class EngineSession {
         previewError = nil
 
         do {
-            let result = try await client.render(path: url.path, config: config)
+            let result = try await client.render(
+                path: url.path,
+                config: config,
+                cropPreviewFull: isCropToolActive
+            )
             guard generation == previewGeneration else { return }
             guard let data = result.pngData, let image = NSImage(data: data) else {
                 previewError = "Engine returned an invalid PNG."
                 return
             }
             previewImage = image
+            previewPixelSize = CGSize(width: result.width, height: result.height)
             currentPath = url.path
         } catch {
             guard generation == previewGeneration else { return }
@@ -256,10 +383,42 @@ final class EngineSession {
         stripGeneration += 1
         previewGeneration += 1
         previewDebounce.cancel()
+        saveDebounce.cancel()
         stopFolderAccess()
+        stopFileAccess()
         frames = []
         selectedFrameID = nil
         frameEdits = [:]
+        dirtyPaths = []
+        isCropToolActive = false
+        previewPixelSize = nil
+    }
+
+    private func beginFileAccess(for url: URL) -> Bool {
+        if let folder = scopedFolderURL, url.path.hasPrefix(folder.path) {
+            return false
+        }
+        if scopedFileURLs[url.path] != nil {
+            return false
+        }
+        return url.startAccessingSecurityScopedResource()
+    }
+
+    private func endFileAccess(for url: URL) {
+        if let folder = scopedFolderURL, url.path.hasPrefix(folder.path) {
+            return
+        }
+        if scopedFileURLs[url.path] != nil {
+            return
+        }
+        url.stopAccessingSecurityScopedResource()
+    }
+
+    private func stopFileAccess() {
+        for url in scopedFileURLs.values {
+            url.stopAccessingSecurityScopedResource()
+        }
+        scopedFileURLs = [:]
     }
 
     private func stopFolderAccess() {

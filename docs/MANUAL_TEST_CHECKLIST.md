@@ -77,19 +77,21 @@ Test scan path:
 
 ---
 
-## M7 — Persist
+## M7 — Persist ✅
 
-- [ ] Quit and relaunch restores last edit
-- [ ] `.negpy` sidecar appears next to source file
-- [ ] NegPy desktop opens same file with matching settings
+- [x] Edit sliders → `.negpy` sidecar appears next to source (after ~1 s)
+- [x] Quit and relaunch → edits restored via `load_config`
+- [ ] NegPy desktop opens same file with matching settings — manual compare
 
 ---
 
-## M8 — Crop
+## M8 — Crop ✅
 
-- [ ] Drag crop rect updates geometry in preview
-- [ ] Aspect ratio constraint works (e.g. 3:2)
-- [ ] 90° rotation updates preview
+- [x] Crop Tool overlay — drag box, corner handles, aspect ratio constraint
+- [x] Rotate 90° CW / CCW
+- [x] Fine rotation slider
+- [x] Ratio picker (Free, 1:1, 3:2, …)
+- [ ] Export at full res reflects crop — verify after M9
 
 ---
 

@@ -7,12 +7,29 @@ import SwiftUI
 
 struct ControlsPanelView: View {
     @Bindable var session: EngineSession
+    @Binding var toneExpanded: Bool
+    @Binding var colourExpanded: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             processModePicker
-            tonePanel
-            colourPanel
+
+            SidebarSection(title: "Tone", isExpanded: $toneExpanded) {
+                VStack(alignment: .leading, spacing: 14) {
+                    autoRow
+                    sliderRow("Print Density", value: densityBinding, range: EditControlRanges.density, format: "%.2f")
+                    sliderRow("ISO-R Grade", value: gradeBinding, range: EditControlRanges.grade, format: "%.0f")
+                    sliderRow("Chroma", value: saturationBinding, range: EditControlRanges.saturation, format: "%.2f")
+                }
+            }
+
+            SidebarSection(title: "Colour", isExpanded: $colourExpanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+                    sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+                    sliderRow("Yellow", value: wbYellowBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+                }
+            }
         }
         .disabled(session.selectedFrameID == nil)
     }
@@ -26,29 +43,6 @@ struct ControlsPanelView: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         .accessibilityLabel("Process mode")
-    }
-
-    private var tonePanel: some View {
-        GroupBox("Tone") {
-            VStack(alignment: .leading, spacing: 14) {
-                autoRow
-                sliderRow("Print Density", value: densityBinding, range: EditControlRanges.density, format: "%.2f")
-                sliderRow("ISO-R Grade", value: gradeBinding, range: EditControlRanges.grade, format: "%.0f")
-                sliderRow("Chroma", value: saturationBinding, range: EditControlRanges.saturation, format: "%.2f")
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    private var colourPanel: some View {
-        GroupBox("Colour") {
-            VStack(alignment: .leading, spacing: 8) {
-                sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
-                sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
-                sliderRow("Yellow", value: wbYellowBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
-            }
-            .padding(.vertical, 4)
-        }
     }
 
     private var autoRow: some View {
@@ -144,7 +138,7 @@ struct ControlsPanelView: View {
 }
 
 #Preview {
-    ControlsPanelView(session: .preview)
+    ControlsPanelView(session: .preview, toneExpanded: .constant(true), colourExpanded: .constant(false))
         .padding()
         .frame(width: 280)
 }

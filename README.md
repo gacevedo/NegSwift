@@ -6,7 +6,7 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M6 complete** (M3 partial: no `cancel`/socket/`save_config` yet). **Next: M7** — persist edits to `.negpy` sidecars.
+**M0–M8 complete** (M3 partial: no `cancel`/socket). **Next: M9** — export.
 
 See **[PLAN.md](PLAN.md)** for the full roadmap and status table. Agents: read **[AGENTS.md](AGENTS.md)** first.
 

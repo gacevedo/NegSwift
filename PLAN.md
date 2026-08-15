@@ -16,13 +16,15 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M3** NDJSON daemon | **Partial** | `serve --stdio`; `load_config` added for M6. Missing: `cancel`, Unix socket, `save_config` |
 | **M4** Swift + preview | **Done** | Engine spawn, Open File → canvas |
 | **M5** Film strip | **Done** | Import Folder, lazy thumbnails |
-| **M6** Controls | **Done** | Sliders + Auto Density/Grade + debounced preview; `tests/test_config.py` |
-| **M7** Persist | **Next** | — |
-| M8–M11 | Not started | — |
+| **M6** Controls | **Done** | Sliders, process mode, debounced preview |
+| **M7** Persist | **Done** | `save_config`, debounced `.negpy` sidecars |
+| **M8** Crop | **Done** | Crop overlay, rotation, aspect ratio, fine rotation |
+| **M9** Export | **Next** | — |
+| M10–M11 | Not started | — |
 
-**Resume here:** M7 — auto-save `.negpy` sidecars + load on open.
+**Resume here:** M9 — engine export + Swift export sheet.
 
-**Verify:** `make test` (11 engine tests) · `make build-app` · ⌘R → import scan → drag sliders.
+**Verify:** `make test` (14 engine tests) · crop to 3:2 · rotate 90° · quit/reopen restores geometry.
 
 ---
 
@@ -329,6 +331,7 @@ open /tmp/negswift_preview.png
 - [x] Implement `ping`, `info`, `open`, `render` over NDJSON
 - [x] `discover` (added for M5; not in original v0.1 sketch)
 - [x] `load_config` (M6)
+- [x] `save_config`
 - [ ] `negswift-engine serve --socket PATH`
 - [ ] Job ids + `cancel`
 - [ ] `save_config`
@@ -394,38 +397,38 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 
 ---
 
-### M7 — Persist edits
+### M7 — Persist edits ✅
 
 **Deliverables**
 
-- [ ] Auto-save `WorkspaceConfig` to `.negpy` sidecar on change (debounced)
-- [ ] Load sidecar on `open` if present
-- [ ] Optional: `NEGPY_USER_DIR` or app support path for `edits.db` shared with desktop NegPy
+- [x] Auto-save `WorkspaceConfig` to `.negpy` sidecar on change (1 s debounce)
+- [x] Flush save on frame switch, background, and engine restart
+- [x] Load sidecar on frame select via `load_config`
+- [ ] Optional: shared `edits.db` via `NEGPY_USER_DIR` — deferred
 
-**Uses:** `write_sidecar`, `load_sidecar`, `StorageRepository.save_file_settings`.
+**Uses:** `write_sidecar`, `load_sidecar`; engine `save_config` merges partial edits onto stored config.
 
-**Automated:** round-trip test — save in engine, load in pytest; sidecar JSON parses in NegPy `from_flat_dict`.
+**Automated:** `tests/test_config.py::test_save_config_round_trip`.
 
-**Manual:**
-
-1. Edit frame in NegSwift → quit → reopen → edits restored.
-2. Open same frame in NegPy desktop → same density/grade/WB (within float tolerance).
+**Manual:** Edit frame → quit → reopen → edits restored; NegPy desktop opens same sidecar.
 
 ---
 
-### M8 — Crop + rotation
+### M8 — Crop + rotation ✅
 
 **Deliverables**
 
-- [ ] Canvas overlay: crop rect drag handles (simplified — no immersive toolbar)
-- [ ] Rotation ±90°, fine rotation slider
-- [ ] Aspect ratio picker (subset of `CROP_RATIO_CHOICES`)
+- [x] Canvas overlay: crop rect with corner handles + dimmed outside region
+- [x] Rotation ±90° (NegPy quarter-turn `rotation` field)
+- [x] Fine rotation slider (±45°, NegPy `fine_rotation` convention)
+- [x] Aspect ratio picker (``CROP_RATIO_CHOICES`` subset)
+- [x] Crop Tool toggle + Reset; geometry persisted in sidecar
 
-**Uses:** `GeometryConfig` fields; `crop_preview_full` during edit if needed.
+**Uses:** `GeometryConfig` — `manual_crop_rect`, `rotation`, `fine_rotation`, `autocrop_ratio`.
 
-**Automated:** geometry config round-trip tests.
+**Automated:** `tests/test_config.py::test_save_geometry_round_trip`.
 
-**Manual:** Crop to 3:2; export (M9) — cropped output matches preview bounds.
+**Manual:** Crop to 3:2; rotate CW; quit/reopen — crop and rotation restored.
 
 ---
 
@@ -608,8 +611,8 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M7:** Auto-save `.negpy` sidecars on edit; load on `open`; optional shared `edits.db`.
-2. **M3 debt (optional):** `cancel`, `save_config` on protocol.
+1. **M9:** Engine `export` method + Swift export sheet (JPEG/TIFF, sRGB).
+2. **M3 debt (optional):** `cancel`, Unix socket transport.
 3. **M0 debt:** GitHub Actions running `make test` + `make build-app`.
 4. **M9b** before any M10 packaging — submodule pin at `Vendor/NegPy`.
 

@@ -11,48 +11,65 @@ struct ContentView: View {
     @State private var showFolderImporter = false
     @State private var showFileImporter = false
 
+    @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
+    @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
+    @AppStorage("negSwift.sidebar.colour") private var colourExpanded = false
+    @AppStorage("negSwift.sidebar.crop") private var cropExpanded = false
+    @AppStorage("negSwift.sidebar.engine") private var engineExpanded = false
+
     private static let importTypes: [UTType] = [.tiff, .png, .jpeg, .heic, .rawImage]
 
     var body: some View {
         NavigationSplitView {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("NegSwift", systemImage: "film")
-                    .font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("NegSwift", systemImage: "film")
+                        .font(.headline)
 
-                HStack(spacing: 8) {
-                    Button("Import Folder…") {
-                        showFolderImporter = true
-                    }
-                    .disabled(!engineSession.engineReady)
-
-                    Button("Open File…") {
-                        showFileImporter = true
-                    }
-                    .disabled(!engineSession.engineReady || engineSession.isRenderingPreview)
-                }
-                .controlSize(.small)
-
-                GroupBox("Film Strip") {
-                    FilmStripView(
-                        frames: engineSession.frames,
-                        selectedID: engineSession.selectedFrameID,
-                        onSelect: { id in
-                            Task { await engineSession.selectFrame(id) }
+                    HStack(spacing: 8) {
+                        Button("Import Folder…") {
+                            showFolderImporter = true
                         }
+                        .disabled(!engineSession.engineReady)
+
+                        Button("Open File…") {
+                            showFileImporter = true
+                        }
+                        .disabled(!engineSession.engineReady || engineSession.isRenderingPreview)
+                    }
+                    .controlSize(.small)
+
+                    SidebarSection(title: "Film Strip", isExpanded: $filmStripExpanded) {
+                        FilmStripView(
+                            frames: engineSession.frames,
+                            selectedID: engineSession.selectedFrameID,
+                            onSelect: { id in
+                                Task { await engineSession.selectFrame(id) }
+                            }
+                        )
+                        .frame(minHeight: 96, maxHeight: 220)
+                    }
+
+                    ControlsPanelView(
+                        session: engineSession,
+                        toneExpanded: $toneExpanded,
+                        colourExpanded: $colourExpanded
                     )
-                    .frame(minHeight: 120, maxHeight: 280)
+
+                    GeometryPanelView(session: engineSession, isExpanded: $cropExpanded)
+
+                    SidebarSection(title: "Engine", isExpanded: $engineExpanded) {
+                        engineStatusCard
+                    }
                 }
-
-                ControlsPanelView(session: engineSession)
-
-                engineStatusCard
-                Spacer()
+                .padding()
             }
-            .padding()
             .frame(minWidth: 240, idealWidth: 280)
         } detail: {
             previewPane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .navigationSplitViewStyle(.balanced)
         .fileImporter(
             isPresented: $showFolderImporter,
             allowedContentTypes: [.folder],
@@ -87,10 +104,7 @@ struct ContentView: View {
             if engineSession.isRenderingPreview, engineSession.previewImage == nil {
                 ProgressView("Rendering preview…")
             } else if let image = engineSession.previewImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                PreviewCanvasView(session: engineSession, image: image)
                     .padding()
             } else {
                 VStack(spacing: 16) {
@@ -121,51 +135,49 @@ struct ContentView: View {
 
     @ViewBuilder
     private var engineStatusCard: some View {
-        GroupBox("Engine") {
-            switch engineSession.state {
-            case .idle:
-                HStack {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Idle")
-                        .foregroundStyle(.secondary)
-                }
-            case .starting:
-                HStack {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Starting negswift-engine…")
-                }
-            case let .ready(info):
-                VStack(alignment: .leading, spacing: 6) {
-                    statusRow("NegSwift", info.negswiftVersion)
-                    statusRow("NegPy", info.negpyVersion)
-                    statusRow("Python", info.python)
-                    statusRow("GPU", info.gpuAvailable ? (info.gpuBackend ?? "yes") : "CPU fallback")
-                    statusRow("Frames", "\(engineSession.frames.count)")
-                    if let path = engineSession.currentPath {
-                        statusRow("File", (path as NSString).lastPathComponent)
-                    }
-                    Button("Restart engine") {
-                        Task { await engineSession.restart() }
-                    }
+        switch engineSession.state {
+        case .idle:
+            HStack {
+                ProgressView()
                     .controlSize(.small)
-                }
-            case let .failed(message):
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                    Button("Retry") {
-                        Task { await engineSession.restart() }
-                    }
-                    .controlSize(.small)
-                }
-            case .previewUnavailable:
-                Text("Engine not started in SwiftUI Preview. Press ⌘R to run the app.")
-                    .font(.caption)
+                Text("Idle")
                     .foregroundStyle(.secondary)
             }
+        case .starting:
+            HStack {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Starting negswift-engine…")
+            }
+        case let .ready(info):
+            VStack(alignment: .leading, spacing: 6) {
+                statusRow("NegSwift", info.negswiftVersion)
+                statusRow("NegPy", info.negpyVersion)
+                statusRow("Python", info.python)
+                statusRow("GPU", info.gpuAvailable ? (info.gpuBackend ?? "yes") : "CPU fallback")
+                statusRow("Frames", "\(engineSession.frames.count)")
+                if let path = engineSession.currentPath {
+                    statusRow("File", (path as NSString).lastPathComponent)
+                }
+                Button("Restart engine") {
+                    Task { await engineSession.restart() }
+                }
+                .controlSize(.small)
+            }
+        case let .failed(message):
+            VStack(alignment: .leading, spacing: 8) {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .font(.caption)
+                Button("Retry") {
+                    Task { await engineSession.restart() }
+                }
+                .controlSize(.small)
+            }
+        case .previewUnavailable:
+            Text("Engine not started in SwiftUI Preview. Press ⌘R to run the app.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

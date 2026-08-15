@@ -110,11 +110,12 @@ Preview render at display resolution.
   "path": "/absolute/path/to/scan.tif",
   "config": { },
   "long_edge_px": 1600,
-  "prefer_gpu": true
+  "prefer_gpu": true,
+  "crop_preview_full": false
 }
 ```
 
-`config` is optional partial flat dict merged onto stored/default config.
+`crop_preview_full` — when `true`, render the full transformed frame without applying the crop (for on-canvas crop editing). Matches NegPy desktop crop-tool behaviour.
 
 **Result:**
 
@@ -165,6 +166,7 @@ Full-resolution export.
 | `NOT_FOUND` | Path does not exist |
 | `LOAD_FAILED` | Decode error |
 | `RENDER_FAILED` | Pipeline exception |
+| `SAVE_FAILED` | Sidecar write error |
 | `EXPORT_FAILED` | Write/encode error |
 | `BUSY` | Optional: engine at capacity |
 

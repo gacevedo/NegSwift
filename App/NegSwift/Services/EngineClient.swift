@@ -5,6 +5,14 @@
 
 import Foundation
 
+struct SaveConfigResult: Codable, Sendable {
+    let sidecarPath: String
+
+    enum CodingKeys: String, CodingKey {
+        case sidecarPath = "sidecar_path"
+    }
+}
+
 struct LoadConfigResult: Codable, Sendable {
     let config: [String: JSONValue]
 }
@@ -194,13 +202,26 @@ actor EngineClient {
     func render(
         path: String,
         longEdgePx: Int? = nil,
-        config: FrameEditState? = nil
+        config: FrameEditState? = nil,
+        cropPreviewFull: Bool = false
     ) async throws -> RenderResult {
-        try await call(method: "render", params: RenderParams(path: path, longEdgePx: longEdgePx, config: config))
+        try await call(
+            method: "render",
+            params: RenderParams(
+                path: path,
+                longEdgePx: longEdgePx,
+                config: config,
+                cropPreviewFull: cropPreviewFull
+            )
+        )
     }
 
     func loadConfig(path: String) async throws -> LoadConfigResult {
         try await call(method: "load_config", params: LoadConfigParams(path: path))
+    }
+
+    func saveConfig(path: String, config: FrameEditState) async throws -> SaveConfigResult {
+        try await call(method: "save_config", params: SaveConfigParams(path: path, config: config))
     }
 
     func discover(paths: [String]) async throws -> DiscoverResult {
@@ -218,17 +239,24 @@ actor EngineClient {
         let path: String
     }
 
+    private struct SaveConfigParams: Encodable {
+        let path: String
+        let config: FrameEditState
+    }
+
     private struct RenderParams: Encodable {
         let path: String
         let longEdgePx: Int?
         let preferGpu: Bool = true
         let config: FrameEditState?
+        let cropPreviewFull: Bool
 
         enum CodingKeys: String, CodingKey {
             case path
             case longEdgePx = "long_edge_px"
             case preferGpu = "prefer_gpu"
             case config
+            case cropPreviewFull = "crop_preview_full"
         }
 
         func encode(to encoder: Encoder) throws {
@@ -236,6 +264,7 @@ actor EngineClient {
             try container.encode(path, forKey: .path)
             try container.encodeIfPresent(longEdgePx, forKey: .longEdgePx)
             try container.encode(preferGpu, forKey: .preferGpu)
+            try container.encode(cropPreviewFull, forKey: .cropPreviewFull)
             if let config {
                 try container.encode(config, forKey: .config)
             }

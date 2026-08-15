@@ -8,6 +8,7 @@ import Foundation
 @MainActor
 final class DebounceScheduler {
     static let previewInterval: Duration = .milliseconds(300)
+    static let saveInterval: Duration = .milliseconds(1000)
 
     private var task: Task<Void, Never>?
     private let interval: Duration

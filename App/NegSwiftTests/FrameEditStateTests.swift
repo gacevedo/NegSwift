@@ -10,7 +10,7 @@ import Testing
 struct FrameEditStateTests {
     @Test func fromFlatConfigMapsNegPyKeys() {
         let state = FrameEditState.fromFlatConfig([
-            "process_mode": "B&W",
+            "process_mode": "B&W Negative",
             "density": 1.2,
             "grade": 120.0,
             "wb_magenta": 0.05,
@@ -23,6 +23,11 @@ struct FrameEditStateTests {
         #expect(state.wbMagenta == 0.05)
         #expect(state.autoExposure == false)
         #expect(state.manualCropRect?.x2 == 0.9)
+    }
+
+    @Test func fromFlatConfigAcceptsLegacyProcessModeKeys() {
+        #expect(FrameEditState.fromFlatConfig(["process_mode": "C41"]).processMode == .c41)
+        #expect(FrameEditState.fromFlatConfig(["process_mode": "B&W"]).processMode == .bw)
     }
 
     @Test func jsonRoundTripUsesFlatKeys() throws {
@@ -39,7 +44,7 @@ struct FrameEditStateTests {
         )
         let data = try JSONEncoder().encode(original)
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        #expect(object?["process_mode"] as? String == "C41")
+        #expect(object?["process_mode"] as? String == "Color Negative")
         #expect(object?["wb_cyan"] as? Double == 0.1)
         #expect(object?["auto_exposure"] as? Bool == false)
         #expect(object?["manual_crop_rect"] as? [Double] == [0.1, 0.1, 0.9, 0.9])

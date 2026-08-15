@@ -13,7 +13,7 @@ def test_load_config_defaults(sample_tiff: Path) -> None:
     msg = ndjson_request("load_config", {"path": str(sample_tiff)}, req_id="load-1")
     assert msg["ok"] is True
     config = msg["result"]["config"]
-    assert config["process_mode"] == "C41"
+    assert config["process_mode"] == "Color Negative"
     assert config["density"] == 1.0
     assert config["grade"] == 100.0
     assert config["auto_exposure"] is True
@@ -25,7 +25,7 @@ def test_render_bw_process_mode(sample_tiff: Path) -> None:
     params = {
         "path": str(sample_tiff),
         "prefer_gpu": False,
-        "config": {"process_mode": "B&W"},
+        "config": {"process_mode": "B&W Negative"},
     }
     msg = ndjson_request("render", params, req_id="render-bw")
     assert msg["ok"] is True

@@ -6,8 +6,8 @@
 import Foundation
 
 enum ProcessMode: String, CaseIterable, Codable, Sendable, Identifiable {
-    case c41 = "C41"
-    case bw = "B&W"
+    case c41 = "Color Negative"
+    case bw = "B&W Negative"
 
     var id: String { rawValue }
 
@@ -20,7 +20,12 @@ enum ProcessMode: String, CaseIterable, Codable, Sendable, Identifiable {
 
     static func fromFlatValue(_ value: Any?) -> ProcessMode {
         guard let raw = value as? String else { return .c41 }
-        return ProcessMode(rawValue: raw) ?? .c41
+        if let mode = ProcessMode(rawValue: raw) { return mode }
+        switch raw {
+        case "C41": return .c41
+        case "B&W": return .bw
+        default: return .c41
+        }
     }
 }
 

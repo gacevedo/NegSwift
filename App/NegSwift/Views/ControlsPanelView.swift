@@ -9,17 +9,46 @@ struct ControlsPanelView: View {
     @Bindable var session: EngineSession
 
     var body: some View {
-        GroupBox("Adjust") {
+        VStack(alignment: .leading, spacing: 12) {
+            processModePicker
+            tonePanel
+            colourPanel
+        }
+        .disabled(session.selectedFrameID == nil)
+    }
+
+    private var processModePicker: some View {
+        Picker("Process", selection: processModeBinding) {
+            ForEach(ProcessMode.allCases) { mode in
+                Text(mode.label).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .accessibilityLabel("Process mode")
+    }
+
+    private var tonePanel: some View {
+        GroupBox("Tone") {
             VStack(alignment: .leading, spacing: 14) {
                 autoRow
                 sliderRow("Print Density", value: densityBinding, range: EditControlRanges.density, format: "%.2f")
                 sliderRow("ISO-R Grade", value: gradeBinding, range: EditControlRanges.grade, format: "%.0f")
                 sliderRow("Chroma", value: saturationBinding, range: EditControlRanges.saturation, format: "%.2f")
-                whiteBalanceSection
             }
             .padding(.vertical, 4)
         }
-        .disabled(session.selectedFrameID == nil)
+    }
+
+    private var colourPanel: some View {
+        GroupBox("Colour") {
+            VStack(alignment: .leading, spacing: 8) {
+                sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+                sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+                sliderRow("Yellow", value: wbYellowBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+            }
+            .padding(.vertical, 4)
+        }
     }
 
     private var autoRow: some View {
@@ -28,17 +57,6 @@ struct ControlsPanelView: View {
                 .controlSize(.small)
             Toggle("Auto Grade", isOn: autoGradeBinding)
                 .controlSize(.small)
-        }
-    }
-
-    private var whiteBalanceSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("White Balance")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
-            sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
-            sliderRow("Yellow", value: wbYellowBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
         }
     }
 
@@ -59,6 +77,13 @@ struct ControlsPanelView: View {
             }
             Slider(value: value, in: range)
         }
+    }
+
+    private var processModeBinding: Binding<ProcessMode> {
+        Binding(
+            get: { session.currentEdit.processMode },
+            set: { session.setProcessMode($0) }
+        )
     }
 
     private var densityBinding: Binding<Double> {

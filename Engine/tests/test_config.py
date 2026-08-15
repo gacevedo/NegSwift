@@ -26,6 +26,7 @@ def test_load_config_defaults(sample_tiff: Path) -> None:
     msg = _request("load_config", {"path": str(sample_tiff)}, req_id="load-1")
     assert msg["ok"] is True
     config = msg["result"]["config"]
+    assert config["process_mode"] == "C41"
     assert config["density"] == 1.0
     assert config["grade"] == 100.0
     assert config["auto_exposure"] is True
@@ -33,7 +34,16 @@ def test_load_config_defaults(sample_tiff: Path) -> None:
     assert config["saturation"] == 1.0
 
 
-def test_render_with_manual_exposure(sample_tiff: Path) -> None:
+def test_render_bw_process_mode(sample_tiff: Path) -> None:
+    params = {
+        "path": str(sample_tiff),
+        "prefer_gpu": False,
+        "config": {"process_mode": "B&W"},
+    }
+    msg = _request("render", params, req_id="render-bw")
+    assert msg["ok"] is True
+    assert msg["result"]["width"] > 0
+
     params = {
         "path": str(sample_tiff),
         "prefer_gpu": False,

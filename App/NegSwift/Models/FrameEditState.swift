@@ -5,8 +5,28 @@
 
 import Foundation
 
+enum ProcessMode: String, CaseIterable, Codable, Sendable, Identifiable {
+    case c41 = "C41"
+    case bw = "B&W"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .c41: "C-41"
+        case .bw: "B&W"
+        }
+    }
+
+    static func fromFlatValue(_ value: Any?) -> ProcessMode {
+        guard let raw = value as? String else { return .c41 }
+        return ProcessMode(rawValue: raw) ?? .c41
+    }
+}
+
 /// M6 editing controls — flat WorkspaceConfig keys the lite shell exposes.
 struct FrameEditState: Equatable, Codable, Sendable {
+    var processMode: ProcessMode = .c41
     var density: Double = 1.0
     var grade: Double = 100.0
     var saturation: Double = 1.0
@@ -17,6 +37,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var autoNormalizeContrast: Bool = true
 
     enum CodingKeys: String, CodingKey {
+        case processMode = "process_mode"
         case density
         case grade
         case saturation
@@ -30,6 +51,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
     init() {}
 
     init(
+        processMode: ProcessMode = .c41,
         density: Double = 1.0,
         grade: Double = 100.0,
         saturation: Double = 1.0,
@@ -39,6 +61,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
         autoExposure: Bool = true,
         autoNormalizeContrast: Bool = true
     ) {
+        self.processMode = processMode
         self.density = density
         self.grade = grade
         self.saturation = saturation
@@ -51,6 +74,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        processMode = try container.decodeIfPresent(ProcessMode.self, forKey: .processMode) ?? .c41
         density = try container.decodeIfPresent(Double.self, forKey: .density) ?? 1.0
         grade = try container.decodeIfPresent(Double.self, forKey: .grade) ?? 100.0
         saturation = try container.decodeIfPresent(Double.self, forKey: .saturation) ?? 1.0
@@ -64,6 +88,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
     /// Merge keys from a full flat config dict returned by `load_config`.
     static func fromFlatConfig(_ config: [String: Any]) -> FrameEditState {
         FrameEditState(
+            processMode: ProcessMode.fromFlatValue(config["process_mode"]),
             density: double(config["density"], default: 1.0),
             grade: double(config["grade"], default: 100.0),
             saturation: double(config["saturation"], default: 1.0),

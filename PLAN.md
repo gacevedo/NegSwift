@@ -236,7 +236,7 @@ Preview responses use **PNG bytes (base64)** in v1 for simplicity; Milestone 7+ 
 
 - Folder import + film strip (grid of thumbnails)
 - Canvas preview (fit / 1:1 zoom, pan)
-- **Setup:** process mode (C-41 / E-6 / B&W), auto density / auto grade
+- **Setup:** process mode (C-41 / B&W in NegSwift; E-6 in full NegPy), auto density / auto grade
 - **Tone:** density, grade, saturation (single slider)
 - **Colour:** WB cyan/magenta/yellow
 - **Geometry:** auto crop, rotation, aspect ratio preset

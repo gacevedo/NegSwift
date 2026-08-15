@@ -48,6 +48,7 @@ final class EngineSession {
         return frames.first(where: { $0.id == id })?.path
     }
 
+    func setProcessMode(_ value: ProcessMode) { updateEdit { $0.processMode = value } }
     func setDensity(_ value: Double) { updateEdit { $0.density = value } }
     func setGrade(_ value: Double) { updateEdit { $0.grade = value } }
     func setSaturation(_ value: Double) { updateEdit { $0.saturation = value } }

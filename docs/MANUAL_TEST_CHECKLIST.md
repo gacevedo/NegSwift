@@ -68,6 +68,7 @@ Test scan path:
 
 ## M6 — Controls ✅
 
+- [x] Process mode picker (C-41 / B&W)
 - [x] Density slider updates preview (debounced, 300 ms)
 - [x] Grade slider updates contrast
 - [x] Chroma + WB sliders shift color

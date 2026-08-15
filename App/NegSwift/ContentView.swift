@@ -8,68 +8,90 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var engineSession: EngineSession
     @State private var showExportSheet = false
+    @State private var showEngineSheet = false
+    @State private var showResetConfirm = false
 
     @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
     @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
     @AppStorage("negSwift.sidebar.color") private var colorExpanded = false
     @AppStorage("negSwift.sidebar.crop") private var cropExpanded = false
-    @AppStorage("negSwift.sidebar.engine") private var engineExpanded = false
 
     var body: some View {
         NavigationSplitView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("NegSwift", systemImage: "film")
-                        .font(.headline)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("NegSwift", systemImage: "film")
+                            .font(.headline)
 
-                    HStack(spacing: 8) {
-                        Button("Open Folder…") {
-                            Task {
-                                guard let url = await FolderPicker.chooseFolder(
-                                    prompt: "Open Folder",
-                                    recentKind: .importFolder
-                                ) else { return }
-                                await engineSession.importFolder(at: url)
+                        HStack(spacing: 8) {
+                            Button("Open Folder…") {
+                                Task {
+                                    guard let url = await FolderPicker.chooseFolder(
+                                        prompt: "Open Folder",
+                                        recentKind: .importFolder
+                                    ) else { return }
+                                    await engineSession.importFolder(at: url)
+                                }
                             }
+                            .disabled(!engineSession.engineReady)
+
+                            Button("Open File…") {
+                                Task {
+                                    guard let url = await FolderPicker.chooseScanFile() else { return }
+                                    await engineSession.importFileFromPicker(url)
+                                }
+                            }
+                            .disabled(!engineSession.engineReady || engineSession.isRenderingPreview)
                         }
-                        .disabled(!engineSession.engineReady)
+                        .controlSize(.small)
 
-                        Button("Open File…") {
-                            Task {
-                                guard let url = await FolderPicker.chooseScanFile() else { return }
-                                await engineSession.importFileFromPicker(url)
-                            }
+                        SidebarSection(title: "Film Strip", isExpanded: $filmStripExpanded) {
+                            FilmStripView(
+                                frames: engineSession.frames,
+                                selectedID: engineSession.selectedFrameID,
+                                onSelect: { id in
+                                    Task { await engineSession.selectFrame(id) }
+                                }
+                            )
+                            .frame(minHeight: 96, maxHeight: 220)
                         }
-                        .disabled(!engineSession.engineReady || engineSession.isRenderingPreview)
-                    }
-                    .controlSize(.small)
 
-                    SidebarSection(title: "Film Strip", isExpanded: $filmStripExpanded) {
-                        FilmStripView(
-                            frames: engineSession.frames,
-                            selectedID: engineSession.selectedFrameID,
-                            onSelect: { id in
-                                Task { await engineSession.selectFrame(id) }
-                            }
+                        ProcessModePickerView(session: engineSession)
+
+                        GeometryPanelView(session: engineSession, isExpanded: $cropExpanded)
+
+                        ControlsPanelView(
+                            session: engineSession,
+                            toneExpanded: $toneExpanded,
+                            colorExpanded: $colorExpanded
                         )
-                        .frame(minHeight: 96, maxHeight: 220)
                     }
-
-                    ProcessModePickerView(session: engineSession)
-
-                    GeometryPanelView(session: engineSession, isExpanded: $cropExpanded)
-
-                    ControlsPanelView(
-                        session: engineSession,
-                        toneExpanded: $toneExpanded,
-                        colorExpanded: $colorExpanded
-                    )
-
-                    SidebarSection(title: "Engine", isExpanded: $engineExpanded) {
-                        engineStatusCard
-                    }
+                    .padding()
                 }
-                .padding()
+
+                Divider()
+
+                HStack(spacing: 12) {
+                    Button("Reset Adjustments…") {
+                        showResetConfirm = true
+                    }
+                    .controlSize(.mini)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
+
+                    Button("Engine") {
+                        showEngineSheet = true
+                    }
+                    .controlSize(.mini)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
             }
             .frame(minWidth: 240, idealWidth: 280)
         } detail: {
@@ -91,6 +113,21 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showExportSheet) {
             ExportSheetView(session: engineSession)
+        }
+        .sheet(isPresented: $showEngineSheet) {
+            EngineSheetView(session: engineSession)
+        }
+        .confirmationDialog(
+            "Reset all adjustments?",
+            isPresented: $showResetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Reset", role: .destructive) {
+                Task { await engineSession.resetCurrentFrameEdits() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Returns the selected frame to default settings and removes its saved sidecar. This cannot be undone.")
         }
         .navigationSplitViewStyle(.balanced)
     }
@@ -142,66 +179,6 @@ struct ContentView: View {
             }
             .padding()
         }
-    }
-
-    @ViewBuilder
-    private var engineStatusCard: some View {
-        switch engineSession.state {
-        case .idle:
-            HStack {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Idle")
-                    .foregroundStyle(.secondary)
-            }
-        case .starting:
-            HStack {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Starting negswift-engine…")
-            }
-        case let .ready(info):
-            VStack(alignment: .leading, spacing: 6) {
-                statusRow("NegSwift", info.negswiftVersion)
-                statusRow("NegPy", info.negpyVersion)
-                statusRow("Python", info.python)
-                statusRow("GPU", info.gpuAvailable ? (info.gpuBackend ?? "yes") : "CPU fallback")
-                statusRow("Frames", "\(engineSession.frames.count)")
-                if let path = engineSession.currentPath {
-                    statusRow("File", (path as NSString).lastPathComponent)
-                }
-                Button("Restart engine") {
-                    Task { await engineSession.restart() }
-                }
-                .controlSize(.small)
-            }
-        case let .failed(message):
-            VStack(alignment: .leading, spacing: 8) {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                    .font(.caption)
-                Button("Retry") {
-                    Task { await engineSession.restart() }
-                }
-                .controlSize(.small)
-            }
-        case .previewUnavailable:
-            Text("Engine not started in SwiftUI Preview. Press ⌘R to run the app.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func statusRow(_ title: String, _ value: String) -> some View {
-        HStack {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .textSelection(.enabled)
-                .lineLimit(1)
-        }
-        .font(.caption)
     }
 }
 

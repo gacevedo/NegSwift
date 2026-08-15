@@ -8,7 +8,7 @@ from typing import Any
 
 from negswift_engine.discover import discover_assets
 from negswift_engine.export import export_asset
-from negswift_engine.render import load_config_dict, open_asset, render_preview_base64, save_config_dict
+from negswift_engine.render import load_config_dict, open_asset, render_preview_base64, reset_config_dict, save_config_dict
 from negswift_engine.versions import negpy_version
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -78,6 +78,16 @@ def _cmd_save_config(params: dict[str, Any]) -> dict[str, Any]:
         raise ProtocolError("NOT_FOUND", str(exc)) from exc
     except OSError as exc:
         raise ProtocolError("SAVE_FAILED", str(exc)) from exc
+
+
+def _cmd_reset_config(params: dict[str, Any]) -> dict[str, Any]:
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        raise ProtocolError("INVALID_REQUEST", "params.path is required")
+    try:
+        return reset_config_dict(path)
+    except OSError as exc:
+        raise ProtocolError("RESET_FAILED", str(exc)) from exc
 
 
 def _cmd_render(params: dict[str, Any]) -> dict[str, Any]:
@@ -157,6 +167,7 @@ _HANDLERS: dict[str, Handler] = {
     "discover": _cmd_discover,
     "load_config": _cmd_load_config,
     "save_config": _cmd_save_config,
+    "reset_config": _cmd_reset_config,
     "render": _cmd_render,
     "export": _cmd_export,
 }

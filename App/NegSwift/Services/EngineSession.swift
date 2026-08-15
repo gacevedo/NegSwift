@@ -162,6 +162,45 @@ final class EngineSession {
     func setAnalysisBuffer(_ value: Double) { updateEdit { $0.analysisBuffer = value } }
     func setAutoDensityUsesCrop(_ value: Bool) { updateEdit { $0.autoDensityUsesCrop = value } }
 
+    func resetCurrentFrameEdits() async {
+        guard let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else { return }
+
+        previewDebounce.cancel()
+        saveDebounce.cancel()
+        thumbnailDebounce.cancel()
+        isCropToolActive = false
+        isCropOverlayReady = false
+        cropPreviewBaseline = nil
+
+        frameEdits[path] = FrameEditState()
+        dirtyPaths.remove(path)
+
+        let gotAccess = beginFileAccess(for: frame.url)
+        defer {
+            if gotAccess {
+                endFileAccess(for: frame.url)
+            }
+        }
+
+        do {
+            _ = try await client.resetConfig(path: path)
+        } catch {
+            previewError = "Could not reset edits: \(error.localizedDescription)"
+            return
+        }
+
+        if let index = frames.firstIndex(where: { $0.path == path }) {
+            frames[index].thumbnail = nil
+        }
+
+        previewGeneration += 1
+        let generation = previewGeneration
+        await renderPreview(at: frame.url, generation: generation)
+        await refreshThumbnail(for: path)
+    }
+
     var isLoadingCropPreview: Bool {
         isCropToolActive && !isCropOverlayReady && isRenderingPreview
     }

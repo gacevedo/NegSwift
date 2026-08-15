@@ -42,3 +42,12 @@ def write_raw_sidecar(source_path: str, payload: dict[str, Any]) -> str:
             os.unlink(tmp_path)
         raise
     return path
+
+
+def delete_sidecar(source_path: str) -> bool:
+    """Remove the ``.negpy`` sidecar if present. Returns whether a file was deleted."""
+    path = sidecar_path_for(source_path)
+    if not os.path.exists(path):
+        return False
+    os.unlink(path)
+    return True

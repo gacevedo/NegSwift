@@ -22,7 +22,7 @@ from negswift_engine.metering import (
     negpy_flat_for_pipeline,
     negpy_flat_for_save,
 )
-from negswift_engine.sidecar_io import read_raw_sidecar, write_raw_sidecar
+from negswift_engine.sidecar_io import delete_sidecar, read_raw_sidecar, write_raw_sidecar
 from PIL import Image
 
 _processor: ImageProcessor | None = None
@@ -79,6 +79,12 @@ def save_config_dict(path: str, overrides: dict[str, Any] | None = None) -> dict
     payload.update(extras)
     sidecar_path = write_raw_sidecar(path, payload)
     return {"sidecar_path": sidecar_path}
+
+
+def reset_config_dict(path: str) -> dict[str, Any]:
+    """Delete the frame sidecar so the next load uses NegPy defaults."""
+    removed = delete_sidecar(path)
+    return {"sidecar_removed": removed}
 
 
 def open_asset(path: str) -> dict[str, Any]:

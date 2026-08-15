@@ -146,3 +146,20 @@ def test_auto_density_uses_crop_round_trip(sample_tiff: Path, tmp_path: Path) ->
     assert loaded.get("analysis_rect") in (None, [])
 
     WorkspaceConfig.from_flat_dict({k: v for k, v in loaded.items() if k != "auto_density_uses_crop"})
+
+
+def test_reset_config_removes_sidecar(sample_tiff: Path, tmp_path: Path) -> None:
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    ndjson_request(
+        "save_config",
+        {"path": str(frame), "config": {"density": 1.5, "manual_crop_rect": [0.2, 0.2, 0.8, 0.8]}},
+        req_id="pre-reset-save",
+    )
+    reset_msg = ndjson_request("reset_config", {"path": str(frame)}, req_id="reset-1")
+    assert reset_msg["ok"] is True
+    assert reset_msg["result"]["sidecar_removed"] is True
+
+    loaded = ndjson_request("load_config", {"path": str(frame)}, req_id="post-reset-load")["result"]["config"]
+    assert loaded["density"] == 1.0
+    assert loaded.get("manual_crop_rect") in (None, [])

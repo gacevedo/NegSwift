@@ -13,6 +13,14 @@ struct SaveConfigResult: Codable, Sendable {
     }
 }
 
+struct ResetConfigResult: Codable, Sendable {
+    let sidecarRemoved: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case sidecarRemoved = "sidecar_removed"
+    }
+}
+
 struct LoadConfigResult: Codable, Sendable {
     let config: [String: JSONValue]
 }
@@ -253,6 +261,10 @@ actor EngineClient {
 
     func saveConfig(path: String, config: FrameEditState) async throws -> SaveConfigResult {
         try await call(method: "save_config", params: SaveConfigParams(path: path, config: config))
+    }
+
+    func resetConfig(path: String) async throws -> ResetConfigResult {
+        try await call(method: "reset_config", params: LoadConfigParams(path: path))
     }
 
     func discover(paths: [String]) async throws -> DiscoverResult {

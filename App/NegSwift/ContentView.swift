@@ -50,13 +50,15 @@ struct ContentView: View {
                         .frame(minHeight: 96, maxHeight: 220)
                     }
 
+                    ProcessModePickerView(session: engineSession)
+
+                    GeometryPanelView(session: engineSession, isExpanded: $cropExpanded)
+
                     ControlsPanelView(
                         session: engineSession,
                         toneExpanded: $toneExpanded,
                         colorExpanded: $colorExpanded
                     )
-
-                    GeometryPanelView(session: engineSession, isExpanded: $cropExpanded)
 
                     SidebarSection(title: "Engine", isExpanded: $engineExpanded) {
                         engineStatusCard

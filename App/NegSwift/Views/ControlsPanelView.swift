@@ -12,8 +12,6 @@ struct ControlsPanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            processModePicker
-
             SidebarSection(title: "Tone", isExpanded: $toneExpanded) {
                 VStack(alignment: .leading, spacing: 14) {
                     autoRow
@@ -32,17 +30,6 @@ struct ControlsPanelView: View {
             }
         }
         .disabled(session.selectedFrameID == nil)
-    }
-
-    private var processModePicker: some View {
-        Picker("Process", selection: processModeBinding) {
-            ForEach(ProcessMode.allCases) { mode in
-                Text(mode.label).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .accessibilityLabel("Process mode")
     }
 
     private var autoRow: some View {
@@ -71,13 +58,6 @@ struct ControlsPanelView: View {
             }
             Slider(value: value, in: range)
         }
-    }
-
-    private var processModeBinding: Binding<ProcessMode> {
-        Binding(
-            get: { session.currentEdit.processMode },
-            set: { session.setProcessMode($0) }
-        )
     }
 
     private var densityBinding: Binding<Double> {

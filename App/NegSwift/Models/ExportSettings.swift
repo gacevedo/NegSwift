@@ -31,6 +31,17 @@ struct ExportSettings: Sendable {
     var jpegQuality: Int = 90
     var colorSpace: String = "sRGB"
 
+    static let quickExport = ExportSettings(format: .jpeg, jpegQuality: 90)
+
+    var progressStatusText: String {
+        switch format {
+        case .jpeg:
+            "Exporting JPEG at full size (quality \(jpegQuality))…"
+        case .tiff:
+            "Exporting TIFF at full size…"
+        }
+    }
+
     func flatExportDict() -> [String: Any] {
         [
             "export_fmt": format.rawValue,

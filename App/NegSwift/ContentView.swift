@@ -4,11 +4,9 @@
 //
 
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Bindable var engineSession: EngineSession
-    @State private var showFileImporter = false
     @State private var showExportSheet = false
 
     @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
@@ -16,8 +14,6 @@ struct ContentView: View {
     @AppStorage("negSwift.sidebar.color") private var colorExpanded = false
     @AppStorage("negSwift.sidebar.crop") private var cropExpanded = false
     @AppStorage("negSwift.sidebar.engine") private var engineExpanded = false
-
-    private static let importTypes: [UTType] = [.tiff, .png, .jpeg, .heic, .rawImage]
 
     var body: some View {
         NavigationSplitView {
@@ -29,14 +25,20 @@ struct ContentView: View {
                     HStack(spacing: 8) {
                         Button("Import Folder…") {
                             Task {
-                                guard let url = await FolderPicker.chooseFolder(prompt: "Import Folder") else { return }
+                                guard let url = await FolderPicker.chooseFolder(
+                                    prompt: "Import Folder",
+                                    recentKind: .importFolder
+                                ) else { return }
                                 await engineSession.importFolder(at: url)
                             }
                         }
                         .disabled(!engineSession.engineReady)
 
                         Button("Open File…") {
-                            showFileImporter = true
+                            Task {
+                                guard let url = await FolderPicker.chooseScanFile() else { return }
+                                await engineSession.importFileFromPicker(url)
+                            }
                         }
                         .disabled(!engineSession.engineReady || engineSession.isRenderingPreview)
                     }
@@ -74,7 +76,12 @@ struct ContentView: View {
             previewPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button("Quick Export") {
+                            Task { await engineSession.quickExport() }
+                        }
+                        .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
+
                         Button("Export…") {
                             showExportSheet = true
                         }
@@ -86,19 +93,6 @@ struct ContentView: View {
             ExportSheetView(session: engineSession)
         }
         .navigationSplitViewStyle(.balanced)
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: Self.importTypes,
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case let .success(urls):
-                guard let url = urls.first else { return }
-                Task { await engineSession.importFileFromPicker(url) }
-            case let .failure(error):
-                engineSession.noteImportError(error.localizedDescription)
-            }
-        }
     }
 
     @ViewBuilder
@@ -124,15 +118,29 @@ struct ContentView: View {
                 }
             }
         }
-        .overlay(alignment: .bottom) {
-            if let error = engineSession.previewError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(8)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    .padding()
+        .overlay {
+            if engineSession.isExporting, let settings = engineSession.activeExportSettings {
+                ExportProgressView(statusText: settings.progressStatusText)
             }
+        }
+        .overlay(alignment: .bottom) {
+            VStack(spacing: 8) {
+                if let error = engineSession.exportError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(8)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                }
+                if let error = engineSession.previewError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(8)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            .padding()
         }
     }
 

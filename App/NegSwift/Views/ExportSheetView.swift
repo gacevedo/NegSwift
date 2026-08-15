@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct ExportSheetView: View {
     @Bindable var session: EngineSession
@@ -52,35 +51,17 @@ struct ExportSheetView: View {
                 Spacer()
                 Button("Choose…") {
                     Task {
-                        if let url = await FolderPicker.chooseFolder(prompt: "Export To") {
+                        if let url = await FolderPicker.chooseFolder(
+                            prompt: "Export To",
+                            recentKind: .exportFolder
+                        ) {
                             destinationURL = url
                         }
                     }
                 }
             }
 
-            if session.isExporting {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Exporting at full resolution…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if let error = session.exportError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
             HStack {
-                if session.isExporting {
-                    Button("Cancel") {
-                        session.cancelExport()
-                    }
-                }
                 Spacer()
                 Button("Close") {
                     dismiss()
@@ -97,7 +78,8 @@ struct ExportSheetView: View {
         .frame(width: 420, height: Self.sheetHeight)
         .onAppear {
             if destinationURL == nil {
-                destinationURL = defaultDestinationURL()
+                destinationURL = RecentPathsStore.directoryURL(for: .exportFolder)
+                    ?? defaultDestinationURL()
             }
         }
     }
@@ -155,19 +137,21 @@ struct ExportSheetView: View {
 
     private func runExport() async {
         guard let destinationURL else { return }
+        let exportSettings = settings
         session.clearExportError()
-        do {
-            let gotAccess = destinationURL.startAccessingSecurityScopedResource()
-            defer {
-                if gotAccess {
-                    destinationURL.stopAccessingSecurityScopedResource()
-                }
+        dismiss()
+        let gotAccess = destinationURL.startAccessingSecurityScopedResource()
+        defer {
+            if gotAccess {
+                destinationURL.stopAccessingSecurityScopedResource()
             }
+        }
+        do {
             _ = try await session.exportCurrentFrame(
                 to: destinationURL,
-                settings: settings
+                settings: exportSettings
             )
-            dismiss()
+            RecentPathsStore.remember(destinationURL, for: .exportFolder)
         } catch is CancellationError {
             return
         } catch {

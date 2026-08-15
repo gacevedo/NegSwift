@@ -46,6 +46,7 @@ final class EngineSession {
     private var previewGeneration = 0
     private var isThumbnailLoadRunning = false
     private(set) var isExporting = false
+    private(set) var activeExportSettings: ExportSettings?
     private(set) var exportError: String?
 
     private var exportTask: Task<ExportResult, Error>?
@@ -78,10 +79,25 @@ final class EngineSession {
         exportError = message
     }
 
-    func cancelExport() {
-        exportTask?.cancel()
-        Task {
-            await client.cancelActiveExport()
+    func quickExport() async {
+        guard let destination = RecentPathsStore.quickExportDestinationURL() else {
+            exportError = "No export folder available. Use Export… to choose a destination."
+            return
+        }
+        clearExportError()
+        let gotAccess = destination.startAccessingSecurityScopedResource()
+        defer {
+            if gotAccess {
+                destination.stopAccessingSecurityScopedResource()
+            }
+        }
+        do {
+            _ = try await exportCurrentFrame(to: destination, settings: .quickExport)
+            RecentPathsStore.remember(destination, for: .exportFolder)
+        } catch is CancellationError {
+            return
+        } catch {
+            return
         }
     }
 
@@ -116,9 +132,11 @@ final class EngineSession {
         }
         exportTask = task
         isExporting = true
+        activeExportSettings = settings
         exportError = nil
         defer {
             isExporting = false
+            activeExportSettings = nil
             exportTask = nil
         }
         do {

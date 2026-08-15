@@ -289,6 +289,7 @@ actor EngineClient {
     }
 
     func cancel(jobID: String) async throws {
+        failPendingRequest(jobID: jobID)
         let _: CancelResult = try await call(
             method: "cancel",
             params: CancelParams(jobID: jobID),
@@ -296,9 +297,10 @@ actor EngineClient {
         )
     }
 
-    func cancelActiveExport() async {
-        guard let jobID = activeExportJobID else { return }
-        try? await cancel(jobID: jobID)
+    private func failPendingRequest(jobID: String) {
+        if let continuation = pending.removeValue(forKey: jobID) {
+            continuation.resume(throwing: CancellationError())
+        }
     }
 
     private struct ExportWireSettings: Encodable {

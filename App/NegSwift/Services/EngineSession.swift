@@ -30,6 +30,9 @@ final class EngineSession {
     private(set) var isCropToolActive = false
     private(set) var previewPixelSize: CGSize?
 
+    /// Exposure/normalization snapshot taken when crop mode opens; crop-box drags do not re-meter.
+    private var cropPreviewBaseline: FrameEditState?
+
     private let client = EngineClient()
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
     private let saveDebounce = DebounceScheduler(interval: DebounceScheduler.saveInterval)
@@ -66,18 +69,27 @@ final class EngineSession {
 
     func setCropToolActive(_ active: Bool) {
         guard isCropToolActive != active else { return }
-        isCropToolActive = active
         if active {
             initializeCropRectIfNeeded()
+            if let path = selectedFramePath {
+                cropPreviewBaseline = frameEdits[path] ?? FrameEditState()
+            }
+            isCropToolActive = true
+        } else {
+            isCropToolActive = false
+            cropPreviewBaseline = nil
         }
         refreshPreviewNow()
     }
 
-    func setFineRotation(_ value: Double) { updateEdit { $0.fineRotation = value } }
+    func setFineRotation(_ value: Double) {
+        updateEdit { $0.fineRotation = value }
+        syncCropPreviewBaselineGeometry(from: currentEdit)
+    }
 
     func setAutocropRatio(_ value: String) {
         guard isCropToolActive else { return }
-        updateEdit { edit in
+        updateEdit(refreshPreview: false) { edit in
             edit.autocropRatio = value
             if let size = previewPixelSize {
                 edit.manualCropRect = NormalizedRect.centered(
@@ -89,11 +101,11 @@ final class EngineSession {
     }
 
     func setManualCropRect(_ rect: NormalizedRect) {
-        updateEdit { $0.manualCropRect = rect }
+        updateEdit(refreshPreview: !isCropToolActive) { $0.manualCropRect = rect }
     }
 
     func resetCrop() {
-        updateEdit { edit in
+        updateEdit(refreshPreview: !isCropToolActive) { edit in
             edit.manualCropRect = nil
             if isCropToolActive, let size = previewPixelSize {
                 edit.manualCropRect = NormalizedRect.centered(
@@ -115,6 +127,7 @@ final class EngineSession {
                 edit.manualCropRect = rect.rotated(quarterTurnsCCW: direction)
             }
         }
+        syncCropPreviewBaselineGeometry(from: currentEdit)
     }
 
     private func initializeCropRectIfNeeded() {
@@ -127,6 +140,24 @@ final class EngineSession {
         dirtyPaths.insert(path)
     }
 
+    private func effectivePreviewConfig(_ config: FrameEditState) -> FrameEditState {
+        guard isCropToolActive, let baseline = cropPreviewBaseline else { return config }
+        var preview = baseline
+        preview.autoExposure = false
+        preview.autoNormalizeContrast = false
+        preview.rotation = config.rotation
+        preview.fineRotation = config.fineRotation
+        return preview
+    }
+
+    private func syncCropPreviewBaselineGeometry(from config: FrameEditState) {
+        guard isCropToolActive, var baseline = cropPreviewBaseline else { return }
+        baseline.rotation = config.rotation
+        baseline.fineRotation = config.fineRotation
+        baseline.manualCropRect = config.manualCropRect
+        cropPreviewBaseline = baseline
+    }
+
     private func refreshPreviewNow() {
         guard let path = selectedFramePath,
               let frame = frames.first(where: { $0.path == path })
@@ -134,13 +165,12 @@ final class EngineSession {
         previewDebounce.cancel()
         previewGeneration += 1
         let generation = previewGeneration
-        let config = frameEdits[path] ?? FrameEditState()
         Task {
-            await renderPreview(at: frame.url, generation: generation, config: config)
+            await renderPreview(at: frame.url, generation: generation)
         }
     }
 
-    private func updateEdit(_ transform: (inout FrameEditState) -> Void) {
+    private func updateEdit(refreshPreview: Bool = true, _ transform: (inout FrameEditState) -> Void) {
         guard let path = selectedFramePath,
               let frame = frames.first(where: { $0.path == path })
         else { return }
@@ -149,7 +179,9 @@ final class EngineSession {
         frameEdits[path] = edit
         dirtyPaths.insert(path)
         scheduleDebouncedSave(for: path)
-        scheduleDebouncedPreview(for: frame)
+        if refreshPreview {
+            scheduleDebouncedPreview(for: frame)
+        }
     }
 
     private func scheduleDebouncedSave(for path: String) {
@@ -189,13 +221,11 @@ final class EngineSession {
     private func scheduleDebouncedPreview(for frame: ScanFrame) {
         previewGeneration += 1
         let generation = previewGeneration
-        let config = frameEdits[frame.path] ?? FrameEditState()
         previewDebounce.schedule { [weak self] in
             guard let self else { return }
             await self.renderPreview(
                 at: frame.url,
-                generation: generation,
-                config: config
+                generation: generation
             )
         }
     }
@@ -294,6 +324,8 @@ final class EngineSession {
 
     func selectFrame(_ id: UUID) async {
         let previousPath = selectedFramePath
+        isCropToolActive = false
+        cropPreviewBaseline = nil
         selectedFrameID = id
         guard let frame = frames.first(where: { $0.id == id }) else { return }
         if let previousPath, previousPath != frame.path {
@@ -304,8 +336,7 @@ final class EngineSession {
         previewDebounce.cancel()
         previewGeneration += 1
         let generation = previewGeneration
-        let config = frameEdits[frame.path] ?? FrameEditState()
-        await renderPreview(at: frame.url, generation: generation, config: config)
+        await renderPreview(at: frame.url, generation: generation)
     }
 
     private func ensureEditLoaded(for path: String) async {
@@ -332,10 +363,14 @@ final class EngineSession {
         isRenderingPreview = true
         previewError = nil
 
+        let path = url.path
+        let baseConfig = frameEdits[path] ?? config ?? FrameEditState()
+        let effectiveConfig = effectivePreviewConfig(baseConfig)
+
         do {
             let result = try await client.render(
-                path: url.path,
-                config: config,
+                path: path,
+                config: effectiveConfig,
                 cropPreviewFull: isCropToolActive
             )
             guard generation == previewGeneration else { return }
@@ -345,7 +380,7 @@ final class EngineSession {
             }
             previewImage = image
             previewPixelSize = CGSize(width: result.width, height: result.height)
-            currentPath = url.path
+            currentPath = path
         } catch {
             guard generation == previewGeneration else { return }
             previewError = error.localizedDescription
@@ -391,6 +426,7 @@ final class EngineSession {
         frameEdits = [:]
         dirtyPaths = []
         isCropToolActive = false
+        cropPreviewBaseline = nil
         previewPixelSize = nil
     }
 

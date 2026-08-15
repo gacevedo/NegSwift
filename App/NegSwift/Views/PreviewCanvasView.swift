@@ -18,7 +18,8 @@ struct PreviewCanvasView: View {
                 if session.isCropToolActive {
                     CropOverlayView(
                         cropRect: cropBinding,
-                        aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio)
+                        aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio),
+                        onClickOutside: { session.setCropToolActive(false) }
                     )
                 }
             }

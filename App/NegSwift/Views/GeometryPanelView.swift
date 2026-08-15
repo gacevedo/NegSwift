@@ -27,6 +27,10 @@ struct GeometryPanelView: View {
                         session.resetCrop()
                     }
                     .controlSize(.small)
+
+                    Text("Click outside the crop box to apply. Exposure stays fixed while you adjust the box.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text("Turn on Crop Tool to draw and adjust the crop box on the preview.")
                         .font(.caption)

@@ -8,6 +8,7 @@ import SwiftUI
 struct CropOverlayView: View {
     @Binding var cropRect: NormalizedRect
     let aspectRatio: CropAspectRatio
+    var onClickOutside: () -> Void = {}
 
     @State private var dragRect: NormalizedRect?
     @State private var dragStartRect: NormalizedRect?
@@ -45,7 +46,29 @@ struct CropOverlayView: View {
                     handleView(handle, cropScreenRect: rect, width: width, height: height)
                 }
             }
+            .contentShape(Rectangle())
+            .gesture(outsideTapGesture(cropScreenRect: rect, width: width, height: height))
         }
+    }
+
+    private func outsideTapGesture(cropScreenRect rect: CGRect, width: CGFloat, height: CGFloat) -> some Gesture {
+        SpatialTapGesture()
+            .onEnded { value in
+                let point = value.location
+                guard !rect.contains(point), !isNearHandle(point, cropScreenRect: rect) else { return }
+                onClickOutside()
+            }
+    }
+
+    private func isNearHandle(_ point: CGPoint, cropScreenRect rect: CGRect) -> Bool {
+        let grab = handleSize * 1.5
+        for handle in CropHandle.allCases {
+            let handlePoint = handle.point(in: rect)
+            if hypot(point.x - handlePoint.x, point.y - handlePoint.y) <= grab {
+                return true
+            }
+        }
+        return false
     }
 
     private func moveGesture(width: CGFloat, height: CGFloat) -> some Gesture {

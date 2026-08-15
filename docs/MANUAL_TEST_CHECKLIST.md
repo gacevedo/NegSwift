@@ -88,6 +88,8 @@ Test scan path:
 ## M8 — Crop ✅
 
 - [x] Crop Tool overlay — drag box, corner handles, aspect ratio constraint
+- [x] Click outside crop box applies crop and closes tool
+- [x] Auto Density / Auto Grade frozen while crop tool is open (baseline snapshot; no re-meter on drag)
 - [x] Rotate 90° CW / CCW
 - [x] Fine rotation slider
 - [x] Ratio picker (Free, 1:1, 3:2, …)

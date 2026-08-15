@@ -15,6 +15,9 @@ struct ControlsPanelView: View {
             SidebarSection(title: "Tone", isExpanded: $toneExpanded) {
                 VStack(alignment: .leading, spacing: 14) {
                     autoRow
+                    if session.currentEdit.autoExposure {
+                        meteringSection
+                    }
                     sliderRow("Print Density", value: densityBinding, range: EditControlRanges.density, defaultValue: EditControlDefaults.density, format: "%.2f")
                     sliderRow("ISO-R Grade", value: gradeBinding, range: EditControlRanges.grade, defaultValue: EditControlDefaults.grade, format: "%.0f")
                     sliderRow("Chroma", value: saturationBinding, range: EditControlRanges.saturation, defaultValue: EditControlDefaults.saturation, format: "%.2f")
@@ -41,19 +44,45 @@ struct ControlsPanelView: View {
         }
     }
 
+    private var meteringSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sliderRow(
+                "Analysis Buffer",
+                value: analysisBufferBinding,
+                range: EditControlRanges.analysisBuffer,
+                defaultValue: EditControlDefaults.analysisBuffer,
+                format: "%.0f%%",
+                valueScale: 100
+            )
+            Text(meteringHint)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var meteringHint: String {
+        if session.currentEdit.hasCrop {
+            "Auto Density meters inside your crop. Raise Analysis Buffer to inset further from the crop edge."
+        } else {
+            "Crop to the film area so Auto Density ignores scanner borders, or raise Analysis Buffer on full-frame scans."
+        }
+    }
+
     private func sliderRow(
         _ title: String,
         value: Binding<Double>,
         range: ClosedRange<Double>,
         defaultValue: Double,
-        format: String
+        format: String,
+        valueScale: Double = 1
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title)
                     .font(.caption)
                 Spacer()
-                Text(String(format: format, value.wrappedValue))
+                Text(String(format: format, value.wrappedValue * valueScale))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -114,6 +143,13 @@ struct ControlsPanelView: View {
         Binding(
             get: { session.currentEdit.autoNormalizeContrast },
             set: { session.setAutoNormalizeContrast($0) }
+        )
+    }
+
+    private var analysisBufferBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.analysisBuffer },
+            set: { session.setAnalysisBuffer($0) }
         )
     }
 }

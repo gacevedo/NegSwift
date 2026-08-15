@@ -19,6 +19,19 @@ def test_load_config_defaults(sample_tiff: Path) -> None:
     assert config["auto_exposure"] is True
     assert config["auto_normalize_contrast"] is True
     assert config["saturation"] == 1.0
+    assert config["analysis_buffer"] == 0.05
+    assert config["auto_density_uses_crop"] is True
+
+
+def test_render_with_analysis_buffer(sample_tiff: Path) -> None:
+    params = {
+        "path": str(sample_tiff),
+        "prefer_gpu": False,
+        "config": {"analysis_buffer": 0.15, "auto_exposure": True},
+    }
+    msg = ndjson_request("render", params, req_id="render-buffer")
+    assert msg["ok"] is True
+    assert msg["result"]["width"] > 0
 
 
 def test_render_bw_process_mode(sample_tiff: Path) -> None:
@@ -54,6 +67,7 @@ def test_save_config_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
         "density": 1.25,
         "wb_cyan": 0.1,
         "auto_exposure": False,
+        "analysis_buffer": 0.18,
     }
     save_msg = ndjson_request(
         "save_config",
@@ -71,6 +85,7 @@ def test_save_config_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
     assert loaded["density"] == 1.25
     assert loaded["wb_cyan"] == 0.1
     assert loaded["auto_exposure"] is False
+    assert loaded["analysis_buffer"] == 0.18
     assert loaded["grade"] == 100.0
 
 
@@ -109,3 +124,25 @@ def test_save_geometry_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
     assert loaded["manual_crop_rect"] == [0.1, 0.15, 0.9, 0.85]
 
     WorkspaceConfig.from_flat_dict(loaded)
+
+
+def test_auto_density_uses_crop_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    overrides = {
+        "manual_crop_rect": [0.2, 0.2, 0.8, 0.8],
+        "auto_density_uses_crop": False,
+    }
+    save_msg = ndjson_request(
+        "save_config",
+        {"path": str(frame), "config": overrides},
+        req_id="meter-save",
+    )
+    assert save_msg["ok"] is True
+
+    loaded = ndjson_request("load_config", {"path": str(frame)}, req_id="meter-load")["result"]["config"]
+    assert loaded["manual_crop_rect"] == [0.2, 0.2, 0.8, 0.8]
+    assert loaded["auto_density_uses_crop"] is False
+    assert loaded.get("analysis_rect") in (None, [])
+
+    WorkspaceConfig.from_flat_dict({k: v for k, v in loaded.items() if k != "auto_density_uses_crop"})

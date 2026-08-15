@@ -23,14 +23,20 @@ struct GeometryPanelView: View {
                     }
                     .pickerStyle(.menu)
 
+                    if session.currentEdit.autoExposure {
+                        Toggle("Apply Auto Density while cropping", isOn: autoDensityUsesCropBinding)
+                            .controlSize(.small)
+                    }
+
                     Button("Reset Crop Box") {
                         session.resetCrop()
                     }
                     .controlSize(.small)
 
-                    Text("Click outside the box to apply. Full frame loads first; exposure stays fixed while adjusting.")
+                    Text(cropToolHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("Turn on Crop Tool to draw and adjust the crop box on the preview.")
                         .font(.caption)
@@ -80,6 +86,14 @@ struct GeometryPanelView: View {
         }
     }
 
+    private var cropToolHint: String {
+        if session.currentEdit.autoExposure && session.currentEdit.autoDensityUsesCrop {
+            "Click outside the box to apply. Auto Density follows the crop box as you drag."
+        } else {
+            "Click outside the box to apply. Full frame loads first; tone stays fixed while adjusting."
+        }
+    }
+
     private var aspectRatioBinding: Binding<CropAspectRatio> {
         Binding(
             get: { CropAspectRatio.canonical(session.currentEdit.autocropRatio) },
@@ -91,6 +105,13 @@ struct GeometryPanelView: View {
         Binding(
             get: { session.isCropToolActive },
             set: { session.setCropToolActive($0) }
+        )
+    }
+
+    private var autoDensityUsesCropBinding: Binding<Bool> {
+        Binding(
+            get: { session.currentEdit.autoDensityUsesCrop },
+            set: { session.setAutoDensityUsesCrop($0) }
         )
     }
 }

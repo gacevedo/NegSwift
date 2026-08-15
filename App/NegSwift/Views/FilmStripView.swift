@@ -13,7 +13,7 @@ struct FilmStripView: View {
     var body: some View {
         Group {
             if frames.isEmpty {
-                Text("Import a folder to see frames")
+                Text("Open a folder or file to see frames")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)

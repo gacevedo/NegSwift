@@ -387,6 +387,8 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 - [x] SwiftUI sliders: density, grade, saturation (Chroma), WB CMY
 - [x] Debounced render (300 ms) + stale-job generation guard
 - [x] `Auto Density` / `Auto Grade` toggles (`auto_exposure`, `auto_normalize_contrast`)
+- [x] `Analysis Buffer` slider (`analysis_buffer`, 0–25%) for Auto Density metering
+- [x] **Apply Auto Density while cropping** toggle in Crop pane (`auto_density_uses_crop`; live re-meter on drag when on)
 - [x] Engine `load_config` + `render` with partial `WorkspaceConfig`
 
 **Uses:** `WorkspaceConfig` patches via `resolve_config`; auto metering in NegPy exposure stage.

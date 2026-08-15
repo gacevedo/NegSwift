@@ -13,9 +13,16 @@ from negpy.infrastructure.display.color_spaces import WORKING_COLOR_SPACE
 from negpy.infrastructure.gpu.resources import GPUTexture
 from negpy.kernel.image.logic import calculate_file_hash, float_to_uint8
 from negpy.kernel.system.config import APP_CONFIG, DEFAULT_WORKSPACE_CONFIG
-from negpy.services.assets.sidecar import load_sidecar, write_sidecar
+from negpy.services.assets.sidecar import load_sidecar
 from negpy.services.rendering.image_processor import ImageProcessor
 from negpy.services.rendering.preview_manager import PreviewManager
+from negswift_engine.metering import (
+    default_auto_density_uses_crop,
+    negswift_sidecar_extras,
+    negpy_flat_for_pipeline,
+    negpy_flat_for_save,
+)
+from negswift_engine.sidecar_io import read_raw_sidecar, write_raw_sidecar
 from PIL import Image
 
 _processor: ImageProcessor | None = None
@@ -36,24 +43,41 @@ def _preview_manager_instance() -> PreviewManager:
     return _preview_manager
 
 
+def _base_flat_dict(path: str) -> dict[str, Any]:
+    raw = read_raw_sidecar(path)
+    if raw is not None:
+        return dict(raw)
+    flat = DEFAULT_WORKSPACE_CONFIG.to_dict()
+    flat["auto_density_uses_crop"] = True
+    return flat
+
+
 def load_config_dict(path: str) -> dict[str, Any]:
-    config = load_sidecar(path) or DEFAULT_WORKSPACE_CONFIG
-    return config.to_dict()
+    flat = _base_flat_dict(path)
+    if "auto_density_uses_crop" not in flat:
+        flat["auto_density_uses_crop"] = True
+    return flat
 
 
 def resolve_config(path: str, overrides: dict[str, Any] | None = None) -> WorkspaceConfig:
-    config = load_sidecar(path) or DEFAULT_WORKSPACE_CONFIG
-    if not overrides:
-        return config
-    flat = config.to_dict()
-    flat.update(overrides)
-    return WorkspaceConfig.from_flat_dict(flat)
+    flat = _base_flat_dict(path)
+    if overrides:
+        flat.update(overrides)
+    return WorkspaceConfig.from_flat_dict(negpy_flat_for_pipeline(flat))
 
 
 def save_config_dict(path: str, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     """Merge overrides onto stored/default config and write a ``.negpy`` sidecar."""
-    config = resolve_config(path, overrides)
-    sidecar_path = write_sidecar(path, config)
+    flat = _base_flat_dict(path)
+    if overrides:
+        flat.update(overrides)
+    extras = negswift_sidecar_extras(flat)
+    if "auto_density_uses_crop" not in extras:
+        extras["auto_density_uses_crop"] = default_auto_density_uses_crop(flat)
+    config = WorkspaceConfig.from_flat_dict(negpy_flat_for_save(flat))
+    payload = config.to_dict()
+    payload.update(extras)
+    sidecar_path = write_raw_sidecar(path, payload)
     return {"sidecar_path": sidecar_path}
 
 

@@ -73,6 +73,8 @@ Test scan path:
 - [x] Grade slider updates contrast
 - [x] Chroma + WB sliders shift color
 - [x] Auto Density / Auto Grade toggles wired to pipeline
+- [x] Analysis Buffer slider (0–25%) — insets metering from frame/crop edge; visible when Auto Density is on
+- [x] Apply Auto Density while cropping — in Crop pane while crop tool is open; live re-meter on drag when on
 - [ ] Values match NegPy desktop for same slider positions (± visual tolerance) — manual compare
 
 ---
@@ -89,7 +91,9 @@ Test scan path:
 
 - [x] Crop Tool overlay — drag box, corner handles, aspect ratio constraint
 - [x] Click outside crop box applies crop and closes tool
-- [x] Auto Density / Auto Grade stay stable while crop tool is open (baseline snapshot; ROI-scoped metering; no re-render on drag)
+- [x] Auto Density / Auto Grade stay stable while crop tool is open when **Apply Auto Density while cropping** is off
+- [x] With **Apply Auto Density while cropping** on, crop drags re-meter live (debounced preview)
+- [x] Analysis Buffer raises on full-frame scan — preview brightens/darkens vs 0% buffer
 - [x] Rotate 90° CW / CCW
 - [x] Fine rotation slider
 - [x] Ratio picker (Free, 1:1, 3:2, …)

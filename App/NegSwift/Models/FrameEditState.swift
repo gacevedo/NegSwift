@@ -40,6 +40,10 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var wbYellow: Double = 0
     var autoExposure: Bool = true
     var autoNormalizeContrast: Bool = true
+    /// Symmetric border inset (0–0.25) for Auto Density metering (`analysis_buffer`).
+    var analysisBuffer: Double = EditControlDefaults.analysisBuffer
+    /// When set and a crop exists, Auto Density meters inside ``manualCropRect`` (NegPy ``active_roi``).
+    var autoDensityUsesCrop: Bool = true
     var rotation: Int = 0
     var fineRotation: Double = 0
     var autocropRatio: String = "3:2"
@@ -57,6 +61,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         case wbYellow = "wb_yellow"
         case autoExposure = "auto_exposure"
         case autoNormalizeContrast = "auto_normalize_contrast"
+        case analysisBuffer = "analysis_buffer"
+        case autoDensityUsesCrop = "auto_density_uses_crop"
         case rotation
         case fineRotation = "fine_rotation"
         case autocropRatio = "autocrop_ratio"
@@ -75,6 +81,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         wbYellow: Double = 0,
         autoExposure: Bool = true,
         autoNormalizeContrast: Bool = true,
+        analysisBuffer: Double = EditControlDefaults.analysisBuffer,
+        autoDensityUsesCrop: Bool = true,
         rotation: Int = 0,
         fineRotation: Double = 0,
         autocropRatio: String = "3:2",
@@ -89,6 +97,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         self.wbYellow = wbYellow
         self.autoExposure = autoExposure
         self.autoNormalizeContrast = autoNormalizeContrast
+        self.analysisBuffer = analysisBuffer
+        self.autoDensityUsesCrop = autoDensityUsesCrop
         self.rotation = rotation
         self.fineRotation = fineRotation
         self.autocropRatio = autocropRatio
@@ -106,6 +116,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
         wbYellow = try container.decodeIfPresent(Double.self, forKey: .wbYellow) ?? 0
         autoExposure = try container.decodeIfPresent(Bool.self, forKey: .autoExposure) ?? true
         autoNormalizeContrast = try container.decodeIfPresent(Bool.self, forKey: .autoNormalizeContrast) ?? true
+        analysisBuffer = try container.decodeIfPresent(Double.self, forKey: .analysisBuffer)
+            ?? EditControlDefaults.analysisBuffer
+        autoDensityUsesCrop = try container.decodeIfPresent(Bool.self, forKey: .autoDensityUsesCrop) ?? true
         rotation = try container.decodeIfPresent(Int.self, forKey: .rotation) ?? 0
         fineRotation = try container.decodeIfPresent(Double.self, forKey: .fineRotation) ?? 0
         autocropRatio = try container.decodeIfPresent(String.self, forKey: .autocropRatio) ?? "3:2"
@@ -127,6 +140,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         try container.encode(wbYellow, forKey: .wbYellow)
         try container.encode(autoExposure, forKey: .autoExposure)
         try container.encode(autoNormalizeContrast, forKey: .autoNormalizeContrast)
+        try container.encode(analysisBuffer, forKey: .analysisBuffer)
+        try container.encode(autoDensityUsesCrop, forKey: .autoDensityUsesCrop)
         try container.encode(rotation, forKey: .rotation)
         try container.encode(fineRotation, forKey: .fineRotation)
         try container.encode(autocropRatio, forKey: .autocropRatio)
@@ -146,6 +161,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
             wbYellow: double(config["wb_yellow"], default: 0),
             autoExposure: bool(config["auto_exposure"], default: true),
             autoNormalizeContrast: bool(config["auto_normalize_contrast"], default: true),
+            analysisBuffer: double(config["analysis_buffer"], default: EditControlDefaults.analysisBuffer),
+            autoDensityUsesCrop: bool(config["auto_density_uses_crop"], default: true),
             rotation: int(config["rotation"], default: 0),
             fineRotation: double(config["fine_rotation"], default: 0),
             autocropRatio: string(config["autocrop_ratio"], default: "3:2"),
@@ -182,6 +199,7 @@ enum EditControlRanges {
     static let grade = 50.0 ... 180.0
     static let saturation = 0.0 ... 2.0
     static let whiteBalance = -1.0 ... 1.0
+    static let analysisBuffer = 0.0 ... 0.25
     static let fineRotation = -45.0 ... 45.0
 }
 
@@ -190,5 +208,6 @@ enum EditControlDefaults {
     static let grade = 100.0
     static let saturation = 1.0
     static let whiteBalance = 0.0
+    static let analysisBuffer = 0.05
     static let fineRotation = 0.0
 }

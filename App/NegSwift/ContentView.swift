@@ -23,10 +23,10 @@ struct ContentView: View {
                         .font(.headline)
 
                     HStack(spacing: 8) {
-                        Button("Import Folder…") {
+                        Button("Open Folder…") {
                             Task {
                                 guard let url = await FolderPicker.chooseFolder(
-                                    prompt: "Import Folder",
+                                    prompt: "Open Folder",
                                     recentKind: .importFolder
                                 ) else { return }
                                 await engineSession.importFolder(at: url)

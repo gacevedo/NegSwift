@@ -31,9 +31,8 @@ final class EngineSession {
     private(set) var isCropOverlayReady = false
     private(set) var previewPixelSize: CGSize?
 
-    /// Tone/exposure snapshot when crop mode opens; crop-box drags do not re-render.
-    /// Auto Density keeps metering scoped to ``manualCropRect`` (NegPy ``active_roi``);
-    /// the engine cache skips re-metering while ``crop_preview_full`` is on.
+    /// Tone snapshot when crop mode opens. Crop drags can re-meter live when
+    /// ``autoDensityUsesCrop`` is on (via a wire ``analysis_rect`` that busts the engine cache).
     private var cropPreviewBaseline: FrameEditState?
 
     private let client = EngineClient()
@@ -158,6 +157,8 @@ final class EngineSession {
     func setWBYellow(_ value: Double) { updateEdit { $0.wbYellow = value } }
     func setAutoExposure(_ value: Bool) { updateEdit { $0.autoExposure = value } }
     func setAutoNormalizeContrast(_ value: Bool) { updateEdit { $0.autoNormalizeContrast = value } }
+    func setAnalysisBuffer(_ value: Double) { updateEdit { $0.analysisBuffer = value } }
+    func setAutoDensityUsesCrop(_ value: Bool) { updateEdit { $0.autoDensityUsesCrop = value } }
 
     var isLoadingCropPreview: Bool {
         isCropToolActive && !isCropOverlayReady && isRenderingPreview
@@ -199,7 +200,14 @@ final class EngineSession {
     }
 
     func setManualCropRect(_ rect: NormalizedRect) {
-        updateEdit(refreshPreview: !isCropToolActive) { $0.manualCropRect = rect }
+        updateEdit(refreshPreview: false) { $0.manualCropRect = rect }
+        guard isCropToolActive,
+              currentEdit.autoExposure,
+              currentEdit.autoDensityUsesCrop,
+              let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else { return }
+        scheduleDebouncedPreview(for: frame)
     }
 
     func resetCrop() {
@@ -240,9 +248,15 @@ final class EngineSession {
 
     private func effectivePreviewConfig(_ config: FrameEditState) -> FrameEditState {
         guard isCropToolActive, let baseline = cropPreviewBaseline else { return config }
+        if config.autoDensityUsesCrop {
+            return config
+        }
         var preview = baseline
         preview.rotation = config.rotation
         preview.fineRotation = config.fineRotation
+        preview.manualCropRect = config.manualCropRect
+        preview.analysisBuffer = config.analysisBuffer
+        preview.autoDensityUsesCrop = config.autoDensityUsesCrop
         return preview
     }
 

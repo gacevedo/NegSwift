@@ -28,6 +28,7 @@ final class EngineSession {
     private(set) var selectedFrameID: UUID?
     private(set) var frameEdits: [String: FrameEditState] = [:]
     private(set) var isCropToolActive = false
+    private(set) var isCropOverlayReady = false
     private(set) var previewPixelSize: CGSize?
 
     /// Exposure/normalization snapshot taken when crop mode opens; crop-box drags do not re-meter.
@@ -67,6 +68,10 @@ final class EngineSession {
     func setAutoExposure(_ value: Bool) { updateEdit { $0.autoExposure = value } }
     func setAutoNormalizeContrast(_ value: Bool) { updateEdit { $0.autoNormalizeContrast = value } }
 
+    var isLoadingCropPreview: Bool {
+        isCropToolActive && !isCropOverlayReady && isRenderingPreview
+    }
+
     func setCropToolActive(_ active: Bool) {
         guard isCropToolActive != active else { return }
         if active {
@@ -74,9 +79,11 @@ final class EngineSession {
             if let path = selectedFramePath {
                 cropPreviewBaseline = frameEdits[path] ?? FrameEditState()
             }
+            isCropOverlayReady = false
             isCropToolActive = true
         } else {
             isCropToolActive = false
+            isCropOverlayReady = false
             cropPreviewBaseline = nil
         }
         refreshPreviewNow()
@@ -325,6 +332,7 @@ final class EngineSession {
     func selectFrame(_ id: UUID) async {
         let previousPath = selectedFramePath
         isCropToolActive = false
+        isCropOverlayReady = false
         cropPreviewBaseline = nil
         selectedFrameID = id
         guard let frame = frames.first(where: { $0.id == id }) else { return }
@@ -381,6 +389,9 @@ final class EngineSession {
             previewImage = image
             previewPixelSize = CGSize(width: result.width, height: result.height)
             currentPath = path
+            if isCropToolActive {
+                isCropOverlayReady = true
+            }
         } catch {
             guard generation == previewGeneration else { return }
             previewError = error.localizedDescription
@@ -426,6 +437,7 @@ final class EngineSession {
         frameEdits = [:]
         dirtyPaths = []
         isCropToolActive = false
+        isCropOverlayReady = false
         cropPreviewBaseline = nil
         previewPixelSize = nil
     }

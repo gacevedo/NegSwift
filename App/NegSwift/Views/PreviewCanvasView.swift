@@ -15,12 +15,23 @@ struct PreviewCanvasView: View {
             .resizable()
             .scaledToFit()
             .overlay {
-                if session.isCropToolActive {
+                if session.isCropToolActive, session.isCropOverlayReady {
                     CropOverlayView(
                         cropRect: cropBinding,
                         aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio),
                         onClickOutside: { session.setCropToolActive(false) }
                     )
+                }
+            }
+            .overlay {
+                if session.isLoadingCropPreview {
+                    ZStack {
+                        Color.black.opacity(0.25)
+                        ProgressView("Preparing crop view…")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
                 }
             }
     }

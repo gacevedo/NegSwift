@@ -28,7 +28,7 @@ struct GeometryPanelView: View {
                     }
                     .controlSize(.small)
 
-                    Text("Click outside the crop box to apply. Exposure stays fixed while you adjust the box.")
+                    Text("Click outside the box to apply. Full frame loads first; exposure stays fixed while adjusting.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

@@ -145,9 +145,10 @@ Full-resolution export.
   "export": {
     "export_fmt": "JPEG",
     "color_space": "sRGB",
-    "export_resolution_mode": "Original"
+    "export_resolution_mode": "original"
   },
-  "dest_dir": "/absolute/output/dir"
+  "dest_dir": "/absolute/output/dir",
+  "overwrite": false
 }
 ```
 

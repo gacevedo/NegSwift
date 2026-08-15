@@ -2,11 +2,28 @@
 
 from __future__ import annotations
 
-import pytest
+import base64
+import io
 
+import numpy as np
+import pytest
 from ndjson_helpers import ndjson_request
+from PIL import Image
 
 _CROP_CONFIG = {"manual_crop_rect": [0.25, 0.25, 0.75, 0.75]}
+
+
+def _render_rgb(path: str, *, crop_preview_full: bool, config: dict | None = None) -> np.ndarray:
+    params = {
+        "path": path,
+        "prefer_gpu": False,
+        "crop_preview_full": crop_preview_full,
+        "config": {**_CROP_CONFIG, **(config or {})},
+    }
+    msg = ndjson_request("render", params, req_id=f"crop-{'full' if crop_preview_full else 'applied'}")
+    assert msg["ok"] is True
+    png = base64.standard_b64decode(msg["result"]["png_base64"])
+    return np.array(Image.open(io.BytesIO(png)))
 
 
 def test_crop_preview_full_is_larger_than_applied_crop(sample_tiff) -> None:
@@ -24,6 +41,19 @@ def test_crop_preview_full_is_larger_than_applied_crop(sample_tiff) -> None:
     assert full_size > cropped_size
     assert full["result"]["width"] == pytest.approx(cropped["result"]["width"] * 2, rel=0.1)
     assert full["result"]["height"] == pytest.approx(cropped["result"]["height"] * 2, rel=0.1)
+
+
+def test_crop_preview_full_matches_applied_crop_with_auto_exposure(sample_tiff) -> None:
+    """Uncropped crop-tool preview must tone-match the applied crop (ROI-scoped metering)."""
+    path = str(sample_tiff)
+    full = _render_rgb(path, crop_preview_full=True, config={"auto_exposure": True})
+    cropped = _render_rgb(path, crop_preview_full=False, config={"auto_exposure": True})
+    fh, fw = full.shape[:2]
+    ch, cw = cropped.shape[:2]
+    y1, x1 = int(0.25 * fh), int(0.25 * fw)
+    region = full[y1 : y1 + ch, x1 : x1 + cw]
+    assert region.shape == cropped.shape
+    np.testing.assert_allclose(region, cropped, atol=2)
 
 
 def test_rotation_swaps_preview_dimensions(sample_tiff) -> None:

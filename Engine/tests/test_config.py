@@ -5,9 +5,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from negpy.domain.models import WorkspaceConfig
-
 from ndjson_helpers import ndjson_request
+from negpy.domain.models import WorkspaceConfig
 
 
 def test_load_config_defaults(sample_tiff: Path) -> None:

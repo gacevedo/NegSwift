@@ -31,7 +31,9 @@ final class EngineSession {
     private(set) var isCropOverlayReady = false
     private(set) var previewPixelSize: CGSize?
 
-    /// Exposure/normalization snapshot taken when crop mode opens; crop-box drags do not re-meter.
+    /// Tone/exposure snapshot when crop mode opens; crop-box drags do not re-render.
+    /// Auto Density keeps metering scoped to ``manualCropRect`` (NegPy ``active_roi``);
+    /// the engine cache skips re-metering while ``crop_preview_full`` is on.
     private var cropPreviewBaseline: FrameEditState?
 
     private let client = EngineClient()
@@ -42,6 +44,10 @@ final class EngineSession {
     private var scopedFileURLs: [String: URL] = [:]
     private var stripGeneration = 0
     private var previewGeneration = 0
+    private(set) var isExporting = false
+    private(set) var exportError: String?
+
+    private var exportTask: Task<ExportResult, Error>?
 
     var engineReady: Bool {
         if case .ready = state { return true }
@@ -53,9 +59,72 @@ final class EngineSession {
         return frameEdits[path] ?? FrameEditState()
     }
 
-    private var selectedFramePath: String? {
+    var selectedFrameName: String? {
+        guard let id = selectedFrameID else { return nil }
+        return frames.first(where: { $0.id == id })?.name
+    }
+
+    var selectedFramePath: String? {
         guard let id = selectedFrameID else { return nil }
         return frames.first(where: { $0.id == id })?.path
+    }
+
+    func clearExportError() {
+        exportError = nil
+    }
+
+    func noteExportError(_ message: String) {
+        exportError = message
+    }
+
+    func cancelExport() {
+        exportTask?.cancel()
+    }
+
+    func exportCurrentFrame(to destination: URL, settings: ExportSettings) async throws -> ExportResult {
+        guard engineReady else {
+            throw EngineClientError.notRunning
+        }
+        guard let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else {
+            throw EngineClientError.notRunning
+        }
+
+        exportTask?.cancel()
+        await flushPendingSaves()
+
+        let config = frameEdits[path] ?? FrameEditState()
+        let task = Task { () throws -> ExportResult in
+            try Task.checkCancellation()
+            let gotAccess = beginFileAccess(for: frame.url)
+            defer {
+                if gotAccess {
+                    endFileAccess(for: frame.url)
+                }
+            }
+            return try await client.export(
+                path: path,
+                destDir: destination.path,
+                config: config,
+                export: settings
+            )
+        }
+        exportTask = task
+        isExporting = true
+        exportError = nil
+        defer {
+            isExporting = false
+            exportTask = nil
+        }
+        do {
+            return try await task.value
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            exportError = error.localizedDescription
+            throw error
+        }
     }
 
     func setProcessMode(_ value: ProcessMode) { updateEdit { $0.processMode = value } }
@@ -150,8 +219,6 @@ final class EngineSession {
     private func effectivePreviewConfig(_ config: FrameEditState) -> FrameEditState {
         guard isCropToolActive, let baseline = cropPreviewBaseline else { return config }
         var preview = baseline
-        preview.autoExposure = false
-        preview.autoNormalizeContrast = false
         preview.rotation = config.rotation
         preview.fineRotation = config.fineRotation
         return preview

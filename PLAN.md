@@ -19,12 +19,12 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M6** Controls | **Done** | Sliders, process mode, debounced preview |
 | **M7** Persist | **Done** | `save_config`, debounced `.negpy` sidecars |
 | **M8** Crop | **Done** | Crop overlay, rotation, aspect ratio, fine rotation |
-| **M9** Export | **Next** | — |
+| **M9** Export | **Done** | Engine `export`, Swift export sheet, 4 pytest cases |
 | M10–M11 | Not started | — |
 
-**Resume here:** M9 — engine export + Swift export sheet.
+**Resume here:** M9b — NegPy git submodule pin (required before M10).
 
-**Verify:** `make test` (20 engine + 7 Swift tests) · crop to 3:2 · rotate 90° · quit/reopen restores geometry.
+**Verify:** `make test` (24 engine + 7 Swift tests) · export JPEG/TIFF · crop + export dimensions.
 
 ---
 
@@ -432,17 +432,17 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 
 ---
 
-### M9 — Export
+### M9 — Export ✅
 
 **Deliverables**
 
-- [ ] Engine `export` method — JPEG/TIFF, sRGB
-- [ ] Swift export sheet: format, destination
-- [ ] Progress + cancel
+- [x] Engine `export` method — JPEG/TIFF, sRGB
+- [x] Swift export sheet: format, destination
+- [x] Progress indicator + cancel (Swift task; engine `cancel` still M3 debt)
 
 **Uses:** `ImageProcessor.process_export`, same as `ExportWorker`.
 
-**Automated:** export produces valid file; PIL/imageio can read; dimensions match expectation.
+**Automated:** `tests/test_export.py` — valid JPEG/TIFF, crop dimensions, NOT_FOUND.
 
 **Manual:** Export full-res JPEG; open in Preview/Photos; compare with NegPy desktop export same settings.
 

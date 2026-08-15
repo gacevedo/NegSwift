@@ -89,19 +89,19 @@ Test scan path:
 
 - [x] Crop Tool overlay — drag box, corner handles, aspect ratio constraint
 - [x] Click outside crop box applies crop and closes tool
-- [x] Auto Density / Auto Grade frozen while crop tool is open (baseline snapshot; no re-meter on drag)
+- [x] Auto Density / Auto Grade stay stable while crop tool is open (baseline snapshot; ROI-scoped metering; no re-render on drag)
 - [x] Rotate 90° CW / CCW
 - [x] Fine rotation slider
 - [x] Ratio picker (Free, 1:1, 3:2, …)
-- [ ] Export at full res reflects crop — verify after M9
+- [x] Export at full res reflects crop — automated in `test_export_applies_crop`
 
 ---
 
-## M9 — Export
+## M9 — Export ✅
 
-- [ ] Export JPEG at full resolution
-- [ ] Output dimensions reflect crop
-- [ ] NegPy desktop export matches (same config)
+- [x] Export JPEG / TIFF at full resolution (automated)
+- [x] Output dimensions reflect crop (automated)
+- [ ] NegPy desktop export matches (same config) — manual compare
 
 ---
 

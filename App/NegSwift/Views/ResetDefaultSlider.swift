@@ -33,8 +33,11 @@ struct ResetDefaultSlider: NSViewRepresentable {
         slider.minValue = range.lowerBound
         slider.maxValue = range.upperBound
         slider.defaultResetValue = defaultValue
-        if abs(slider.doubleValue - value) > 1e-9 {
-            slider.doubleValue = value
+        let target = value
+        guard abs(slider.doubleValue - target) > 1e-9 else { return }
+        DispatchQueue.main.async { [weak slider] in
+            guard let slider, abs(slider.doubleValue - target) > 1e-9 else { return }
+            slider.doubleValue = target
         }
     }
 

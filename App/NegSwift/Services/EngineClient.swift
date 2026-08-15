@@ -228,6 +228,62 @@ actor EngineClient {
         try await call(method: "discover", params: DiscoverParams(paths: paths))
     }
 
+    func export(
+        path: String,
+        destDir: String,
+        config: FrameEditState,
+        export settings: ExportSettings
+    ) async throws -> ExportResult {
+        try await call(
+            method: "export",
+            params: ExportParams(
+                path: path,
+                destDir: destDir,
+                config: config,
+                export: ExportWireSettings(settings: settings)
+            )
+        )
+    }
+
+    private struct ExportWireSettings: Encodable {
+        let exportFmt: String
+        let exportColorSpace: String
+        let exportResolutionMode: String
+        let jpegQuality: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case exportFmt = "export_fmt"
+            case exportColorSpace = "export_color_space"
+            case exportResolutionMode = "export_resolution_mode"
+            case jpegQuality = "jpeg_quality"
+        }
+
+        init(settings: ExportSettings) {
+            exportFmt = settings.format.rawValue
+            exportColorSpace = settings.colorSpace
+            exportResolutionMode = "original"
+            jpegQuality = settings.format == .jpeg ? settings.jpegQuality : nil
+        }
+    }
+
+    private struct ExportParams: Encodable {
+        let path: String
+        let destDir: String
+        let preferGpu: Bool = true
+        let overwrite: Bool = false
+        let config: FrameEditState
+        let export: ExportWireSettings
+
+        enum CodingKeys: String, CodingKey {
+            case path
+            case destDir = "dest_dir"
+            case preferGpu = "prefer_gpu"
+            case overwrite
+            case config
+            case export
+        }
+    }
+
     private struct EmptyParams: Encodable {}
     private struct PingResult: Decodable { let pong: Bool? }
 

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any
 
 from negswift_engine.discover import discover_assets
+from negswift_engine.export import export_asset
 from negswift_engine.render import load_config_dict, open_asset, render_preview_base64, save_config_dict
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -112,6 +113,44 @@ def _cmd_render(params: dict[str, Any]) -> dict[str, Any]:
         raise ProtocolError("RENDER_FAILED", str(exc)) from exc
 
 
+def _cmd_export(params: dict[str, Any]) -> dict[str, Any]:
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        raise ProtocolError("INVALID_REQUEST", "params.path is required")
+    dest_dir = params.get("dest_dir")
+    if not isinstance(dest_dir, str) or not dest_dir:
+        raise ProtocolError("INVALID_REQUEST", "params.dest_dir is required")
+    config = params.get("config")
+    if config is not None and not isinstance(config, dict):
+        raise ProtocolError("INVALID_REQUEST", "params.config must be an object")
+    export = params.get("export")
+    if export is not None and not isinstance(export, dict):
+        raise ProtocolError("INVALID_REQUEST", "params.export must be an object")
+    prefer_gpu = params.get("prefer_gpu", True)
+    if not isinstance(prefer_gpu, bool):
+        raise ProtocolError("INVALID_REQUEST", "params.prefer_gpu must be a boolean")
+    overwrite = params.get("overwrite", False)
+    if not isinstance(overwrite, bool):
+        raise ProtocolError("INVALID_REQUEST", "params.overwrite must be a boolean")
+    try:
+        return export_asset(
+            path,
+            dest_dir,
+            config_overrides=config,
+            export_overrides=export,
+            prefer_gpu=prefer_gpu,
+            overwrite=overwrite,
+        )
+    except FileNotFoundError as exc:
+        raise ProtocolError("NOT_FOUND", str(exc)) from exc
+    except OSError as exc:
+        raise ProtocolError("EXPORT_FAILED", str(exc)) from exc
+    except RuntimeError as exc:
+        raise ProtocolError("EXPORT_FAILED", str(exc)) from exc
+    except Exception as exc:
+        raise ProtocolError("EXPORT_FAILED", str(exc)) from exc
+
+
 _HANDLERS: dict[str, Handler] = {
     "ping": _cmd_ping,
     "info": _cmd_info,
@@ -120,6 +159,7 @@ _HANDLERS: dict[str, Handler] = {
     "load_config": _cmd_load_config,
     "save_config": _cmd_save_config,
     "render": _cmd_render,
+    "export": _cmd_export,
 }
 
 

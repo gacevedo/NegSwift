@@ -10,6 +10,7 @@ struct ContentView: View {
     @Bindable var engineSession: EngineSession
     @State private var showFolderImporter = false
     @State private var showFileImporter = false
+    @State private var showExportSheet = false
 
     @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
     @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
@@ -70,6 +71,17 @@ struct ContentView: View {
         } detail: {
             previewPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Export…") {
+                            showExportSheet = true
+                        }
+                        .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
+                    }
+                }
+        }
+        .sheet(isPresented: $showExportSheet) {
+            ExportSheetView(session: engineSession)
         }
         .navigationSplitViewStyle(.balanced)
         .fileImporter(

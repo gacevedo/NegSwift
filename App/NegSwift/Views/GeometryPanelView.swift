@@ -104,7 +104,13 @@ struct GeometryPanelView: View {
     private var cropToolBinding: Binding<Bool> {
         Binding(
             get: { session.isCropToolActive },
-            set: { session.setCropToolActive($0) }
+            set: { newValue in
+                guard newValue != session.isCropToolActive else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    session.setCropToolActive(newValue)
+                }
+            }
         )
     }
 

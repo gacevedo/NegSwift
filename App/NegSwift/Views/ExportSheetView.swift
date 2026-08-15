@@ -93,7 +93,8 @@ struct ExportSheetView: View {
             get: { settings.format },
             set: { newValue in
                 guard newValue != settings.format else { return }
-                DispatchQueue.main.async {
+                Task { @MainActor in
+                    await Task.yield()
                     settings.format = newValue
                 }
             }

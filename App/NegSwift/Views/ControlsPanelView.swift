@@ -135,7 +135,13 @@ struct ControlsPanelView: View {
     private var autoExposureBinding: Binding<Bool> {
         Binding(
             get: { session.currentEdit.autoExposure },
-            set: { session.setAutoExposure($0) }
+            set: { newValue in
+                guard newValue != session.currentEdit.autoExposure else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    session.setAutoExposure(newValue)
+                }
+            }
         )
     }
 

@@ -21,8 +21,13 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        Label("NegSwift", systemImage: "film")
-                            .font(.headline)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Label("NegSwift", systemImage: "film")
+                                .font(.title3.weight(.semibold))
+                            Text(AppMetadata.appVersion)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
 
                         HStack(spacing: 8) {
                             Button("Open Folder…") {
@@ -97,17 +102,21 @@ struct ContentView: View {
         } detail: {
             previewPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle("")
                 .toolbar {
-                    ToolbarItemGroup(placement: .primaryAction) {
-                        Button("Quick Export") {
-                            Task { await engineSession.quickExport() }
-                        }
-                        .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
+                    ToolbarItem(placement: .primaryAction) {
+                        HStack(spacing: 8) {
+                            Button("Quick Export") {
+                                Task { await engineSession.quickExport() }
+                            }
+                            .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
 
-                        Button("Export…") {
-                            showExportSheet = true
+                            Button("Export…") {
+                                showExportSheet = true
+                            }
+                            .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
                         }
-                        .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
+                        .padding(.trailing, 16)
                     }
                 }
         }

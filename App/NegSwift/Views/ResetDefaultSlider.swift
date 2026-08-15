@@ -30,25 +30,50 @@ struct ResetDefaultSlider: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSSlider, context: Context) {
         guard let slider = nsView as? KnobDoubleClickResetSlider else { return }
-        slider.minValue = range.lowerBound
-        slider.maxValue = range.upperBound
-        slider.defaultResetValue = defaultValue
-        let target = value
-        guard abs(slider.doubleValue - target) > 1e-9 else { return }
-        DispatchQueue.main.async { [weak slider] in
-            guard let slider, abs(slider.doubleValue - target) > 1e-9 else { return }
-            slider.doubleValue = target
-        }
+        context.coordinator.value = $value
+        context.coordinator.scheduleSync(
+            on: slider,
+            to: value,
+            range: range,
+            defaultValue: defaultValue
+        )
     }
 
     final class Coordinator: NSObject {
         var value: Binding<Double>
+        private var syncTask: Task<Void, Never>?
+        private var isProgrammaticUpdate = false
 
         init(value: Binding<Double>) {
             self.value = value
         }
 
+        func scheduleSync(
+            on slider: NSSlider,
+            to target: Double,
+            range: ClosedRange<Double>,
+            defaultValue: Double
+        ) {
+            slider.minValue = range.lowerBound
+            slider.maxValue = range.upperBound
+            if let resetSlider = slider as? KnobDoubleClickResetSlider {
+                resetSlider.defaultResetValue = defaultValue
+            }
+            guard abs(slider.doubleValue - target) > 1e-9 else { return }
+
+            syncTask?.cancel()
+            syncTask = Task { @MainActor in
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                guard abs(slider.doubleValue - target) > 1e-9 else { return }
+                isProgrammaticUpdate = true
+                slider.doubleValue = target
+                isProgrammaticUpdate = false
+            }
+        }
+
         @objc func sliderChanged(_ sender: NSSlider) {
+            guard !isProgrammaticUpdate else { return }
             value.wrappedValue = sender.doubleValue
         }
     }

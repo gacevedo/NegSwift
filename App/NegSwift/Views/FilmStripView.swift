@@ -49,7 +49,7 @@ private struct FilmStripCell: View {
                     if let thumbnail = frame.thumbnail {
                         Image(nsImage: thumbnail)
                             .resizable()
-                            .scaledToFill()
+                            .scaledToFit()
                             .frame(width: 56, height: 56)
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     } else if frame.isLoadingThumbnail {

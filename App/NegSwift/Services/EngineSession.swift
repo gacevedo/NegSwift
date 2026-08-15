@@ -35,6 +35,9 @@ final class EngineSession {
     /// ``autoDensityUsesCrop`` is on (via a wire ``analysis_rect`` that busts the engine cache).
     private var cropPreviewBaseline: FrameEditState?
 
+    /// Set when crop mode closes; thumbnail refresh waits for the post-close preview render.
+    private var pendingThumbnailRefreshAfterCropClose = false
+
     private let client = EngineClient()
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
     private let saveDebounce = DebounceScheduler(interval: DebounceScheduler.saveInterval)
@@ -173,6 +176,7 @@ final class EngineSession {
         isCropToolActive = false
         isCropOverlayReady = false
         cropPreviewBaseline = nil
+        pendingThumbnailRefreshAfterCropClose = false
 
         frameEdits[path] = FrameEditState()
         dirtyPaths.remove(path)
@@ -192,7 +196,7 @@ final class EngineSession {
         }
 
         if let index = frames.firstIndex(where: { $0.path == path }) {
-            frames[index].thumbnail = nil
+            updateFrame(at: index) { $0.thumbnail = nil }
         }
 
         previewGeneration += 1
@@ -218,9 +222,8 @@ final class EngineSession {
             isCropToolActive = false
             isCropOverlayReady = false
             cropPreviewBaseline = nil
-            if let path = selectedFramePath {
-                Task { await refreshThumbnail(for: path) }
-            }
+            pendingThumbnailRefreshAfterCropClose = true
+            thumbnailDebounce.cancel()
         }
         refreshPreviewNow()
     }
@@ -477,6 +480,7 @@ final class EngineSession {
         isCropToolActive = false
         isCropOverlayReady = false
         cropPreviewBaseline = nil
+        pendingThumbnailRefreshAfterCropClose = false
         selectedFrameID = id
         guard let frame = frames.first(where: { $0.id == id }) else { return }
         if let previousPath, previousPath != frame.path {
@@ -519,6 +523,7 @@ final class EngineSession {
         let path = url.path
         let baseConfig = frameEdits[path] ?? config ?? FrameEditState()
         let effectiveConfig = effectivePreviewConfig(baseConfig)
+        let refreshThumbnailAfterClose = pendingThumbnailRefreshAfterCropClose && path == selectedFramePath
 
         do {
             let result = try await client.render(
@@ -529,6 +534,11 @@ final class EngineSession {
             guard generation == previewGeneration else { return }
             guard let data = result.pngData, let image = NSImage(data: data) else {
                 previewError = "Engine returned an invalid PNG."
+                await finishCropCloseThumbnailRefresh(
+                    for: path,
+                    generation: generation,
+                    refreshAfterClose: refreshThumbnailAfterClose
+                )
                 return
             }
             previewImage = image
@@ -537,16 +547,39 @@ final class EngineSession {
             if isCropToolActive {
                 isCropOverlayReady = true
             }
-            scheduleDebouncedThumbnailRefresh(for: path)
+            await finishCropCloseThumbnailRefresh(
+                for: path,
+                generation: generation,
+                refreshAfterClose: refreshThumbnailAfterClose
+            )
         } catch is CancellationError {
             return
         } catch {
             guard generation == previewGeneration else { return }
             previewError = error.localizedDescription
+            await finishCropCloseThumbnailRefresh(
+                for: path,
+                generation: generation,
+                refreshAfterClose: refreshThumbnailAfterClose
+            )
         }
 
         if generation == previewGeneration {
             isRenderingPreview = false
+        }
+    }
+
+    private func finishCropCloseThumbnailRefresh(
+        for path: String,
+        generation: Int,
+        refreshAfterClose: Bool
+    ) async {
+        guard generation == previewGeneration else { return }
+        if refreshAfterClose {
+            pendingThumbnailRefreshAfterCropClose = false
+            await refreshThumbnail(for: path)
+        } else {
+            scheduleDebouncedThumbnailRefresh(for: path)
         }
     }
 
@@ -577,8 +610,9 @@ final class EngineSession {
 
         let config = frameEdits[path] ?? FrameEditState()
         let stripGen = stripGeneration
-        frames[index].isLoadingThumbnail = frames[index].thumbnail == nil
-        defer { frames[index].isLoadingThumbnail = false }
+        let showSpinner = frame.thumbnail == nil
+        updateFrame(at: index) { $0.isLoadingThumbnail = showSpinner }
+        defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
 
         do {
             let result = try await client.render(
@@ -591,11 +625,18 @@ final class EngineSession {
             guard stripGen == stripGeneration else { return }
             guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
             if let data = result.pngData, let image = NSImage(data: data) {
-                frames[frameIndex].thumbnail = image
+                updateFrame(at: frameIndex) { $0.thumbnail = image }
             }
         } catch {
             // Thumbnail failure is non-fatal; full preview may still work.
         }
+    }
+
+    private func updateFrame(at index: Int, _ transform: (inout ScanFrame) -> Void) {
+        guard frames.indices.contains(index) else { return }
+        var frame = frames[index]
+        transform(&frame)
+        frames[index] = frame
     }
 
     private func loadMissingThumbnails() async {
@@ -609,7 +650,7 @@ final class EngineSession {
 
     private func resetStuckThumbnailSpinners() {
         for index in frames.indices where frames[index].thumbnail == nil && frames[index].isLoadingThumbnail {
-            frames[index].isLoadingThumbnail = false
+            updateFrame(at: index) { $0.isLoadingThumbnail = false }
         }
     }
 
@@ -621,8 +662,8 @@ final class EngineSession {
             }
             guard frames[index].thumbnail == nil else { continue }
 
-            frames[index].isLoadingThumbnail = true
-            defer { frames[index].isLoadingThumbnail = false }
+            updateFrame(at: index) { $0.isLoadingThumbnail = true }
+            defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
 
             let path = frames[index].path
             let config = frameEdits[path]
@@ -638,7 +679,7 @@ final class EngineSession {
                     return
                 }
                 if let data = result.pngData, let image = NSImage(data: data) {
-                    frames[index].thumbnail = image
+                    updateFrame(at: index) { $0.thumbnail = image }
                 }
             } catch {
                 // Thumbnail failure is non-fatal; full preview may still work.
@@ -661,6 +702,7 @@ final class EngineSession {
         isCropToolActive = false
         isCropOverlayReady = false
         cropPreviewBaseline = nil
+        pendingThumbnailRefreshAfterCropClose = false
         previewPixelSize = nil
     }
 

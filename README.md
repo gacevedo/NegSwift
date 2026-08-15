@@ -6,7 +6,7 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M9b complete** (M3 partial: no `cancel`/socket). **Next: M10** bundle.
+**M0–M9b complete.** **Next: M10** bundle.
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 

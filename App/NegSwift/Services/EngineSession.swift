@@ -44,6 +44,7 @@ final class EngineSession {
     private var scopedFileURLs: [String: URL] = [:]
     private var stripGeneration = 0
     private var previewGeneration = 0
+    private var isThumbnailLoadRunning = false
     private(set) var isExporting = false
     private(set) var exportError: String?
 
@@ -79,6 +80,9 @@ final class EngineSession {
 
     func cancelExport() {
         exportTask?.cancel()
+        Task {
+            await client.cancelActiveExport()
+        }
     }
 
     func exportCurrentFrame(to destination: URL, settings: ExportSettings) async throws -> ExportResult {
@@ -351,7 +355,6 @@ final class EngineSession {
             scopedFolderURL = url
         }
         stripGeneration += 1
-        let generation = stripGeneration
         previewError = nil
         do {
             let discovered = try await client.discover(paths: [url.path])
@@ -368,7 +371,6 @@ final class EngineSession {
             } else {
                 previewError = "No supported scans found in this folder."
             }
-            await loadThumbnails(generation: generation)
         } catch {
             previewError = error.localizedDescription
         }
@@ -377,7 +379,6 @@ final class EngineSession {
     func importFile(at url: URL) async {
         guard engineReady else { return }
         stripGeneration += 1
-        let generation = stripGeneration
         let frame = ScanFrame(
             id: UUID(),
             url: url,
@@ -386,7 +387,6 @@ final class EngineSession {
         )
         frames = [frame]
         await selectFrame(frame.id)
-        await loadThumbnails(generation: generation)
     }
 
     func importFileFromPicker(_ url: URL) async {
@@ -412,6 +412,7 @@ final class EngineSession {
         previewGeneration += 1
         let generation = previewGeneration
         await renderPreview(at: frame.url, generation: generation)
+        await loadMissingThumbnails()
     }
 
     private func ensureEditLoaded(for path: String) async {
@@ -459,6 +460,8 @@ final class EngineSession {
             if isCropToolActive {
                 isCropOverlayReady = true
             }
+        } catch is CancellationError {
+            return
         } catch {
             guard generation == previewGeneration else { return }
             previewError = error.localizedDescription
@@ -469,25 +472,47 @@ final class EngineSession {
         }
     }
 
+    private func loadMissingThumbnails() async {
+        resetStuckThumbnailSpinners()
+        guard frames.contains(where: { $0.thumbnail == nil }) else { return }
+        guard !isThumbnailLoadRunning else { return }
+        isThumbnailLoadRunning = true
+        defer { isThumbnailLoadRunning = false }
+        await loadThumbnails(generation: stripGeneration)
+    }
+
+    private func resetStuckThumbnailSpinners() {
+        for index in frames.indices where frames[index].thumbnail == nil && frames[index].isLoadingThumbnail {
+            frames[index].isLoadingThumbnail = false
+        }
+    }
+
     private func loadThumbnails(generation: Int) async {
         for index in frames.indices {
-            guard generation == stripGeneration else { return }
+            guard generation == stripGeneration else {
+                resetStuckThumbnailSpinners()
+                return
+            }
+            guard frames[index].thumbnail == nil else { continue }
+
             frames[index].isLoadingThumbnail = true
+            defer { frames[index].isLoadingThumbnail = false }
+
             let path = frames[index].path
             do {
                 let result = try await client.render(
                     path: path,
                     longEdgePx: FilmStripLayout.thumbnailLongEdge
                 )
-                guard generation == stripGeneration else { return }
+                guard generation == stripGeneration else {
+                    resetStuckThumbnailSpinners()
+                    return
+                }
                 if let data = result.pngData, let image = NSImage(data: data) {
                     frames[index].thumbnail = image
                 }
             } catch {
                 // Thumbnail failure is non-fatal; full preview may still work.
-            }
-            if generation == stripGeneration {
-                frames[index].isLoadingThumbnail = false
             }
         }
     }

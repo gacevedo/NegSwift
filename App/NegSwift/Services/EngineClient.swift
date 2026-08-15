@@ -168,6 +168,9 @@ actor EngineClient {
     private var stdoutTask: Task<Void, Never>?
     private var pending: [String: CheckedContinuation<Data, Error>] = [:]
     private var lineBuffer = Data()
+    private var activePreviewJobID: String?
+    private var activeThumbnailJobID: String?
+    private var activeExportJobID: String?
 
     func start() async throws {
         if processOwner.isRunning, stdin != nil, stdout != nil {
@@ -205,15 +208,43 @@ actor EngineClient {
         config: FrameEditState? = nil,
         cropPreviewFull: Bool = false
     ) async throws -> RenderResult {
-        try await call(
-            method: "render",
-            params: RenderParams(
-                path: path,
-                longEdgePx: longEdgePx,
-                config: config,
-                cropPreviewFull: cropPreviewFull
+        let isThumbnail = longEdgePx != nil && config == nil && !cropPreviewFull
+        if isThumbnail {
+            if let previous = activeThumbnailJobID {
+                try? await cancel(jobID: previous)
+            }
+        } else if let previous = activePreviewJobID {
+            try? await cancel(jobID: previous)
+        }
+        let jobID = UUID().uuidString
+        if isThumbnail {
+            activeThumbnailJobID = jobID
+        } else {
+            activePreviewJobID = jobID
+        }
+        defer {
+            if isThumbnail {
+                if activeThumbnailJobID == jobID {
+                    activeThumbnailJobID = nil
+                }
+            } else if activePreviewJobID == jobID {
+                activePreviewJobID = nil
+            }
+        }
+        do {
+            return try await call(
+                method: "render",
+                params: RenderParams(
+                    path: path,
+                    longEdgePx: longEdgePx,
+                    config: config,
+                    cropPreviewFull: cropPreviewFull
+                ),
+                id: jobID
             )
-        )
+        } catch EngineClientError.engine(let payload) where payload.code == "CANCELLED" {
+            throw CancellationError()
+        }
     }
 
     func loadConfig(path: String) async throws -> LoadConfigResult {
@@ -234,15 +265,40 @@ actor EngineClient {
         config: FrameEditState,
         export settings: ExportSettings
     ) async throws -> ExportResult {
-        try await call(
-            method: "export",
-            params: ExportParams(
-                path: path,
-                destDir: destDir,
-                config: config,
-                export: ExportWireSettings(settings: settings)
+        let jobID = UUID().uuidString
+        activeExportJobID = jobID
+        defer {
+            if activeExportJobID == jobID {
+                activeExportJobID = nil
+            }
+        }
+        do {
+            return try await call(
+                method: "export",
+                params: ExportParams(
+                    path: path,
+                    destDir: destDir,
+                    config: config,
+                    export: ExportWireSettings(settings: settings)
+                ),
+                id: jobID
             )
+        } catch EngineClientError.engine(let payload) where payload.code == "CANCELLED" {
+            throw CancellationError()
+        }
+    }
+
+    func cancel(jobID: String) async throws {
+        let _: CancelResult = try await call(
+            method: "cancel",
+            params: CancelParams(jobID: jobID),
+            id: UUID().uuidString
         )
+    }
+
+    func cancelActiveExport() async {
+        guard let jobID = activeExportJobID else { return }
+        try? await cancel(jobID: jobID)
     }
 
     private struct ExportWireSettings: Encodable {
@@ -286,6 +342,14 @@ actor EngineClient {
 
     private struct EmptyParams: Encodable {}
     private struct PingResult: Decodable { let pong: Bool? }
+    private struct CancelResult: Decodable { let cancelled: Bool }
+    private struct CancelParams: Encodable {
+        let jobID: String
+
+        enum CodingKeys: String, CodingKey {
+            case jobID = "job_id"
+        }
+    }
 
     private struct DiscoverParams: Encodable {
         let paths: [String]
@@ -329,12 +393,12 @@ actor EngineClient {
 
     private func call<Params: Encodable, Result: Decodable>(
         method: String,
-        params: Params
+        params: Params,
+        id: String = UUID().uuidString
     ) async throws -> Result {
         try await start()
         guard let stdin else { throw EngineClientError.notRunning }
 
-        let id = UUID().uuidString
         let payload: [String: Any] = [
             "id": id,
             "method": method,

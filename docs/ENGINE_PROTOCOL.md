@@ -168,8 +168,7 @@ Full-resolution export.
 | `LOAD_FAILED` | Decode error |
 | `RENDER_FAILED` | Pipeline exception |
 | `SAVE_FAILED` | Sidecar write error |
-| `EXPORT_FAILED` | Write/encode error |
-| `BUSY` | Optional: engine at capacity |
+| `CANCELLED` | Job aborted via `cancel` |
 
 ## Versioning
 

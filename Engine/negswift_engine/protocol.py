@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from collections.abc import Callable
 from typing import Any
@@ -179,32 +178,6 @@ class ProtocolError(Exception):
 
 def serve_stdio() -> None:
     """Read NDJSON requests from stdin; write NDJSON responses to stdout."""
-    for raw in sys.stdin:
-        line = raw.strip()
-        if not line:
-            continue
-        req_id: Any = None
-        try:
-            msg = json.loads(line)
-            if not isinstance(msg, dict):
-                raise ProtocolError("INVALID_REQUEST", "Request must be a JSON object")
-            req_id = msg.get("id")
-            method = msg.get("method")
-            if not isinstance(method, str):
-                raise ProtocolError("INVALID_REQUEST", "Missing or invalid method")
-            params = msg.get("params") or {}
-            if not isinstance(params, dict):
-                raise ProtocolError("INVALID_REQUEST", "params must be an object")
-            result = dispatch(method, params)
-            _emit({"id": req_id, "ok": True, "result": result})
-        except ProtocolError as exc:
-            _emit({"id": req_id, "ok": False, "error": {"code": exc.code, "message": exc.message}})
-        except json.JSONDecodeError:
-            _emit({"id": req_id, "ok": False, "error": {"code": "INVALID_REQUEST", "message": "Malformed JSON"}})
-        except Exception as exc:  # noqa: BLE001 — protocol boundary; never crash the daemon
-            _emit({"id": req_id, "ok": False, "error": {"code": "INTERNAL", "message": str(exc)}})
+    from negswift_engine.serve import serve_stdio as _serve_stdio
 
-
-def _emit(payload: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    sys.stdout.flush()
+    _serve_stdio()

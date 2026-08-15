@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -37,7 +38,12 @@ def main() -> None:
     serve_p.add_argument(
         "--stdio",
         action="store_true",
-        help="Read/write NDJSON on stdin/stdout (default when no other transport is given)",
+        help="Read/write NDJSON on stdin/stdout (default when no --socket is given)",
+    )
+    serve_p.add_argument(
+        "--socket",
+        metavar="PATH",
+        help="Unix domain socket path (e.g. ~/Library/Application Support/NegSwift/engine.sock)",
     )
 
     args = parser.parse_args()
@@ -54,12 +60,14 @@ def main() -> None:
     elif args.command == "render":
         _cmd_render(args)
     elif args.command == "serve":
-        if not args.stdio:
-            print("serve: only --stdio is implemented; use: negswift-engine serve --stdio", file=sys.stderr)
-            sys.exit(2)
-        from negswift_engine.protocol import serve_stdio
+        if args.socket:
+            from negswift_engine.serve import serve_socket
 
-        serve_stdio()
+            serve_socket(os.path.expanduser(args.socket))
+        else:
+            from negswift_engine.serve import serve_stdio
+
+            serve_stdio()
 
 
 def _cmd_info() -> None:

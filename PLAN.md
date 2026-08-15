@@ -13,7 +13,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M0** Bootstrap | **Done** | `Makefile`; GitHub CI not yet wired |
 | **M1** Engine CLI | **Done** | `info`, `open`; `tests/test_cli.py` |
 | **M2** Render PNG | **Done** | `render` CLI; `tests/test_render.py` |
-| **M3** NDJSON daemon | **Partial** | `serve --stdio`; `load_config` added for M6. Missing: `cancel`, Unix socket, `save_config` |
+| **M3** NDJSON daemon | **Done** | `serve --stdio`, `serve --socket`, `cancel`; Unix socket for production |
 | **M4** Swift + preview | **Done** | Engine spawn, Open File → canvas |
 | **M5** Film strip | **Done** | Import Folder, lazy thumbnails |
 | **M6** Controls | **Done** | Sliders, process mode, debounced preview |
@@ -324,21 +324,20 @@ open /tmp/negswift_preview.png
 
 ---
 
-### M3 — Engine daemon + NDJSON protocol ⚠️ partial
+### M3 — Engine daemon + NDJSON protocol ✅
 
 **Deliverables**
 
 - [x] `negswift-engine serve --stdio`
+- [x] `negswift-engine serve --socket PATH`
 - [x] Implement `ping`, `info`, `open`, `render` over NDJSON
 - [x] `discover` (added for M5; not in original v0.1 sketch)
 - [x] `load_config` (M6)
 - [x] `save_config`
-- [ ] `negswift-engine serve --socket PATH`
-- [ ] Job ids + `cancel`
-- [ ] `save_config`
+- [x] Job ids + `cancel` (async `render` / `export`)
 - [x] `docs/ENGINE_PROTOCOL.md` v0.1 (evolving)
 
-**Automated:** `tests/test_protocol.py`, `tests/test_render.py`, `tests/test_discover.py`.
+**Automated:** `tests/test_protocol.py`, `tests/test_render.py`, `tests/test_discover.py`, `tests/test_cancel.py`, `tests/test_socket.py`.
 
 **Manual:**
 
@@ -439,7 +438,7 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 
 - [x] Engine `export` method — JPEG/TIFF, sRGB
 - [x] Swift export sheet: format, destination
-- [x] Progress indicator + cancel (Swift task; engine `cancel` still M3 debt)
+- [x] Progress indicator + cancel (Swift task + engine `cancel`)
 
 **Uses:** `ImageProcessor.process_export`, same as `ExportWorker`.
 
@@ -613,10 +612,8 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M9:** Engine `export` method + Swift export sheet (JPEG/TIFF, sRGB).
-2. **M3 debt (optional):** `cancel`, Unix socket transport.
-3. **M0 debt:** GitHub Actions running `make test` + `make build-app`.
-4. **M9b** before any M10 packaging — submodule pin at `Vendor/NegPy`.
+1. **M10:** Bundle engine in `.app` (PyInstaller / embedded CPython).
+2. **M0 debt:** GitHub Actions running `make test` + `make build-app`.
 
 ---
 

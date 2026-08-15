@@ -46,7 +46,7 @@ Test scan path:
 - [x] `serve --stdio` responds to `ping` (pytest)
 - [x] `render` via protocol returns base64 PNG (pytest)
 - [ ] Second `render` with same path is faster (warm cache) — manual
-- [ ] `cancel` during slow render — **not implemented**
+- [x] `cancel` during slow render (pytest)
 
 ---
 

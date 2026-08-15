@@ -70,4 +70,5 @@ uv run negswift-engine info
 uv run negswift-engine open /path/to/scan.tif
 uv run negswift-engine render --path /path/to/scan.tif --out preview.png --cpu
 uv run negswift-engine serve --stdio
+uv run negswift-engine serve --socket /tmp/negswift-engine.sock
 ```

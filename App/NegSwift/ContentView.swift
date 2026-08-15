@@ -8,7 +8,6 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Bindable var engineSession: EngineSession
-    @State private var showFolderImporter = false
     @State private var showFileImporter = false
     @State private var showExportSheet = false
 
@@ -29,7 +28,10 @@ struct ContentView: View {
 
                     HStack(spacing: 8) {
                         Button("Import Folder…") {
-                            showFolderImporter = true
+                            Task {
+                                guard let url = await FolderPicker.chooseFolder(prompt: "Import Folder") else { return }
+                                await engineSession.importFolder(at: url)
+                            }
                         }
                         .disabled(!engineSession.engineReady)
 
@@ -84,19 +86,6 @@ struct ContentView: View {
             ExportSheetView(session: engineSession)
         }
         .navigationSplitViewStyle(.balanced)
-        .fileImporter(
-            isPresented: $showFolderImporter,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case let .success(urls):
-                guard let url = urls.first else { return }
-                Task { await engineSession.importFolder(at: url) }
-            case let .failure(error):
-                engineSession.noteImportError(error.localizedDescription)
-            }
-        }
         .fileImporter(
             isPresented: $showFileImporter,
             allowedContentTypes: Self.importTypes,

@@ -12,7 +12,6 @@ struct ExportSheetView: View {
 
     @State private var settings = ExportSettings()
     @State private var destinationURL: URL?
-    @State private var showFolderPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -52,7 +51,11 @@ struct ExportSheetView: View {
                 }
                 Spacer()
                 Button("Choose…") {
-                    showFolderPicker = true
+                    Task {
+                        if let url = await FolderPicker.chooseFolder(prompt: "Export To") {
+                            destinationURL = url
+                        }
+                    }
                 }
             }
 
@@ -95,15 +98,6 @@ struct ExportSheetView: View {
         .onAppear {
             if destinationURL == nil {
                 destinationURL = defaultDestinationURL()
-            }
-        }
-        .fileImporter(
-            isPresented: $showFolderPicker,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            if case let .success(urls) = result, let url = urls.first {
-                destinationURL = url
             }
         }
     }

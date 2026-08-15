@@ -68,7 +68,9 @@ private struct FilmStripCell: View {
                 Spacer(minLength: 0)
             }
             .padding(6)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(isSelected ? Color.accentColor.opacity(0.18) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
     }

@@ -13,7 +13,7 @@ struct ContentView: View {
 
     @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
     @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
-    @AppStorage("negSwift.sidebar.colour") private var colourExpanded = false
+    @AppStorage("negSwift.sidebar.color") private var colorExpanded = false
     @AppStorage("negSwift.sidebar.crop") private var cropExpanded = false
     @AppStorage("negSwift.sidebar.engine") private var engineExpanded = false
 
@@ -53,7 +53,7 @@ struct ContentView: View {
                     ControlsPanelView(
                         session: engineSession,
                         toneExpanded: $toneExpanded,
-                        colourExpanded: $colourExpanded
+                        colorExpanded: $colorExpanded
                     )
 
                     GeometryPanelView(session: engineSession, isExpanded: $cropExpanded)

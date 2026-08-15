@@ -8,7 +8,7 @@ import SwiftUI
 struct ControlsPanelView: View {
     @Bindable var session: EngineSession
     @Binding var toneExpanded: Bool
-    @Binding var colourExpanded: Bool
+    @Binding var colorExpanded: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -23,7 +23,7 @@ struct ControlsPanelView: View {
                 }
             }
 
-            SidebarSection(title: "Colour", isExpanded: $colourExpanded) {
+            SidebarSection(title: "Color", isExpanded: $colorExpanded) {
                 VStack(alignment: .leading, spacing: 8) {
                     sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
                     sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
@@ -138,7 +138,7 @@ struct ControlsPanelView: View {
 }
 
 #Preview {
-    ControlsPanelView(session: .preview, toneExpanded: .constant(true), colourExpanded: .constant(false))
+    ControlsPanelView(session: .preview, toneExpanded: .constant(true), colorExpanded: .constant(false))
         .padding()
         .frame(width: 280)
 }

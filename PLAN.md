@@ -24,7 +24,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 **Resume here:** M9 — engine export + Swift export sheet.
 
-**Verify:** `make test` (14 engine tests) · crop to 3:2 · rotate 90° · quit/reopen restores geometry.
+**Verify:** `make test` (20 engine + 7 Swift tests) · crop to 3:2 · rotate 90° · quit/reopen restores geometry.
 
 ---
 
@@ -240,7 +240,7 @@ Preview responses use **PNG bytes (base64)** in v1 for simplicity; Milestone 7+ 
 - Canvas preview (fit / 1:1 zoom, pan)
 - **Setup:** process mode (C-41 / B&W in NegSwift; E-6 in full NegPy), auto density / auto grade
 - **Tone:** density, grade, saturation (single slider)
-- **Colour:** WB cyan/magenta/yellow
+- **Color:** WB cyan/magenta/yellow
 - **Geometry:** auto crop, rotation, aspect ratio preset
 - **Export:** JPEG + TIFF, sRGB, next to source or chosen folder
 - Persist edits (`.negpy` sidecar; optional same DB path as NegPy)
@@ -360,7 +360,7 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 - [x] Loading spinner + error alert
 - [x] `NegSwiftEnginePath` via merged `Info.plist` + `NEGSWIFT_ENGINE_PATH` build setting
 
-**Automated:** Swift unit tests with mocked transport — **not yet** (template XCTest only).
+**Automated:** Swift unit tests with mocked transport — **partial** (`FrameEditState`, `NormalizedRect`, `DebounceScheduler`; no `EngineClient` mock yet).
 
 **Manual:** Run from Xcode → Open → pick scan → preview appears within ~5s for a typical TIFF.
 
@@ -391,7 +391,7 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 
 **Uses:** `WorkspaceConfig` patches via `resolve_config`; auto metering in NegPy exposure stage.
 
-**Automated:** `tests/test_config.py`; `DebounceSchedulerTests` in NegSwiftTests.
+**Automated:** `tests/test_config.py`; `DebounceSchedulerTests`, `NormalizedRectTests`, `FrameEditStateTests` in NegSwiftTests.
 
 **Manual:** Load orange-mask negative; toggle auto density — preview brightens sensibly; drag grade — contrast changes; compare side-by-side with NegPy desktop same sliders.
 
@@ -426,7 +426,7 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 
 **Uses:** `GeometryConfig` — `manual_crop_rect`, `rotation`, `fine_rotation`, `autocrop_ratio`.
 
-**Automated:** `tests/test_config.py::test_save_geometry_round_trip`.
+**Automated:** `tests/test_config.py`; `tests/test_crop.py`; `DebounceSchedulerTests`, `NormalizedRectTests`, `FrameEditStateTests` in NegSwiftTests (via `make test`).
 
 **Manual:** Crop to 3:2; rotate CW; quit/reopen — crop and rotation restored.
 
@@ -528,7 +528,7 @@ NegSwift/
 │           ├── CanvasView.swift
 │           └── Controls/
 │               ├── ToneControls.swift
-│               └── ColourControls.swift
+│               └── ColorControls.swift
 ├── Engine/
 │   ├── pyproject.toml
 │   ├── negswift_engine/
@@ -560,7 +560,8 @@ NegSwift/
 
 | Layer | Tool | When |
 |-------|------|------|
-| Engine unit | `pytest` via `uv run` | Every commit |
+| Engine unit | `pytest` via `uv run` | Every commit (`make test`) |
+| Swift unit | `xcodebuild test` | Every commit (`make test`) |
 | Protocol | Python client → `serve --stdio` | M3+ |
 | Render parity | Optional: same frame NegSwift vs NegPy SSIM threshold | M2, M6, M9 |
 | Swift UI | XCTest + mocked `EngineClient` | M4+ |

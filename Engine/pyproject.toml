@@ -23,6 +23,7 @@ negpy = { path = "../../NegPy", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests"]
 markers = [
     "integration: needs GPU and real scan file",
 ]

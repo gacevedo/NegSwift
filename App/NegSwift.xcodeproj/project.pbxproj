@@ -400,12 +400,12 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NegSwift/Info.plist;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Gabriel Acevedo. Licensed under GPL-3.0.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1.0;
 				NEGSWIFT_ENGINE_PATH = "$(SRCROOT)/../Engine/.venv/bin/negswift-engine";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gabrielacevedo.NegSwift;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -432,12 +432,12 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NegSwift/Info.plist;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Gabriel Acevedo. Licensed under GPL-3.0.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1.0;
 				NEGSWIFT_ENGINE_PATH = "$(SRCROOT)/../Engine/.venv/bin/negswift-engine";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gabrielacevedo.NegSwift;
 				PRODUCT_NAME = "$(TARGET_NAME)";

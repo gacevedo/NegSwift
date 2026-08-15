@@ -9,6 +9,7 @@ import SwiftUI
 struct NegSwiftApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var engineSession = EngineSession()
+    @State private var showAbout = false
 
     var body: some Scene {
         WindowGroup {
@@ -22,6 +23,16 @@ struct NegSwiftApp: App {
                         Task { await engineSession.flushPendingSaves() }
                     }
                 }
+                .sheet(isPresented: $showAbout) {
+                    AboutView()
+                }
+        }
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About NegSwift") {
+                    showAbout = true
+                }
+            }
         }
     }
 }

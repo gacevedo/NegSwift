@@ -224,8 +224,8 @@ NegSwift engine should stay thin as upstream adds headless APIs.
 
 ## GPL compliance
 
-- Ship `LICENSE` and `NOTICE` with the app.
-- About box / README must credit NegPy and link to source.
+- Ship `LICENSE` and `NOTICE` with the app (`make build-app` copies them into `App/NegSwift/Legal/`).
+- About box (NegSwift menu → About NegSwift) and README credit Gabriel Acevedo, NegPy upstream, and link to source.
 - Bundled engine contains NegPy under GPL-3.0.
 
 ## Related docs

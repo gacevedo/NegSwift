@@ -588,11 +588,11 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 11. GPL-3.0 compliance checklist
 
-- [ ] `LICENSE` in NegSwift repo (done)
-- [ ] `NOTICE` crediting NegPy upstream and copyright holders
-- [ ] Source link in About box + README
+- [x] `LICENSE` in NegSwift repo
+- [x] `NOTICE` crediting Gabriel Acevedo, NegPy upstream, and copyright holders
+- [x] Source link in About box + README
 - [ ] If distributing binary: offer corresponding source (GitHub satisfies for public repo)
-- [ ] Document that shipped bundle contains NegPy under GPL-3.0
+- [x] Document that shipped bundle contains NegPy under GPL-3.0 (`NOTICE`, About box)
 
 ---
 

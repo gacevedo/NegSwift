@@ -18,6 +18,8 @@ test-swift:
 	cd App && xcodebuild -scheme NegSwift -configuration Debug -destination 'platform=macOS' test -quiet
 
 build-app:
+	mkdir -p App/NegSwift/Legal
+	cp NOTICE LICENSE App/NegSwift/Legal/
 	cd App && xcodebuild -scheme NegSwift -configuration Debug build
 
 all: lint test build-app

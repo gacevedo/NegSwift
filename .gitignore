@@ -29,3 +29,6 @@ Packaging/out/
 # macOS
 .DS_Store
 *.swp
+
+# Copied into the app bundle by `make build-app` (source: repo root)
+App/NegSwift/Legal/

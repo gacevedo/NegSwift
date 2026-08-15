@@ -2,7 +2,11 @@
 
 macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) — film-negative processing with a simpler SwiftUI interface, backed by upstream NegPy as a drop-in engine.
 
-**License:** GPL-3.0 (required by NegPy). See [LICENSE](LICENSE).
+**Author:** [Gabriel Acevedo](https://gabrielacevedo.com)
+
+**License:** GPL-3.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+**Source:** [github.com/gacevedo/NegSwift](https://github.com/gacevedo/NegSwift)
 
 ## Status
 

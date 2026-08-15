@@ -14,7 +14,7 @@ NegSwift is a **macOS-only SwiftUI lite shell** for film-negative processing. It
 |-------|------|------|
 | Swift UI | `App/` | SwiftUI, engine lifecycle, display |
 | Engine | `Engine/negswift_engine/` | IPC, orchestration, persist glue |
-| Upstream | `../../NegPy` (M0–M9) or `Vendor/NegPy` (M9b+) | Pipeline, loaders, export, configs |
+| Upstream | `Vendor/NegPy` (git submodule) | Pipeline, loaders, export, configs |
 
 **License:** GPL-3.0 for the whole product. NegPy is GPL-3.0 — do not introduce incompatible licenses.
 
@@ -56,12 +56,14 @@ Swift spawns `negswift-engine serve --stdio` via `EngineProcess` / `EngineClient
 
 ### NegPy (upstream — read-only for most NegSwift work)
 
-When debugging render parity, refer to sibling/submodule NegPy:
+When debugging render parity, use the submodule (or reinstall a sibling checkout for dual-repo hacking):
 
 ```bash
-cd ../NegPy   # or Vendor/NegPy after M9b
+cd Vendor/NegPy
 make test     # upstream test suite
 ```
+
+Dual-repo override: `cd Engine && uv pip install -e ../../NegPy` (see `pyproject.override.toml.example`).
 
 Pipeline and config details live in **NegPy's** `CLAUDE.md` / `docs/PIPELINE.md`. Do not duplicate pipeline math docs here.
 
@@ -74,13 +76,11 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M0 | Repo + Xcode skeleton + engine `info` |
 | M1–M3 | Engine CLI, PNG render, NDJSON daemon — **no Swift required** |
 | M4–M9 | SwiftUI shell, controls, sidecars, crop, export |
-| **M9b** | **NegPy git submodule at `Vendor/NegPy` — hard gate before M10** |
+| **M9b** | **Done** — NegPy submodule at `Vendor/NegPy` |
 | M10 | PyInstaller / bundle |
 | M11 | Polish |
 
-**Current status (2026-08-15):** M0–M9 done (M3 partial). **Next: M9b** submodule pin, then M10. See [PLAN.md](PLAN.md).
-
-When implementing a milestone, finish its deliverables and checklist items — do not skip ahead to bundling before M9b.
+**Current status (2026-08-15):** M0–M9b done (M3 partial). **Next: M10** bundle. See [PLAN.md](PLAN.md).
 
 ## Architecture rules
 
@@ -120,20 +120,13 @@ If preview differs from NegPy desktop at the same config → **engine wiring bug
 
 ## NegPy dependency layout
 
-| Phase | NegPy location | `Engine/pyproject.toml` |
-|-------|----------------|-------------------------|
-| M0–M9 | Sibling `../../NegPy` | `negpy = { path = "../../NegPy", editable = true }` |
-| M9b+ | Submodule `Vendor/NegPy` | `negpy = { path = "../Vendor/NegPy", editable = true }` |
+| Location | `Engine/pyproject.toml` |
+|----------|-------------------------|
+| **Canonical** | `negpy = { path = "../Vendor/NegPy", editable = true }` |
 
-- **M9b blocks M10.** CI and packaging must use the submodule, not a sibling path.
-- Dual-repo dev: optional gitignored `Engine/pyproject.override.toml` (see `PLAN.md` §3). Never use overrides in CI.
-
-Clone with submodules (after M9b):
-
-```bash
-git clone --recurse-submodules <repo>
-git submodule update --init --recursive
-```
+- **Clone:** `git clone --recurse-submodules` or `git submodule update --init --recursive`
+- **Dual-repo hack:** `uv pip install -e ../../NegPy` after sync (see `pyproject.override.toml.example`)
+- **M10+ packaging** uses `Vendor/NegPy` only — never a sibling path in CI
 
 ## Engine IPC
 

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Lint and test
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "Engine/uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Verify NegPy submodule
+        run: test -f Vendor/NegPy/VERSION
+
+      - name: Install engine dependencies
+        working-directory: Engine
+        run: uv sync
+
+      - name: Lint engine
+        run: make lint
+
+      - name: Engine tests
+        working-directory: Engine
+        run: uv run pytest tests/ -v
+
+      - name: Swift unit tests
+        run: |
+          cd App && xcodebuild -scheme NegSwift -configuration Debug \
+            -destination 'platform=macOS' \
+            -only-testing:NegSwiftTests test -quiet

@@ -20,9 +20,10 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M7** Persist | **Done** | `save_config`, debounced `.negpy` sidecars |
 | **M8** Crop | **Done** | Crop overlay, rotation, aspect ratio, fine rotation |
 | **M9** Export | **Done** | Engine `export`, Swift export sheet, 4 pytest cases |
+| **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.50.0, CI, `uv.lock` |
 | M10–M11 | Not started | — |
 
-**Resume here:** M9b — NegPy git submodule pin (required before M10).
+**Resume here:** M10 — bundle engine in `.app` (PyInstaller or embedded CPython).
 
 **Verify:** `make test` (24 engine + 7 Swift tests) · export JPEG/TIFF · crop + export dimensions.
 
@@ -271,7 +272,7 @@ Each milestone lists **automated** checks and a **manual smoke test** you can ru
 - [x] `Engine/pyproject.toml` with path dep on NegPy (sibling `../../NegPy` is fine until M9b)
 - [x] `Engine/negswift_engine/` package skeleton
 - [x] GPL-3.0 LICENSE, README, this plan, `.gitignore`
-- [ ] CI stub: GitHub Actions (`ruff` + `pytest` + `xcodebuild`) — **`Makefile` exists locally**
+- [ ] CI stub: GitHub Actions (`ruff` + `pytest` + `xcodebuild`) — **`.github/workflows/ci.yml`**
 
 **Automated:** `uv sync` in `Engine/` succeeds; `xcodebuild -scheme NegSwift build` succeeds.
 
@@ -448,19 +449,19 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 
 ---
 
-### M9b — NegPy git submodule (required before M10)
+### M9b — NegPy git submodule (required before M10) ✅
 
 Switch from an ad-hoc sibling checkout to a **pinned git submodule**. This milestone is packaging prep, not user-facing features — but it must pass before any bundling work.
 
 **Deliverables**
 
-- [ ] `Vendor/NegPy` submodule → `https://github.com/marcinz606/NegPy.git`
-- [ ] Submodule SHA pinned to a NegPy tag or commit validated by M9 export tests
-- [ ] `Engine/pyproject.toml` → `negpy = { path = "../Vendor/NegPy", editable = true }`
-- [ ] `uv lock` refreshed; `uv sync` works from a clean `--recurse-submodules` clone
-- [ ] CI: `git submodule update --init --recursive` before engine tests
-- [ ] README + `Engine/README.md`: clone with `--recurse-submodules`; document optional `pyproject.override.toml` for dual-repo dev
-- [ ] `.gitmodules` committed; sibling-path docs marked as early-dev only
+- [x] `Vendor/NegPy` submodule → `https://github.com/marcinz606/NegPy.git`
+- [x] Submodule SHA pinned to NegPy **0.50.0** (validated by engine tests)
+- [x] `Engine/pyproject.toml` → `negpy = { path = "../Vendor/NegPy", editable = true }`
+- [x] `uv lock` refreshed; `uv sync` works from a clean `--recurse-submodules` clone
+- [x] CI: `git submodule update --init --recursive` before engine tests (`.github/workflows/ci.yml`)
+- [x] README + `Engine/README.md`: clone with `--recurse-submodules`; `pyproject.override.toml.example` for dual-repo dev
+- [x] `.gitmodules` committed; sibling path marked early-dev only in docs
 
 **Automated:** CI green on a fresh clone with submodules only (no sibling NegPy).
 

@@ -1,0 +1,11 @@
+# Dual-repo NegPy hacking — optional escape hatch.
+#
+# Option A (recommended): reinstall editable NegPy into the venv after sync:
+#   cd Engine && uv sync && uv pip install -e ../../NegPy
+#
+# Option B: temporarily edit [tool.uv.sources] in pyproject.toml locally (do not commit).
+#
+# CI and release builds always use Vendor/NegPy from the git submodule.
+
+[tool.uv.sources]
+negpy = { path = "../../NegPy", editable = true }

@@ -1,4 +1,5 @@
-# Xcode
+# Xcode — user-specific state (any depth: project.xcworkspace inside .xcodeproj, etc.)
+xcuserdata/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
 DerivedData/

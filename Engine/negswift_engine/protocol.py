@@ -10,12 +10,12 @@ from typing import Any
 from negswift_engine.discover import discover_assets
 from negswift_engine.export import export_asset
 from negswift_engine.render import load_config_dict, open_asset, render_preview_base64, save_config_dict
+from negswift_engine.versions import negpy_version
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 def _cmd_info(_params: dict[str, Any]) -> dict[str, Any]:
-    import negpy
     from negpy.infrastructure.gpu.device import GPUDevice
 
     from negswift_engine import __version__
@@ -24,7 +24,7 @@ def _cmd_info(_params: dict[str, Any]) -> dict[str, Any]:
     return {
         "protocol_version": "0.1",
         "negswift_version": __version__,
-        "negpy_version": getattr(negpy, "__version__", "unknown"),
+        "negpy_version": negpy_version(),
         "python": sys.version.split()[0],
         "gpu_available": gpu.is_available,
         "gpu_backend": gpu.backend_name if gpu.is_available else None,

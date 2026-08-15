@@ -11,6 +11,7 @@ from negswift_engine import __version__
 from negswift_engine.config_io import load_config_overrides
 from negswift_engine.discover import discover_assets
 from negswift_engine.render import open_asset, render_preview_png
+from negswift_engine.versions import negpy_version
 
 
 def main() -> None:
@@ -62,13 +63,12 @@ def main() -> None:
 
 
 def _cmd_info() -> None:
-    import negpy
     from negpy.infrastructure.gpu.device import GPUDevice
 
     gpu = GPUDevice.get()
     payload = {
         "negswift_version": __version__,
-        "negpy_version": getattr(negpy, "__version__", "unknown"),
+        "negpy_version": negpy_version(),
         "python": sys.version.split()[0],
         "gpu_available": gpu.is_available,
         "gpu_backend": gpu.backend_name if gpu.is_available else None,

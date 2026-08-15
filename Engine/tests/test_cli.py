@@ -24,6 +24,7 @@ def test_info_json() -> None:
     payload = json.loads(proc.stdout)
     assert "negswift_version" in payload
     assert "negpy_version" in payload
+    assert payload["negpy_version"] not in ("Unknown-dev", "unknown")
     assert "gpu_available" in payload
 
 

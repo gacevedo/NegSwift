@@ -107,9 +107,10 @@ Test scan path:
 
 ## M9b — NegPy submodule (required before M10)
 
-- [ ] Fresh `git clone --recurse-submodules` → `uv sync` → `negswift-engine info` works
-- [ ] No sibling `../../NegPy` required for engine to run
-- [ ] `Vendor/NegPy` at expected tag/commit; `git submodule status` clean
+- [x] Fresh `git clone --recurse-submodules` → `uv sync` → `negswift-engine info` works
+- [x] No sibling `../../NegPy` required for engine to run
+- [x] `Vendor/NegPy` at tag **0.50.0**; `git submodule status` clean
+- [x] CI workflow checks out submodules and runs engine + Swift unit tests
 - [ ] Re-run M9 export smoke — output unchanged from pre-M9b
 
 ---

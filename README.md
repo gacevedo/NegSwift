@@ -6,37 +6,46 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M9 complete** (M3 partial: no `cancel`/socket). **Next: M9b** submodule pin, then M10 bundle.
+**M0–M9b complete** (M3 partial: no `cancel`/socket). **Next: M10** bundle.
 
-See **[PLAN.md](PLAN.md)** for the full roadmap and status table. Agents: read **[AGENTS.md](AGENTS.md)** first.
+See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 
 ```bash
-make test      # 11 engine pytest tests
+make sync      # init submodule + uv sync (first time)
+make test      # engine pytest + Swift unit tests
 make build-app # Xcode Debug build
 ```
 
-## Layout (target)
+## Layout
 
 ```
 NegSwift/
-├── Vendor/NegPy/        # upstream engine (git submodule from M9b; sibling ok until then)
+├── Vendor/NegPy/        # upstream engine (git submodule, pinned SHA)
 ├── App/                 # SwiftUI macOS app (Xcode)
-├── Engine/              # Thin Python daemon + CLI (imports negpy, no forked math)
-├── Packaging/           # PyInstaller / embedded CPython scripts
-├── Tests/               # Swift + engine integration tests
+├── Engine/              # Thin Python daemon + CLI (imports negpy)
+├── Packaging/           # PyInstaller / embedded CPython (M10)
 └── docs/                # Manual test checklists, protocol spec
 ```
 
-## Development (once Milestone 0 lands)
-
-**M0–M9:** sibling checkout at `../../NegPy` (same parent as NegSwift) is fine.
-
-**M9b onward:** NegPy lives at `Vendor/NegPy` (git submodule). Clone with:
+## Development
 
 ```bash
 git clone --recurse-submodules <NegSwift repo URL>
-cd Engine && uv sync
-uv run negswift-engine info
+cd NegSwift
+make sync
+make test
+make build-app # Xcode Debug build
 ```
 
-See [PLAN.md](PLAN.md) for the full milestone roadmap — **M9b (submodule pin) is required before M10 (bundling)**.
+If you already cloned without submodules:
+
+```bash
+git submodule update --init --recursive
+make sync
+```
+
+NegPy contributors can point the engine at a sibling checkout via `Engine/pyproject.override.toml` (see [Engine/README.md](Engine/README.md)).
+
+**M9b onward:** CI and packaging use `Vendor/NegPy` only — not `../../NegPy`.
+
+See [PLAN.md](PLAN.md) — **M10 (bundling)** requires M9b complete.

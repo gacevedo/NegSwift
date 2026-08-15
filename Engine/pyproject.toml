@@ -19,7 +19,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-negpy = { path = "../../NegPy", editable = true }
+negpy = { path = "../Vendor/NegPy", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

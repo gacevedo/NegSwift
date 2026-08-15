@@ -1,6 +1,7 @@
 .PHONY: sync lint format test test-swift build-app all
 
 sync:
+	@test -f Vendor/NegPy/VERSION || (echo "NegPy submodule missing — run: git submodule update --init --recursive" && exit 1)
 	cd Engine && uv sync
 
 lint:

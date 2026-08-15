@@ -18,6 +18,7 @@ def test_info() -> None:
     assert result["protocol_version"] == "0.1"
     assert "negswift_version" in result
     assert "negpy_version" in result
+    assert result["negpy_version"] not in ("Unknown-dev", "unknown")
 
 
 def test_open(sample_tiff) -> None:

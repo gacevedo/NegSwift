@@ -57,7 +57,7 @@ Error:
 ```json
 {
   "negswift_version": "0.1.0",
-  "negpy_version": "0.49.0",
+  "negpy_version": "0.50.0",
   "python": "3.13.2",
   "gpu_backend": "METAL",
   "gpu_available": true

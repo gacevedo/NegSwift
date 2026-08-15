@@ -8,7 +8,7 @@ from collections.abc import Callable
 from typing import Any
 
 from negswift_engine.discover import discover_assets
-from negswift_engine.render import open_asset, render_preview_base64
+from negswift_engine.render import load_config_dict, open_asset, render_preview_base64
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -53,6 +53,18 @@ def _cmd_discover(params: dict[str, Any]) -> dict[str, Any]:
     return {"assets": discover_assets(paths)}
 
 
+def _cmd_load_config(params: dict[str, Any]) -> dict[str, Any]:
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        raise ProtocolError("INVALID_REQUEST", "params.path is required")
+    try:
+        return {"config": load_config_dict(path)}
+    except FileNotFoundError as exc:
+        raise ProtocolError("NOT_FOUND", str(exc)) from exc
+    except OSError as exc:
+        raise ProtocolError("LOAD_FAILED", str(exc)) from exc
+
+
 def _cmd_render(params: dict[str, Any]) -> dict[str, Any]:
     path = params.get("path")
     if not isinstance(path, str) or not path:
@@ -86,6 +98,7 @@ _HANDLERS: dict[str, Handler] = {
     "info": _cmd_info,
     "open": _cmd_open,
     "discover": _cmd_discover,
+    "load_config": _cmd_load_config,
     "render": _cmd_render,
 }
 

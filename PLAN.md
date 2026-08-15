@@ -6,22 +6,23 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 ---
 
-## Plan status (last updated: 2026-08-09)
+## Plan status (last updated: 2026-08-14)
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
-| **M0** Bootstrap | **Done** | `Makefile` (`make test`, `make lint`, `make build-app`); GitHub CI not yet wired |
+| **M0** Bootstrap | **Done** | `Makefile`; GitHub CI not yet wired |
 | **M1** Engine CLI | **Done** | `info`, `open`; `tests/test_cli.py` |
 | **M2** Render PNG | **Done** | `render` CLI; `tests/test_render.py` |
-| **M3** NDJSON daemon | **Partial** | `serve --stdio`; `ping`, `info`, `open`, `discover`, `render`. Missing: `cancel`, Unix socket, `load_config`/`save_config` |
-| **M4** Swift + preview | **Done** | Engine spawn, `Info.plist` engine path, Open File → canvas. Mocked Swift unit tests not yet |
-| **M5** Film strip | **Done** | Import Folder, lazy 256px thumbnails, selection → canvas; `tests/test_discover.py` |
-| **M6** Controls | **Next** | — |
-| M7–M11 | Not started | — |
+| **M3** NDJSON daemon | **Partial** | `serve --stdio`; `load_config` added for M6. Missing: `cancel`, Unix socket, `save_config` |
+| **M4** Swift + preview | **Done** | Engine spawn, Open File → canvas |
+| **M5** Film strip | **Done** | Import Folder, lazy thumbnails |
+| **M6** Controls | **Done** | Sliders + Auto Density/Grade + debounced preview; `tests/test_config.py` |
+| **M7** Persist | **Next** | — |
+| M8–M11 | Not started | — |
 
-**Resume here:** M6 — essential sliders (density, grade, saturation, WB) + debounced live preview + Auto Density/Grade.
+**Resume here:** M7 — auto-save `.negpy` sidecars + load on open.
 
-**Verify before M6:** `make test` (9 engine tests) · `make build-app` · ⌘R → Import Folder → click frames.
+**Verify:** `make test` (11 engine tests) · `make build-app` · ⌘R → import scan → drag sliders.
 
 ---
 
@@ -327,9 +328,10 @@ open /tmp/negswift_preview.png
 - [x] `negswift-engine serve --stdio`
 - [x] Implement `ping`, `info`, `open`, `render` over NDJSON
 - [x] `discover` (added for M5; not in original v0.1 sketch)
+- [x] `load_config` (M6)
 - [ ] `negswift-engine serve --socket PATH`
 - [ ] Job ids + `cancel`
-- [ ] `load_config` / `save_config`
+- [ ] `save_config`
 - [x] `docs/ENGINE_PROTOCOL.md` v0.1 (evolving)
 
 **Automated:** `tests/test_protocol.py`, `tests/test_render.py`, `tests/test_discover.py`.
@@ -375,17 +377,18 @@ echo '{"id":2,"method":"render","params":{"path":"..."}}' | ...
 
 ---
 
-### M6 — Essential controls (live preview)
+### M6 — Essential controls (live preview) ✅
 
 **Deliverables**
 
-- [ ] SwiftUI sliders: density, grade, saturation, WB CMY
-- [ ] Debounced render (300 ms) + cancel stale jobs
-- [ ] `Auto Density` / `Auto Grade` buttons (call NegPy analysis APIs used by desktop)
+- [x] SwiftUI sliders: density, grade, saturation (Chroma), WB CMY
+- [x] Debounced render (300 ms) + stale-job generation guard
+- [x] `Auto Density` / `Auto Grade` toggles (`auto_exposure`, `auto_normalize_contrast`)
+- [x] Engine `load_config` + `render` with partial `WorkspaceConfig`
 
-**Uses:** `WorkspaceConfig` patches; same analysis as `negpy.features.exposure.analysis`.
+**Uses:** `WorkspaceConfig` patches via `resolve_config`; auto metering in NegPy exposure stage.
 
-**Automated:** pytest that auto density changes config fields; Swift test debounce logic.
+**Automated:** `tests/test_config.py`; `DebounceSchedulerTests` in NegSwiftTests.
 
 **Manual:** Load orange-mask negative; toggle auto density — preview brightens sensibly; drag grade — contrast changes; compare side-by-side with NegPy desktop same sliders.
 
@@ -605,8 +608,8 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M6:** SwiftUI sliders (density, grade, saturation, WB CMY) + debounced `render` with config overrides; Auto Density / Auto Grade.
-2. **M3 debt (optional, parallel):** `cancel`, `load_config` / `save_config` on protocol — needed before M7 persist.
+1. **M7:** Auto-save `.negpy` sidecars on edit; load on `open`; optional shared `edits.db`.
+2. **M3 debt (optional):** `cancel`, `save_config` on protocol.
 3. **M0 debt:** GitHub Actions running `make test` + `make build-app`.
 4. **M9b** before any M10 packaging — submodule pin at `Vendor/NegPy`.
 

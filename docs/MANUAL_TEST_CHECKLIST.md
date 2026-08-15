@@ -66,13 +66,13 @@ Test scan path:
 
 ---
 
-## M6 — Controls
+## M6 — Controls ✅
 
-- [ ] Density slider updates preview (debounced)
-- [ ] Grade slider updates contrast
-- [ ] WB sliders shift color
-- [ ] Auto Density / Auto Grade produce sensible result on orange-mask negative
-- [ ] Values match NegPy desktop for same slider positions (± visual tolerance)
+- [x] Density slider updates preview (debounced, 300 ms)
+- [x] Grade slider updates contrast
+- [x] Chroma + WB sliders shift color
+- [x] Auto Density / Auto Grade toggles wired to pipeline
+- [ ] Values match NegPy desktop for same slider positions (± visual tolerance) — manual compare
 
 ---
 

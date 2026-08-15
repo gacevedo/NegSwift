@@ -25,8 +25,10 @@ final class EngineSession {
     private(set) var currentPath: String?
     private(set) var frames: [ScanFrame] = []
     private(set) var selectedFrameID: UUID?
+    private(set) var frameEdits: [String: FrameEditState] = [:]
 
     private let client = EngineClient()
+    private let previewDebounce = DebounceScheduler()
     private var scopedFolderURL: URL?
     private var stripGeneration = 0
     private var previewGeneration = 0
@@ -34,6 +36,49 @@ final class EngineSession {
     var engineReady: Bool {
         if case .ready = state { return true }
         return false
+    }
+
+    var currentEdit: FrameEditState {
+        guard let path = selectedFramePath else { return FrameEditState() }
+        return frameEdits[path] ?? FrameEditState()
+    }
+
+    private var selectedFramePath: String? {
+        guard let id = selectedFrameID else { return nil }
+        return frames.first(where: { $0.id == id })?.path
+    }
+
+    func setDensity(_ value: Double) { updateEdit { $0.density = value } }
+    func setGrade(_ value: Double) { updateEdit { $0.grade = value } }
+    func setSaturation(_ value: Double) { updateEdit { $0.saturation = value } }
+    func setWBCyan(_ value: Double) { updateEdit { $0.wbCyan = value } }
+    func setWBMagenta(_ value: Double) { updateEdit { $0.wbMagenta = value } }
+    func setWBYellow(_ value: Double) { updateEdit { $0.wbYellow = value } }
+    func setAutoExposure(_ value: Bool) { updateEdit { $0.autoExposure = value } }
+    func setAutoNormalizeContrast(_ value: Bool) { updateEdit { $0.autoNormalizeContrast = value } }
+
+    private func updateEdit(_ transform: (inout FrameEditState) -> Void) {
+        guard let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else { return }
+        var edit = frameEdits[path] ?? FrameEditState()
+        transform(&edit)
+        frameEdits[path] = edit
+        scheduleDebouncedPreview(for: frame)
+    }
+
+    private func scheduleDebouncedPreview(for frame: ScanFrame) {
+        previewGeneration += 1
+        let generation = previewGeneration
+        let config = frameEdits[frame.path] ?? FrameEditState()
+        previewDebounce.schedule { [weak self] in
+            guard let self else { return }
+            await self.renderPreview(
+                at: frame.url,
+                generation: generation,
+                config: config
+            )
+        }
     }
 
     func start() async {
@@ -132,12 +177,26 @@ final class EngineSession {
     func selectFrame(_ id: UUID) async {
         selectedFrameID = id
         guard let frame = frames.first(where: { $0.id == id }) else { return }
+        await ensureEditLoaded(for: frame.path)
+        previewDebounce.cancel()
         previewGeneration += 1
         let generation = previewGeneration
-        await renderPreview(at: frame.url, generation: generation)
+        let config = frameEdits[frame.path] ?? FrameEditState()
+        await renderPreview(at: frame.url, generation: generation, config: config)
     }
 
-    private func renderPreview(at url: URL, generation: Int) async {
+    private func ensureEditLoaded(for path: String) async {
+        guard frameEdits[path] == nil else { return }
+        do {
+            let loaded = try await client.loadConfig(path: path)
+            let flat = loaded.config.mapValues(\.anyValue)
+            frameEdits[path] = FrameEditState.fromFlatConfig(flat)
+        } catch {
+            frameEdits[path] = FrameEditState()
+        }
+    }
+
+    private func renderPreview(at url: URL, generation: Int, config: FrameEditState? = nil) async {
         guard engineReady else { return }
 
         let gotAccess = url.startAccessingSecurityScopedResource()
@@ -151,7 +210,7 @@ final class EngineSession {
         previewError = nil
 
         do {
-            let result = try await client.render(path: url.path)
+            let result = try await client.render(path: url.path, config: config)
             guard generation == previewGeneration else { return }
             guard let data = result.pngData, let image = NSImage(data: data) else {
                 previewError = "Engine returned an invalid PNG."
@@ -195,9 +254,11 @@ final class EngineSession {
     private func clearFilmStrip() {
         stripGeneration += 1
         previewGeneration += 1
+        previewDebounce.cancel()
         stopFolderAccess()
         frames = []
         selectedFrameID = nil
+        frameEdits = [:]
     }
 
     private func stopFolderAccess() {
@@ -223,6 +284,7 @@ final class EngineSession {
             ScanFrame(id: UUID(), url: URL(fileURLWithPath: "/preview/b.tif"), path: "/preview/b.tif", name: "b.tif"),
         ]
         session.selectedFrameID = session.frames.first?.id
+        session.frameEdits["/preview/a.tif"] = FrameEditState()
         return session
     }
     #endif

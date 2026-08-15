@@ -36,6 +36,11 @@ def _preview_manager_instance() -> PreviewManager:
     return _preview_manager
 
 
+def load_config_dict(path: str) -> dict[str, Any]:
+    config = load_sidecar(path) or DEFAULT_WORKSPACE_CONFIG
+    return config.to_dict()
+
+
 def resolve_config(path: str, overrides: dict[str, Any] | None = None) -> WorkspaceConfig:
     config = load_sidecar(path) or DEFAULT_WORKSPACE_CONFIG
     if not overrides:

@@ -43,6 +43,8 @@ struct ContentView: View {
                     .frame(minHeight: 120, maxHeight: 280)
                 }
 
+                ControlsPanelView(session: engineSession)
+
                 engineStatusCard
                 Spacer()
             }

@@ -1,0 +1,125 @@
+//
+//  ControlsPanelView.swift
+//  NegSwift
+//
+
+import SwiftUI
+
+struct ControlsPanelView: View {
+    @Bindable var session: EngineSession
+
+    var body: some View {
+        GroupBox("Adjust") {
+            VStack(alignment: .leading, spacing: 14) {
+                autoRow
+                sliderRow("Print Density", value: densityBinding, range: EditControlRanges.density, format: "%.2f")
+                sliderRow("ISO-R Grade", value: gradeBinding, range: EditControlRanges.grade, format: "%.0f")
+                sliderRow("Chroma", value: saturationBinding, range: EditControlRanges.saturation, format: "%.2f")
+                whiteBalanceSection
+            }
+            .padding(.vertical, 4)
+        }
+        .disabled(session.selectedFrameID == nil)
+    }
+
+    private var autoRow: some View {
+        HStack(spacing: 8) {
+            Toggle("Auto Density", isOn: autoExposureBinding)
+                .controlSize(.small)
+            Toggle("Auto Grade", isOn: autoGradeBinding)
+                .controlSize(.small)
+        }
+    }
+
+    private var whiteBalanceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("White Balance")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+            sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+            sliderRow("Yellow", value: wbYellowBinding, range: EditControlRanges.whiteBalance, format: "%.2f")
+        }
+    }
+
+    private func sliderRow(
+        _ title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        format: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.caption)
+                Spacer()
+                Text(String(format: format, value.wrappedValue))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: range)
+        }
+    }
+
+    private var densityBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.density },
+            set: { session.setDensity($0) }
+        )
+    }
+
+    private var gradeBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.grade },
+            set: { session.setGrade($0) }
+        )
+    }
+
+    private var saturationBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.saturation },
+            set: { session.setSaturation($0) }
+        )
+    }
+
+    private var wbCyanBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.wbCyan },
+            set: { session.setWBCyan($0) }
+        )
+    }
+
+    private var wbMagentaBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.wbMagenta },
+            set: { session.setWBMagenta($0) }
+        )
+    }
+
+    private var wbYellowBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.wbYellow },
+            set: { session.setWBYellow($0) }
+        )
+    }
+
+    private var autoExposureBinding: Binding<Bool> {
+        Binding(
+            get: { session.currentEdit.autoExposure },
+            set: { session.setAutoExposure($0) }
+        )
+    }
+
+    private var autoGradeBinding: Binding<Bool> {
+        Binding(
+            get: { session.currentEdit.autoNormalizeContrast },
+            set: { session.setAutoNormalizeContrast($0) }
+        )
+    }
+}
+
+#Preview {
+    ControlsPanelView(session: .preview)
+        .padding()
+        .frame(width: 280)
+}

@@ -5,6 +5,81 @@
 
 import Foundation
 
+struct LoadConfigResult: Codable, Sendable {
+    let config: [String: JSONValue]
+}
+
+/// Loose JSON value for flat WorkspaceConfig payloads from the engine.
+enum JSONValue: Codable, Sendable {
+    case string(String)
+    case int(Int)
+    case double(Double)
+    case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Int.self) {
+            self = .int(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .double(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([String: JSONValue].self) {
+            self = .object(value)
+        } else if let value = try? container.decode([JSONValue].self) {
+            self = .array(value)
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON value")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case let .string(value):
+            try container.encode(value)
+        case let .int(value):
+            try container.encode(value)
+        case let .double(value):
+            try container.encode(value)
+        case let .bool(value):
+            try container.encode(value)
+        case let .object(value):
+            try container.encode(value)
+        case let .array(value):
+            try container.encode(value)
+        case .null:
+            try container.encodeNil()
+        }
+    }
+
+    var anyValue: Any {
+        switch self {
+        case let .string(value):
+            value
+        case let .int(value):
+            value
+        case let .double(value):
+            value
+        case let .bool(value):
+            value
+        case let .object(value):
+            value.mapValues(\.anyValue)
+        case let .array(value):
+            value.map(\.anyValue)
+        case .null:
+            NSNull()
+        }
+    }
+}
+
 struct RenderResult: Codable, Sendable {
     let width: Int
     let height: Int
@@ -116,8 +191,16 @@ actor EngineClient {
         try await call(method: "info", params: EmptyParams())
     }
 
-    func render(path: String, longEdgePx: Int? = nil) async throws -> RenderResult {
-        try await call(method: "render", params: RenderParams(path: path, longEdgePx: longEdgePx))
+    func render(
+        path: String,
+        longEdgePx: Int? = nil,
+        config: FrameEditState? = nil
+    ) async throws -> RenderResult {
+        try await call(method: "render", params: RenderParams(path: path, longEdgePx: longEdgePx, config: config))
+    }
+
+    func loadConfig(path: String) async throws -> LoadConfigResult {
+        try await call(method: "load_config", params: LoadConfigParams(path: path))
     }
 
     func discover(paths: [String]) async throws -> DiscoverResult {
@@ -131,15 +214,31 @@ actor EngineClient {
         let paths: [String]
     }
 
+    private struct LoadConfigParams: Encodable {
+        let path: String
+    }
+
     private struct RenderParams: Encodable {
         let path: String
         let longEdgePx: Int?
         let preferGpu: Bool = true
+        let config: FrameEditState?
 
         enum CodingKeys: String, CodingKey {
             case path
             case longEdgePx = "long_edge_px"
             case preferGpu = "prefer_gpu"
+            case config
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(path, forKey: .path)
+            try container.encodeIfPresent(longEdgePx, forKey: .longEdgePx)
+            try container.encode(preferGpu, forKey: .preferGpu)
+            if let config {
+                try container.encode(config, forKey: .config)
+            }
         }
     }
 

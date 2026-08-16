@@ -11,7 +11,7 @@ struct ContentView: View {
     @Bindable var commandBridge: MainWindowCommandBridge
     @State private var showExportSheet = false
     @State private var showEngineSheet = false
-    @State private var showResetConfirm = false
+    @State private var showResetSheet = false
     @State private var previewZoomMode: PreviewZoomMode = .fit
 
     @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
@@ -98,7 +98,7 @@ struct ContentView: View {
 
                 HStack(spacing: 12) {
                     Button("Reset Adjustments…") {
-                        showResetConfirm = true
+                        showResetSheet = true
                     }
                     .controlSize(.mini)
                     .font(.caption)
@@ -150,17 +150,8 @@ struct ContentView: View {
         .sheet(isPresented: $showAbout) {
             AboutView()
         }
-        .confirmationDialog(
-            "Reset all adjustments?",
-            isPresented: $showResetConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Reset", role: .destructive) {
-                Task { await engineSession.resetCurrentFrameEdits() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Returns the selected frame to default settings and removes its saved sidecar. This cannot be undone.")
+        .sheet(isPresented: $showResetSheet) {
+            ResetAdjustmentsSheet(session: engineSession)
         }
         .navigationSplitViewStyle(.balanced)
         .importDropTarget(session: engineSession, isTargeted: $isImportDropTargeted)
@@ -178,6 +169,7 @@ struct ContentView: View {
         .onChange(of: showExportSheet) { _, _ in syncCommandBridgeState() }
         .onChange(of: showEngineSheet) { _, _ in syncCommandBridgeState() }
         .onChange(of: showAbout) { _, _ in syncCommandBridgeState() }
+        .onChange(of: showResetSheet) { _, _ in syncCommandBridgeState() }
     }
 
     private func wireCommandBridge() {
@@ -200,7 +192,7 @@ struct ContentView: View {
     }
 
     private func syncCommandBridgeState() {
-        let modalOpen = showExportSheet || showEngineSheet || showAbout
+        let modalOpen = showExportSheet || showEngineSheet || showAbout || showResetSheet
         commandBridge.canOpenImport = engineSession.engineReady
         commandBridge.canOpenExport = engineSession.engineReady
             && engineSession.selectedFrameID != nil
@@ -293,7 +285,7 @@ struct ContentView: View {
             if engineSession.previewImage != nil {
                 Color.black.opacity(0.25)
             }
-            ProgressView("Loading image…")
+            ProgressView(engineSession.previewLoadingMessage ?? "Loading image…")
                 .fixedSize()
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)

@@ -30,6 +30,8 @@ final class EngineSession {
     private(set) var isCropToolActive = false
     private(set) var isCropOverlayReady = false
     private(set) var previewPixelSize: CGSize?
+    /// When set, the canvas shows a loading overlay with this message (e.g. during reset).
+    private(set) var previewLoadingMessage: String?
 
     /// Tone snapshot when crop mode opens. Crop drags can re-meter live when
     /// ``autoDensityUsesCrop`` is on (via a wire ``analysis_rect`` that busts the engine cache).
@@ -101,9 +103,17 @@ final class EngineSession {
         return frames.first(where: { $0.id == id })?.path
     }
 
+    /// Film-strip paths with a saved ``.negpy`` sidecar or unsaved in-memory edits.
+    func framePathsWithAdjustments() -> [String] {
+        frames.map(\.path).filter { path in
+            dirtyPaths.contains(path) || SidecarLocator.exists(forScanPath: path)
+        }
+    }
+
     /// True while the canvas preview does not yet match the selected film-strip frame.
     var isPreviewStale: Bool {
         guard let selected = selectedFramePath else { return false }
+        if previewLoadingMessage != nil { return true }
         if currentPath == selected { return false }
         if isRenderingPreview { return true }
         if previewError != nil { return false }
@@ -211,9 +221,21 @@ final class EngineSession {
     func setAutoDensityUsesCrop(_ value: Bool) { updateEdit { $0.autoDensityUsesCrop = value } }
 
     func resetCurrentFrameEdits() async {
-        guard let path = selectedFramePath,
-              let frame = frames.first(where: { $0.path == path })
-        else { return }
+        await resetFrameEdits(applyToAll: false)
+    }
+
+    func resetFrameEdits(applyToAll: Bool) async {
+        let targetPaths: [String]
+        if applyToAll {
+            targetPaths = framePathsWithAdjustments()
+            guard !targetPaths.isEmpty else { return }
+        } else {
+            guard let path = selectedFramePath else { return }
+            targetPaths = [path]
+        }
+
+        let selectedPath = selectedFramePath
+        let resetsSelected = selectedPath.map { targetPaths.contains($0) } ?? false
 
         previewDebounce.cancel()
         saveDebounce.cancel()
@@ -224,42 +246,69 @@ final class EngineSession {
         pendingThumbnailRefreshAfterCropClose = false
         pendingAutoCropSeed = false
 
-        frameEdits[path] = defaultEditState()
-        dirtyPaths.remove(path)
+        if resetsSelected {
+            previewLoadingMessage = "Resetting adjustments…"
+            previewError = nil
+        }
 
-        let gotAccess = beginFileAccess(for: frame.url)
-        defer {
-            if gotAccess {
-                endFileAccess(for: frame.url)
+        for path in targetPaths {
+            guard let frame = frames.first(where: { $0.path == path }) else { continue }
+
+            frameEdits[path] = defaultEditState()
+            dirtyPaths.remove(path)
+            pathsWithStoredProcessMode.remove(path)
+
+            let gotAccess = beginFileAccess(for: frame.url)
+            defer {
+                if gotAccess {
+                    endFileAccess(for: frame.url)
+                }
+            }
+
+            do {
+                _ = try await client.resetConfig(path: path)
+            } catch {
+                previewError = "Could not reset edits: \(error.localizedDescription)"
+                previewLoadingMessage = nil
+                return
+            }
+
+            if preferences.autodetectProcessMode,
+               let detected = await detectProcessMode(path: path, force: false)
+            {
+                frameEdits[path]?.processMode = detected
+            }
+            if var edit = frameEdits[path] {
+                edit.autoCropEnabled = preferences.autoCropEnabled
+                applyOpticalDustPreferences(to: &edit)
+                frameEdits[path] = edit
+            }
+
+            if let index = frames.firstIndex(where: { $0.path == path }) {
+                updateFrame(at: index) { $0.thumbnail = nil }
             }
         }
 
-        do {
-            _ = try await client.resetConfig(path: path)
-        } catch {
-            previewError = "Could not reset edits: \(error.localizedDescription)"
-            return
-        }
-
-        if preferences.autodetectProcessMode,
-           let detected = await detectProcessMode(path: path, force: false)
+        if resetsSelected,
+           let selectedPath,
+           let frame = frames.first(where: { $0.path == selectedPath })
         {
-            frameEdits[path]?.processMode = detected
-        }
-        if var edit = frameEdits[path] {
-            edit.autoCropEnabled = preferences.autoCropEnabled
-            applyOpticalDustPreferences(to: &edit)
-            frameEdits[path] = edit
-        }
-
-        if let index = frames.firstIndex(where: { $0.path == path }) {
-            updateFrame(at: index) { $0.thumbnail = nil }
+            previewLoadingMessage = "Loading preview…"
+            previewGeneration += 1
+            let generation = previewGeneration
+            await renderPreview(at: frame.url, generation: generation)
+            previewLoadingMessage = nil
+        } else {
+            previewLoadingMessage = nil
         }
 
-        previewGeneration += 1
-        let generation = previewGeneration
-        await renderPreview(at: frame.url, generation: generation)
-        await refreshThumbnail(for: path)
+        let thumbPaths = targetPaths.filter { $0 != selectedPath }
+        guard !thumbPaths.isEmpty else { return }
+        Task { @MainActor in
+            for path in thumbPaths {
+                await refreshThumbnail(for: path)
+            }
+        }
     }
 
     var isLoadingCropPreview: Bool {
@@ -1296,6 +1345,22 @@ final class EngineSession {
     #if DEBUG
     func decodePreviewPNGForTesting(base64: String) async -> NSImage? {
         await decodePreviewPNG(base64: base64)
+    }
+
+    func setPreviewLoadingMessageForTests(_ message: String?) {
+        previewLoadingMessage = message
+    }
+
+    func setCurrentPathForTests(_ path: String?) {
+        currentPath = path
+    }
+
+    func setDirtyPathsForTests(_ paths: [String]) {
+        dirtyPaths = Set(paths)
+    }
+
+    func setFramesForTests(_ frames: [ScanFrame]) {
+        self.frames = frames
     }
     #endif
 

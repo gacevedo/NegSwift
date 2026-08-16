@@ -9,6 +9,23 @@ from ndjson_helpers import ndjson_request
 from negpy.domain.models import WorkspaceConfig
 
 
+def test_open_reports_sidecar_without_negpy_deserialization_warning(sample_tiff: Path, tmp_path: Path, caplog) -> None:
+    import logging
+
+    from negswift_engine.render import open_asset
+    from negswift_engine.sidecar_io import write_raw_sidecar
+
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    write_raw_sidecar(str(frame), {"density": 1.2, "auto_density_uses_crop": False})
+
+    with caplog.at_level(logging.WARNING):
+        result = open_asset(str(frame))
+
+    assert result["has_sidecar"] is True
+    assert not any("Dropping unknown config keys" in record.message for record in caplog.records)
+
+
 def test_load_config_defaults(sample_tiff: Path) -> None:
     msg = ndjson_request("load_config", {"path": str(sample_tiff)}, req_id="load-1")
     assert msg["ok"] is True

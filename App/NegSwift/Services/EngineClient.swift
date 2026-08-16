@@ -110,15 +110,25 @@ enum JSONValue: Codable, Sendable {
     }
 }
 
+struct RenderMetrics: Codable, Sendable {
+    let detectedCropRect: [Double]?
+
+    enum CodingKeys: String, CodingKey {
+        case detectedCropRect = "detected_crop_rect"
+    }
+}
+
 struct RenderResult: Codable, Sendable {
     let width: Int
     let height: Int
     let pngBase64: String
+    let metrics: RenderMetrics?
 
     enum CodingKeys: String, CodingKey {
         case width
         case height
         case pngBase64 = "png_base64"
+        case metrics
     }
 
     var pngData: Data? {

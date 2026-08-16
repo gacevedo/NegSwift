@@ -56,6 +56,46 @@ def test_crop_preview_full_matches_applied_crop_with_auto_exposure(sample_tiff) 
     np.testing.assert_allclose(region, cropped, atol=2)
 
 
+def test_crop_preview_full_reports_detected_crop_rect(tmp_path) -> None:
+    import tifffile
+
+    path = tmp_path / "bordered.tif"
+    rgb = np.full((120, 160, 3), 2000, dtype=np.uint16)
+    rgb[20:100, 30:130, :] = 30000
+    tifffile.imwrite(path, rgb, photometric="rgb")
+
+    params = {
+        "path": str(path),
+        "prefer_gpu": False,
+        "crop_preview_full": True,
+        "config": {"auto_crop_enabled": True},
+    }
+    msg = ndjson_request("render", params, req_id="crop-detect")
+    assert msg["ok"] is True
+    detected = msg["result"]["metrics"].get("detected_crop_rect")
+    assert detected is not None
+    assert len(detected) == 4
+    x1, y1, x2, y2 = detected
+    assert 0.0 <= x1 < x2 <= 1.0
+    assert 0.0 <= y1 < y2 <= 1.0
+    assert x1 > 0.05
+    assert y1 > 0.05
+    assert x2 < 0.95
+    assert y2 < 0.95
+
+
+def test_crop_preview_full_omits_detected_crop_rect_when_disabled(sample_tiff) -> None:
+    params = {
+        "path": str(sample_tiff),
+        "prefer_gpu": False,
+        "crop_preview_full": False,
+        "config": {"auto_crop_enabled": True},
+    }
+    msg = ndjson_request("render", params, req_id="crop-no-detect")
+    assert msg["ok"] is True
+    assert msg["result"]["metrics"].get("detected_crop_rect") is None
+
+
 def test_rotation_swaps_preview_dimensions(sample_tiff) -> None:
     base = ndjson_request(
         "render",

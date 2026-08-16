@@ -38,6 +38,9 @@ final class EngineSession {
     /// Set when crop mode closes; thumbnail refresh waits for the post-close preview render.
     private var pendingThumbnailRefreshAfterCropClose = false
 
+    /// Waiting for a crop-preview render to seed ``manualCropRect`` from auto-crop bounds.
+    private var pendingAutoCropSeed = false
+
     private let client = EngineClient()
     private let preferences: AppPreferences
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
@@ -218,6 +221,7 @@ final class EngineSession {
         isCropOverlayReady = false
         cropPreviewBaseline = nil
         pendingThumbnailRefreshAfterCropClose = false
+        pendingAutoCropSeed = false
 
         frameEdits[path] = defaultEditState()
         dirtyPaths.remove(path)
@@ -260,7 +264,11 @@ final class EngineSession {
     func setCropToolActive(_ active: Bool) {
         guard isCropToolActive != active else { return }
         if active {
-            initializeCropRectIfNeeded()
+            let edit = currentEdit
+            pendingAutoCropSeed = edit.manualCropRect == nil && edit.autoCropEnabled
+            if !pendingAutoCropSeed {
+                initializeCropRectIfNeeded()
+            }
             if let path = selectedFramePath {
                 cropPreviewBaseline = frameEdits[path] ?? FrameEditState()
             }
@@ -270,6 +278,7 @@ final class EngineSession {
             isCropToolActive = false
             isCropOverlayReady = false
             cropPreviewBaseline = nil
+            pendingAutoCropSeed = false
             pendingThumbnailRefreshAfterCropClose = true
             thumbnailDebounce.cancel()
         }
@@ -348,11 +357,45 @@ final class EngineSession {
         guard let path = selectedFramePath else { return }
         var edit = frameEdits[path] ?? defaultEditState()
         guard edit.manualCropRect == nil else { return }
+        guard !edit.autoCropEnabled else { return }
         let aspect = previewPixelSize.map { $0.width / max($0.height, 1) } ?? 1.5
         edit.manualCropRect = NormalizedRect.centered(ratioLabel: edit.autocropRatio, imageAspect: aspect)
         edit.autoCropEnabled = false
         frameEdits[path] = edit
         dirtyPaths.insert(path)
+    }
+
+    private func applyDetectedCropRect(_ rect: NormalizedRect, for path: String, imageAspect: Double) {
+        var edit = frameEdits[path] ?? defaultEditState()
+        guard edit.manualCropRect == nil else { return }
+        edit.manualCropRect = rect
+        edit.autocropRatio = rect.closestFilmAspectRatioLabel(imageAspect: imageAspect)
+        edit.autoCropEnabled = false
+        frameEdits[path] = edit
+        dirtyPaths.insert(path)
+        if var baseline = cropPreviewBaseline {
+            baseline.manualCropRect = rect
+            baseline.autocropRatio = edit.autocropRatio
+            baseline.autoCropEnabled = false
+            cropPreviewBaseline = baseline
+        }
+    }
+
+    private func finishCropPreviewOverlay(for path: String, result: RenderResult) {
+        if pendingAutoCropSeed {
+            pendingAutoCropSeed = false
+            let imageAspect = Double(result.width) / max(Double(result.height), 1)
+            if let parts = result.metrics?.detectedCropRect, parts.count == 4 {
+                applyDetectedCropRect(
+                    NormalizedRect(x1: parts[0], y1: parts[1], x2: parts[2], y2: parts[3]),
+                    for: path,
+                    imageAspect: imageAspect
+                )
+            } else {
+                initializeCropRectIfNeeded()
+            }
+        }
+        isCropOverlayReady = true
     }
 
     private func defaultEditState() -> FrameEditState {
@@ -697,6 +740,7 @@ final class EngineSession {
         isCropOverlayReady = false
         cropPreviewBaseline = nil
         pendingThumbnailRefreshAfterCropClose = false
+        pendingAutoCropSeed = false
         thumbnailGeneration += 1
         selectedFrameID = id
         guard let frame = frames.first(where: { $0.id == id }) else { return }
@@ -828,7 +872,7 @@ final class EngineSession {
             previewPixelSize = CGSize(width: result.width, height: result.height)
             currentPath = path
             if isCropToolActive {
-                isCropOverlayReady = true
+                finishCropPreviewOverlay(for: path, result: result)
             } else {
                 applyPreviewToSelectedThumbnail()
             }
@@ -1140,6 +1184,7 @@ final class EngineSession {
         isCropOverlayReady = false
         cropPreviewBaseline = nil
         pendingThumbnailRefreshAfterCropClose = false
+        pendingAutoCropSeed = false
         previewPixelSize = nil
     }
 

@@ -80,6 +80,31 @@ struct NormalizedRect: Equatable, Sendable {
         let y1 = (1 - h) / 2
         return NormalizedRect(x1: x1, y1: y1, x2: x1 + w, y2: y1 + h).clamped()
     }
+
+    /// Closest film-format ratio label for this rect — mirrors NegPy ``detect_closest_aspect_ratio``.
+    func closestFilmAspectRatioLabel(imageAspect: Double) -> String {
+        let detected = (width / max(height, 1e-6)) * max(imageAspect, 1e-6)
+        let filmRatios: [CropAspectRatio] = [.r1x1, .r3x2, .r4x3, .r5x4, .r6x7, .r7x5, .r65x24]
+
+        var bestRatio = CropAspectRatio.r3x2
+        var bestDistance = Double.infinity
+        for ratio in filmRatios {
+            guard let widthOverHeight = ratio.widthOverHeight else { continue }
+            let targets = ratio == .r1x1 ? [1.0] : [widthOverHeight, 1.0 / widthOverHeight]
+            for target in targets {
+                let distance = abs(log(max(detected, 1e-6)) - log(max(target, 1e-6)))
+                if distance < bestDistance {
+                    bestDistance = distance
+                    bestRatio = ratio
+                }
+            }
+        }
+
+        if bestDistance > 0.15 {
+            return CropAspectRatio.free.rawValue
+        }
+        return bestRatio.rawValue
+    }
 }
 
 enum CropAspectRatio: String, CaseIterable, Identifiable {

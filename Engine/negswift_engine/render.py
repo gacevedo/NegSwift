@@ -16,7 +16,6 @@ from negpy.infrastructure.display.color_spaces import WORKING_COLOR_SPACE
 from negpy.infrastructure.gpu.resources import GPUTexture
 from negpy.kernel.image.logic import float_to_uint8
 from negpy.kernel.system.config import APP_CONFIG, DEFAULT_WORKSPACE_CONFIG
-from negpy.services.assets.sidecar import load_sidecar
 from negpy.services.rendering.image_processor import ImageProcessor
 from negpy.services.rendering.preview_manager import PreviewManager
 from PIL import Image
@@ -35,6 +34,17 @@ from negswift_engine.sidecar_io import clear_sidecar_cache, delete_sidecar, read
 def _check_cancel(cancel: threading.Event | None) -> None:
     if cancel is not None and cancel.is_set():
         raise JobCancelled()
+
+
+def _detected_crop_rect(metrics: dict[str, Any], frame_width: int, frame_height: int) -> list[float] | None:
+    """Map NegPy ``active_roi`` (y1, y2, x1, x2) pixels to normalized manual crop coords."""
+    roi = metrics.get("active_roi")
+    if not roi or len(roi) != 4:
+        return None
+    if frame_width <= 0 or frame_height <= 0:
+        return None
+    y1, y2, x1, x2 = (float(v) for v in roi)
+    return [x1 / frame_width, y1 / frame_height, x2 / frame_width, y2 / frame_height]
 
 
 _processor: ImageProcessor | None = None
@@ -136,13 +146,12 @@ def open_asset(path: str) -> dict[str, Any]:
     pm = _preview_manager_instance()
     f_hash = cached_file_hash(path)
     buffer, dims, _meta = pm.load_linear_preview(path, color_space=WORKING_COLOR_SPACE, file_hash=f_hash)
-    sidecar = load_sidecar(path)
     return {
         "path": path,
         "hash": f_hash,
         "width": dims[1] if dims else buffer.shape[1],
         "height": dims[0] if dims else buffer.shape[0],
-        "has_sidecar": sidecar is not None,
+        "has_sidecar": read_raw_sidecar(path) is not None,
     }
 
 
@@ -197,12 +206,12 @@ def render_preview_png(
 
         rgb = apply_display_transform(rgb.astype(np.float32, copy=False), WORKING_COLOR_SPACE)
         u8 = float_to_uint8(rgb)
-        h, w = u8.shape[:2]
-        long_edge = max(h, w)
+        frame_h, frame_w = u8.shape[:2]
+        long_edge = max(frame_h, frame_w)
         if long_edge > preview_size:
             scale = preview_size / long_edge
-            target_w = max(1, int(w * scale))
-            target_h = max(1, int(h * scale))
+            target_w = max(1, int(frame_w * scale))
+            target_h = max(1, int(frame_h * scale))
             u8 = cv2.resize(u8, (target_w, target_h), interpolation=cv2.INTER_AREA)
         h, w = u8.shape[:2]
 
@@ -210,6 +219,10 @@ def render_preview_png(
         out = io.BytesIO()
         png.save(out, format="PNG")
         slim_metrics = {k: metrics[k] for k in ("gpu_fallback",) if k in metrics}
+        if crop_preview_full:
+            detected = _detected_crop_rect(metrics, frame_w, frame_h)
+            if detected is not None:
+                slim_metrics["detected_crop_rect"] = detected
         return out.getvalue(), w, h, slim_metrics
 
 

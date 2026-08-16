@@ -36,4 +36,14 @@ struct NormalizedRectTests {
         #expect(rect?.x1 == 0.1)
         #expect(rect?.y2 == 0.85)
     }
+
+    @Test func closestFilmAspectRatioLabelMatchesLandscapeFrame() {
+        let rect = NormalizedRect(x1: 0.1, y1: 0.15, x2: 0.9, y2: 0.85)
+        #expect(rect.closestFilmAspectRatioLabel(imageAspect: 1.5) == "3:2")
+    }
+
+    @Test func closestFilmAspectRatioLabelFallsBackToFreeForOddShapes() {
+        let rect = NormalizedRect(x1: 0.05, y1: 0.4, x2: 0.95, y2: 0.55)
+        #expect(rect.closestFilmAspectRatioLabel(imageAspect: 1.0) == "Free")
+    }
 }

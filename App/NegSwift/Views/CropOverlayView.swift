@@ -15,7 +15,9 @@ struct CropOverlayView: View {
     @State private var dragStartHandlePoint: CGPoint?
     @State private var activeHandle: CropHandle?
 
-    private let handleSize: CGFloat = 12
+    private let cornerHandleSize: CGFloat = 12
+    private let edgeHandleShort: CGFloat = 8
+    private let edgeHandleLong: CGFloat = 28
     private let minSpan: Double = 0.05
 
     private var activeRect: NormalizedRect {
@@ -61,14 +63,24 @@ struct CropOverlayView: View {
     }
 
     private func isNearHandle(_ point: CGPoint, cropScreenRect rect: CGRect) -> Bool {
-        let grab = handleSize * 1.5
         for handle in CropHandle.allCases {
-            let handlePoint = handle.point(in: rect)
-            if hypot(point.x - handlePoint.x, point.y - handlePoint.y) <= grab {
+            if handleRect(handle, in: rect, grabMultiplier: 1.5).contains(point) {
                 return true
             }
         }
         return false
+    }
+
+    private func handleRect(_ handle: CropHandle, in cropRect: CGRect, grabMultiplier: CGFloat = 1) -> CGRect {
+        let point = handle.point(in: cropRect)
+        let size = handle.frameSize(
+            cornerSize: cornerHandleSize,
+            edgeShort: edgeHandleShort,
+            edgeLong: edgeHandleLong
+        )
+        let width = size.width * grabMultiplier
+        let height = size.height * grabMultiplier
+        return CGRect(x: point.x - width / 2, y: point.y - height / 2, width: width, height: height)
     }
 
     private func moveGesture(width: CGFloat, height: CGFloat) -> some Gesture {
@@ -95,10 +107,23 @@ struct CropOverlayView: View {
     @ViewBuilder
     private func handleView(_ handle: CropHandle, cropScreenRect rect: CGRect, width: CGFloat, height: CGFloat) -> some View {
         let point = handle.point(in: rect)
-        Circle()
-            .fill(Color.white)
-            .frame(width: handleSize, height: handleSize)
-            .offset(x: point.x - handleSize / 2, y: point.y - handleSize / 2)
+        let size = handle.frameSize(
+            cornerSize: cornerHandleSize,
+            edgeShort: edgeHandleShort,
+            edgeLong: edgeHandleLong
+        )
+        let handleShape = Group {
+            if handle.isCorner {
+                Circle()
+                    .fill(Color.white)
+            } else {
+                Rectangle()
+                    .fill(Color.white)
+            }
+        }
+        handleShape
+            .frame(width: size.width, height: size.height)
+            .offset(x: point.x - size.width / 2, y: point.y - size.height / 2)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
@@ -159,6 +184,26 @@ struct CropOverlayView: View {
             x2 = nx; y2 = ny
         case .bottomLeft:
             x1 = nx; y2 = ny
+        case .top:
+            y1 = ny
+            x1 = start.x1
+            x2 = start.x2
+            y2 = start.y2
+        case .bottom:
+            y2 = ny
+            x1 = start.x1
+            x2 = start.x2
+            y1 = start.y1
+        case .left:
+            x1 = nx
+            y1 = start.y1
+            y2 = start.y2
+            x2 = start.x2
+        case .right:
+            x2 = nx
+            y1 = start.y1
+            y2 = start.y2
+            x1 = start.x1
         }
 
         if x2 < x1 { swap(&x1, &x2) }
@@ -169,23 +214,62 @@ struct CropOverlayView: View {
 
         if let wh = aspectRatio.widthOverHeight {
             let imageAspect = Double(width / max(height, 1))
-            let target = wh / imageAspect
-            var w = x2 - x1
-            var h = y2 - y1
-            if w / h > target {
-                w = h * target
-            } else {
-                h = w / target
-            }
+            let baseTarget = wh / imageAspect
+            let orientedTarget = start.height > start.width
+                ? min(baseTarget, 1.0 / baseTarget)
+                : max(baseTarget, 1.0 / baseTarget)
+
             switch handle {
-            case .topLeft:
-                x1 = x2 - w; y1 = y2 - h
-            case .topRight:
-                x2 = x1 + w; y1 = y2 - h
-            case .bottomRight:
-                x2 = x1 + w; y2 = y1 + h
-            case .bottomLeft:
-                x1 = x2 - w; y2 = y1 + h
+            case .topLeft, .topRight, .bottomRight, .bottomLeft:
+                var w = x2 - x1
+                var h = y2 - y1
+                if w / h > orientedTarget {
+                    w = h * orientedTarget
+                } else {
+                    h = w / orientedTarget
+                }
+                switch handle {
+                case .topLeft:
+                    x1 = x2 - w; y1 = y2 - h
+                case .topRight:
+                    x2 = x1 + w; y1 = y2 - h
+                case .bottomRight:
+                    x2 = x1 + w; y2 = y1 + h
+                case .bottomLeft:
+                    x1 = x2 - w; y2 = y1 + h
+                default:
+                    break
+                }
+            case .top, .bottom:
+                let anchorY = handle == .top ? start.y2 : start.y1
+                var h = abs(anchorY - (handle == .top ? y1 : y2))
+                if h < minSpan { h = minSpan }
+                let w = h * orientedTarget
+                let cx = (start.x1 + start.x2) / 2
+                x1 = cx - w / 2
+                x2 = cx + w / 2
+                if handle == .top {
+                    y2 = anchorY
+                    y1 = y2 - h
+                } else {
+                    y1 = anchorY
+                    y2 = y1 + h
+                }
+            case .left, .right:
+                let anchorX = handle == .left ? start.x2 : start.x1
+                var w = abs(anchorX - (handle == .left ? x1 : x2))
+                if w < minSpan { w = minSpan }
+                let h = w / orientedTarget
+                let cy = (start.y1 + start.y2) / 2
+                y1 = cy - h / 2
+                y2 = cy + h / 2
+                if handle == .left {
+                    x2 = anchorX
+                    x1 = x2 - w
+                } else {
+                    x1 = anchorX
+                    x2 = x1 + w
+                }
             }
         }
 
@@ -203,14 +287,41 @@ struct CropOverlayView: View {
 }
 
 private enum CropHandle: CaseIterable {
-    case topLeft, topRight, bottomRight, bottomLeft
+    case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
+
+    var isCorner: Bool {
+        switch self {
+        case .topLeft, .topRight, .bottomRight, .bottomLeft: true
+        case .top, .right, .bottom, .left: false
+        }
+    }
+
+    func frameSize(cornerSize: CGFloat, edgeShort: CGFloat, edgeLong: CGFloat) -> CGSize {
+        if isCorner {
+            return CGSize(width: cornerSize, height: cornerSize)
+        }
+        switch self {
+        case .top, .bottom:
+            return CGSize(width: edgeLong, height: edgeShort)
+        case .left, .right:
+            return CGSize(width: edgeShort, height: edgeLong)
+        default:
+            return CGSize(width: cornerSize, height: cornerSize)
+        }
+    }
 
     func point(in rect: CGRect) -> CGPoint {
+        let midX = rect.midX
+        let midY = rect.midY
         switch self {
-        case .topLeft: CGPoint(x: rect.minX, y: rect.minY)
-        case .topRight: CGPoint(x: rect.maxX, y: rect.minY)
-        case .bottomRight: CGPoint(x: rect.maxX, y: rect.maxY)
-        case .bottomLeft: CGPoint(x: rect.minX, y: rect.maxY)
+        case .topLeft: return CGPoint(x: rect.minX, y: rect.minY)
+        case .top: return CGPoint(x: midX, y: rect.minY)
+        case .topRight: return CGPoint(x: rect.maxX, y: rect.minY)
+        case .right: return CGPoint(x: rect.maxX, y: midY)
+        case .bottomRight: return CGPoint(x: rect.maxX, y: rect.maxY)
+        case .bottom: return CGPoint(x: midX, y: rect.maxY)
+        case .bottomLeft: return CGPoint(x: rect.minX, y: rect.maxY)
+        case .left: return CGPoint(x: rect.minX, y: midY)
         }
     }
 }

@@ -89,7 +89,7 @@ Test scan path:
 
 ## M8 — Crop ✅
 
-- [x] Crop Tool overlay — drag box, corner handles, aspect ratio constraint
+- [x] Crop Tool overlay — drag box, corner and edge handles, aspect ratio constraint
 - [x] Click outside crop box applies crop and closes tool
 - [x] Auto Density / Auto Grade stay stable while crop tool is open when **Apply Auto Density while cropping** is off
 - [x] With **Apply Auto Density while cropping** on, crop drags re-meter live (debounced preview)

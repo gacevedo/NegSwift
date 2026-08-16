@@ -39,6 +39,29 @@ struct AppPreferencesTests {
         #expect(AppPreferencesStorage.autoCropEnabled() == true)
     }
 
+    @Test func opticalDustRemovalDefaultsToOffWhenUnset() {
+        let suite = "NegSwiftTests.opticalDust.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
+        #expect(AppPreferencesStorage.opticalDustRemovalEnabled() == false)
+        #expect(AppPreferencesStorage.opticalDustThreshold() == EditControlDefaults.dustThreshold)
+        #expect(AppPreferencesStorage.opticalDustSize() == EditControlDefaults.dustSize)
+    }
+
+    @Test func opticalDustPreferencesStorageRoundTrip() {
+        let suite = "NegSwiftTests.opticalDustRoundTrip.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
+        AppPreferencesStorage.setOpticalDustRemovalEnabled(true)
+        AppPreferencesStorage.setOpticalDustThreshold(0.42)
+        AppPreferencesStorage.setOpticalDustSize(7)
+        #expect(AppPreferencesStorage.opticalDustRemovalEnabled() == true)
+        #expect(AppPreferencesStorage.opticalDustThreshold() == 0.42)
+        #expect(AppPreferencesStorage.opticalDustSize() == 7)
+    }
+
     @Test func resolvedNegSwiftUserDirectory() {
         let url = AppPreferencesStorage.resolvedNegPyUserDirectoryURL(
             location: .negSwift,

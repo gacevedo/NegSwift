@@ -46,6 +46,12 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var autoDensityUsesCrop: Bool = true
     /// NegPy ``auto_crop_enabled`` — detect and crop film borders when no manual crop is set.
     var autoCropEnabled: Bool = true
+    /// NegPy ``dust_remove`` — optical (visible-scan) dust detection and repair.
+    var dustRemove: Bool = false
+    /// NegPy ``dust_threshold`` — local-contrast sensitivity (lower catches more specks).
+    var dustThreshold: Double = EditControlDefaults.dustThreshold
+    /// NegPy ``dust_size`` — maximum dust spot radius in pixels (3–8).
+    var dustSize: Int = EditControlDefaults.dustSize
     var rotation: Int = 0
     var fineRotation: Double = 0
     var autocropRatio: String = "3:2"
@@ -66,6 +72,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
         case analysisBuffer = "analysis_buffer"
         case autoDensityUsesCrop = "auto_density_uses_crop"
         case autoCropEnabled = "auto_crop_enabled"
+        case dustRemove = "dust_remove"
+        case dustThreshold = "dust_threshold"
+        case dustSize = "dust_size"
         case rotation
         case fineRotation = "fine_rotation"
         case autocropRatio = "autocrop_ratio"
@@ -87,6 +96,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
         analysisBuffer: Double = EditControlDefaults.analysisBuffer,
         autoDensityUsesCrop: Bool = true,
         autoCropEnabled: Bool = true,
+        dustRemove: Bool = false,
+        dustThreshold: Double = EditControlDefaults.dustThreshold,
+        dustSize: Int = EditControlDefaults.dustSize,
         rotation: Int = 0,
         fineRotation: Double = 0,
         autocropRatio: String = "3:2",
@@ -104,6 +116,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
         self.analysisBuffer = analysisBuffer
         self.autoDensityUsesCrop = autoDensityUsesCrop
         self.autoCropEnabled = autoCropEnabled
+        self.dustRemove = dustRemove
+        self.dustThreshold = dustThreshold
+        self.dustSize = dustSize
         self.rotation = rotation
         self.fineRotation = fineRotation
         self.autocropRatio = autocropRatio
@@ -125,6 +140,10 @@ struct FrameEditState: Equatable, Codable, Sendable {
             ?? EditControlDefaults.analysisBuffer
         autoDensityUsesCrop = try container.decodeIfPresent(Bool.self, forKey: .autoDensityUsesCrop) ?? true
         autoCropEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoCropEnabled) ?? true
+        dustRemove = try container.decodeIfPresent(Bool.self, forKey: .dustRemove) ?? false
+        dustThreshold = try container.decodeIfPresent(Double.self, forKey: .dustThreshold)
+            ?? EditControlDefaults.dustThreshold
+        dustSize = try container.decodeIfPresent(Int.self, forKey: .dustSize) ?? EditControlDefaults.dustSize
         rotation = try container.decodeIfPresent(Int.self, forKey: .rotation) ?? 0
         fineRotation = try container.decodeIfPresent(Double.self, forKey: .fineRotation) ?? 0
         autocropRatio = try container.decodeIfPresent(String.self, forKey: .autocropRatio) ?? "3:2"
@@ -149,6 +168,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
         try container.encode(analysisBuffer, forKey: .analysisBuffer)
         try container.encode(autoDensityUsesCrop, forKey: .autoDensityUsesCrop)
         try container.encode(autoCropEnabled, forKey: .autoCropEnabled)
+        try container.encode(dustRemove, forKey: .dustRemove)
+        try container.encode(dustThreshold, forKey: .dustThreshold)
+        try container.encode(dustSize, forKey: .dustSize)
         try container.encode(rotation, forKey: .rotation)
         try container.encode(fineRotation, forKey: .fineRotation)
         try container.encode(autocropRatio, forKey: .autocropRatio)
@@ -171,6 +193,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
             analysisBuffer: double(config["analysis_buffer"], default: EditControlDefaults.analysisBuffer),
             autoDensityUsesCrop: bool(config["auto_density_uses_crop"], default: true),
             autoCropEnabled: bool(config["auto_crop_enabled"], default: true),
+            dustRemove: bool(config["dust_remove"], default: false),
+            dustThreshold: double(config["dust_threshold"], default: EditControlDefaults.dustThreshold),
+            dustSize: int(config["dust_size"], default: EditControlDefaults.dustSize),
             rotation: int(config["rotation"], default: 0),
             fineRotation: double(config["fine_rotation"], default: 0),
             autocropRatio: string(config["autocrop_ratio"], default: "3:2"),
@@ -208,6 +233,8 @@ enum EditControlRanges {
     static let saturation = 0.0 ... 2.0
     static let whiteBalance = -1.0 ... 1.0
     static let analysisBuffer = 0.0 ... 0.25
+    static let dustThreshold = 0.01 ... 1.0
+    static let dustSize = 3.0 ... 8.0
     static let fineRotation = -45.0 ... 45.0
 }
 
@@ -217,5 +244,7 @@ enum EditControlDefaults {
     static let saturation = 1.0
     static let whiteBalance = 0.0
     static let analysisBuffer = 0.05
+    static let dustThreshold = 0.66
+    static let dustSize = 4
     static let fineRotation = 0.0
 }

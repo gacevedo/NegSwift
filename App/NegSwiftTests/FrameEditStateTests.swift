@@ -18,6 +18,9 @@ struct FrameEditStateTests {
             "analysis_buffer": 0.12,
             "auto_density_uses_crop": false,
             "auto_crop_enabled": false,
+            "dust_remove": true,
+            "dust_threshold": 0.5,
+            "dust_size": 6,
             "manual_crop_rect": [0.1, 0.15, 0.9, 0.85],
         ])
         #expect(state.processMode == .bw)
@@ -28,6 +31,9 @@ struct FrameEditStateTests {
         #expect(state.analysisBuffer == 0.12)
         #expect(state.autoDensityUsesCrop == false)
         #expect(state.autoCropEnabled == false)
+        #expect(state.dustRemove == true)
+        #expect(state.dustThreshold == 0.5)
+        #expect(state.dustSize == 6)
         #expect(state.manualCropRect?.x2 == 0.9)
     }
 
@@ -46,6 +52,9 @@ struct FrameEditStateTests {
             analysisBuffer: 0.15,
             autoDensityUsesCrop: false,
             autoCropEnabled: false,
+            dustRemove: true,
+            dustThreshold: 0.55,
+            dustSize: 5,
             rotation: 1,
             fineRotation: -3.0,
             autocropRatio: "4:3",
@@ -59,6 +68,9 @@ struct FrameEditStateTests {
         #expect(object?["analysis_buffer"] as? Double == 0.15)
         #expect(object?["auto_density_uses_crop"] as? Bool == false)
         #expect(object?["auto_crop_enabled"] as? Bool == false)
+        #expect(object?["dust_remove"] as? Bool == true)
+        #expect(object?["dust_threshold"] as? Double == 0.55)
+        #expect(object?["dust_size"] as? Int == 5)
         #expect(object?["manual_crop_rect"] as? [Double] == [0.1, 0.1, 0.9, 0.9])
 
         let decoded = try JSONDecoder().decode(FrameEditState.self, from: data)

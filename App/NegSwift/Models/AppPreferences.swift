@@ -57,6 +57,9 @@ enum AppPreferencesStorage {
         static let preferGPU = "negSwift.preferences.preferGPU"
         static let autodetectProcessMode = "negSwift.preferences.autodetectProcessMode"
         static let autoCropEnabled = "negSwift.preferences.autoCropEnabled"
+        static let opticalDustRemovalEnabled = "negSwift.preferences.opticalDustRemovalEnabled"
+        static let opticalDustThreshold = "negSwift.preferences.opticalDustThreshold"
+        static let opticalDustSize = "negSwift.preferences.opticalDustSize"
         static let userDataLocation = "negSwift.preferences.userDataLocation"
         static let customUserDataPath = "negSwift.preferences.customUserDataPath"
     }
@@ -163,6 +166,41 @@ enum AppPreferencesStorage {
         defaults.set(value, forKey: Key.autoCropEnabled)
     }
 
+    static func opticalDustRemovalEnabled() -> Bool {
+        if defaults.object(forKey: Key.opticalDustRemovalEnabled) == nil {
+            return false
+        }
+        return defaults.bool(forKey: Key.opticalDustRemovalEnabled)
+    }
+
+    static func setOpticalDustRemovalEnabled(_ value: Bool) {
+        defaults.set(value, forKey: Key.opticalDustRemovalEnabled)
+    }
+
+    static func opticalDustThreshold() -> Double {
+        let stored = defaults.double(forKey: Key.opticalDustThreshold)
+        if defaults.object(forKey: Key.opticalDustThreshold) == nil {
+            return EditControlDefaults.dustThreshold
+        }
+        return stored
+    }
+
+    static func setOpticalDustThreshold(_ value: Double) {
+        defaults.set(value, forKey: Key.opticalDustThreshold)
+    }
+
+    static func opticalDustSize() -> Int {
+        let stored = defaults.integer(forKey: Key.opticalDustSize)
+        if defaults.object(forKey: Key.opticalDustSize) == nil {
+            return EditControlDefaults.dustSize
+        }
+        return stored
+    }
+
+    static func setOpticalDustSize(_ value: Int) {
+        defaults.set(value, forKey: Key.opticalDustSize)
+    }
+
     static func userDataLocation() -> NegPyUserDataLocation {
         guard let raw = defaults.string(forKey: Key.userDataLocation),
               let location = NegPyUserDataLocation(rawValue: raw)
@@ -259,6 +297,30 @@ final class AppPreferences {
         }
     }
 
+    var opticalDustRemovalEnabled: Bool {
+        didSet {
+            guard opticalDustRemovalEnabled != oldValue else { return }
+            AppPreferencesStorage.setOpticalDustRemovalEnabled(opticalDustRemovalEnabled)
+            onPreviewSettingsChanged?()
+        }
+    }
+
+    var opticalDustThreshold: Double {
+        didSet {
+            guard opticalDustThreshold != oldValue else { return }
+            AppPreferencesStorage.setOpticalDustThreshold(opticalDustThreshold)
+            onPreviewSettingsChanged?()
+        }
+    }
+
+    var opticalDustSize: Int {
+        didSet {
+            guard opticalDustSize != oldValue else { return }
+            AppPreferencesStorage.setOpticalDustSize(opticalDustSize)
+            onPreviewSettingsChanged?()
+        }
+    }
+
     var userDataLocation: NegPyUserDataLocation {
         didSet {
             guard userDataLocation != oldValue else { return }
@@ -284,6 +346,9 @@ final class AppPreferences {
         preferGPU = AppPreferencesStorage.preferGPU()
         autodetectProcessMode = AppPreferencesStorage.autodetectProcessMode()
         autoCropEnabled = AppPreferencesStorage.autoCropEnabled()
+        opticalDustRemovalEnabled = AppPreferencesStorage.opticalDustRemovalEnabled()
+        opticalDustThreshold = AppPreferencesStorage.opticalDustThreshold()
+        opticalDustSize = AppPreferencesStorage.opticalDustSize()
         userDataLocation = AppPreferencesStorage.userDataLocation()
         customUserDataPath = AppPreferencesStorage.customUserDataPath()
     }

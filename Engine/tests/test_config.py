@@ -39,6 +39,46 @@ def test_load_config_defaults(sample_tiff: Path) -> None:
     assert config["analysis_buffer"] == 0.05
     assert config["auto_density_uses_crop"] is True
     assert config["auto_crop_enabled"] is True
+    assert config["dust_remove"] is False
+    assert config["dust_threshold"] == 0.66
+    assert config["dust_size"] == 4
+
+
+def test_render_with_optical_dust_removal(sample_tiff: Path) -> None:
+    params = {
+        "path": str(sample_tiff),
+        "prefer_gpu": False,
+        "config": {
+            "dust_remove": True,
+            "dust_threshold": 0.55,
+            "dust_size": 5,
+        },
+    }
+    msg = ndjson_request("render", params, req_id="render-dust")
+    assert msg["ok"] is True
+    assert msg["result"]["width"] > 0
+
+
+def test_save_dust_config_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    overrides = {
+        "dust_remove": True,
+        "dust_threshold": 0.5,
+        "dust_size": 6,
+    }
+    save_msg = ndjson_request(
+        "save_config",
+        {"path": str(frame), "config": overrides},
+        req_id="dust-save",
+    )
+    assert save_msg["ok"] is True
+
+    loaded = ndjson_request("load_config", {"path": str(frame)}, req_id="dust-load")["result"]["config"]
+    assert loaded["dust_remove"] is True
+    assert loaded["dust_threshold"] == 0.5
+    assert loaded["dust_size"] == 6
+    WorkspaceConfig.from_flat_dict(loaded)
 
 
 def test_render_with_analysis_buffer(sample_tiff: Path) -> None:

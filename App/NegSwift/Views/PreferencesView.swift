@@ -38,6 +38,52 @@ struct PreferencesView: View {
             }
 
             Section {
+                Toggle("Optical dust removal", isOn: $preferences.opticalDustRemovalEnabled)
+                    .accessibilityIdentifier("negSwift.prefs.opticalDustRemoval")
+
+                if preferences.opticalDustRemovalEnabled {
+                    LabeledContent("Threshold") {
+                        HStack(spacing: 8) {
+                            Slider(
+                                value: $preferences.opticalDustThreshold,
+                                in: EditControlRanges.dustThreshold
+                            )
+                            .accessibilityIdentifier("negSwift.prefs.opticalDustThreshold")
+                            Text(String(format: "%.2f", preferences.opticalDustThreshold))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, alignment: .trailing)
+                        }
+                    }
+
+                    LabeledContent("Size") {
+                        HStack(spacing: 8) {
+                            Slider(
+                                value: Binding(
+                                    get: { Double(preferences.opticalDustSize) },
+                                    set: { preferences.opticalDustSize = Int($0.rounded()) }
+                                ),
+                                in: EditControlRanges.dustSize,
+                                step: 1
+                            )
+                            .accessibilityIdentifier("negSwift.prefs.opticalDustSize")
+                            Text("\(preferences.opticalDustSize) px")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                    }
+                }
+            } header: {
+                Text("Retouch")
+            } footer: {
+                Text(
+                    "Finds and removes small dust specks on the visible scan by local contrast — "
+                        + "no infrared channel needed. Lower threshold catches more specks; size is the maximum spot radius."
+                )
+            }
+
+            Section {
                 Picker("NegPy data folder", selection: $preferences.userDataLocation) {
                     ForEach(NegPyUserDataLocation.allCases) { location in
                         Text(location.label).tag(location)

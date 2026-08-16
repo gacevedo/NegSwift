@@ -75,6 +75,7 @@ final class EngineSession {
         preferences.onPreviewSettingsChanged = { [weak self] in
             Task { @MainActor in
                 self?.applyAutoCropPreferenceToLoadedEdits()
+                self?.applyOpticalDustPreferenceToLoadedEdits()
                 self?.refreshPreviewNow()
             }
         }
@@ -245,7 +246,11 @@ final class EngineSession {
         {
             frameEdits[path]?.processMode = detected
         }
-        frameEdits[path]?.autoCropEnabled = preferences.autoCropEnabled
+        if var edit = frameEdits[path] {
+            edit.autoCropEnabled = preferences.autoCropEnabled
+            applyOpticalDustPreferences(to: &edit)
+            frameEdits[path] = edit
+        }
 
         if let index = frames.firstIndex(where: { $0.path == path }) {
             updateFrame(at: index) { $0.thumbnail = nil }
@@ -401,7 +406,39 @@ final class EngineSession {
     private func defaultEditState() -> FrameEditState {
         var edit = FrameEditState()
         edit.autoCropEnabled = preferences.autoCropEnabled
+        applyOpticalDustPreferences(to: &edit)
         return edit
+    }
+
+    private func applyOpticalDustPreferences(to edit: inout FrameEditState) {
+        edit.dustRemove = preferences.opticalDustRemovalEnabled
+        edit.dustThreshold = preferences.opticalDustThreshold
+        edit.dustSize = preferences.opticalDustSize
+    }
+
+    private func applyOpticalDustPreferenceToLoadedEdits() {
+        let enabled = preferences.opticalDustRemovalEnabled
+        let threshold = preferences.opticalDustThreshold
+        let size = preferences.opticalDustSize
+        var changed = false
+        for path in frameEdits.keys {
+            guard var edit = frameEdits[path] else { continue }
+            if edit.dustRemove != enabled || edit.dustThreshold != threshold || edit.dustSize != size {
+                edit.dustRemove = enabled
+                edit.dustThreshold = threshold
+                edit.dustSize = size
+                frameEdits[path] = edit
+                changed = true
+            }
+        }
+        guard changed else { return }
+        thumbnailGeneration += 1
+        let generation = thumbnailGeneration
+        Task {
+            for frame in frames {
+                await refreshThumbnail(for: frame.path, generation: generation)
+            }
+        }
     }
 
     private func applyAutoCropPreferenceToLoadedEdits() {
@@ -777,6 +814,9 @@ final class EngineSession {
             var edit = FrameEditState.fromFlatConfig(flat)
             if flat["auto_crop_enabled"] == nil {
                 edit.autoCropEnabled = preferences.autoCropEnabled
+            }
+            if flat["dust_remove"] == nil {
+                applyOpticalDustPreferences(to: &edit)
             }
             if edit.manualCropRect != nil {
                 edit.autoCropEnabled = false

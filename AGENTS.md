@@ -79,8 +79,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M9b** | **Done** — NegPy submodule at `Vendor/NegPy` |
 | M10 | PyInstaller / bundle — **Done** |
 | M11 | Polish — **Done** |
+| **M12** | **Next** — Performance (NegSwift-local); measure first, then quick wins |
 
-**Current status (2026-08-16):** M0–M11 done. **Resume at release prep** — M10 smoke on a Mac without Python; sign/notarize per [docs/RELEASE.md](docs/RELEASE.md).
+**Current status (2026-08-16):** M0–M11 done. **Resume at M12 Phase 0** (baselines in `docs/PERFORMANCE.md`) or release prep in parallel — M10 smoke on a Mac without Python; sign/notarize per [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Architecture rules
 
@@ -234,7 +235,8 @@ NegSwift engine should stay thin as upstream adds headless APIs.
 
 | Doc | Purpose |
 |-----|---------|
-| [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M11 |
+| [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M12 |
+| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | M12 benchmarks and baseline methodology (Phase 0) |
 | [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md) | NDJSON API |
 | [docs/MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) | Manual smoke per milestone |
 | [NegPy CLAUDE.md](Vendor/NegPy/CLAUDE.md) | Pipeline, `WorkspaceConfig`, feature pattern |

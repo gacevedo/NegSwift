@@ -143,6 +143,39 @@ Test scan path:
 
 ---
 
+## M12 — Performance (NegSwift-local)
+
+**Phase 0 — Measurement (do this first)**
+
+- [ ] `docs/PERFORMANCE.md` exists with scenarios and capture commands
+- [ ] `uv run pytest tests/test_perf.py -v` (or `Engine/scripts/bench_render.py`) runs and emits JSON timings
+- [ ] Baseline recorded for: cold render, warm render, frame switch, export → preview
+- [ ] Baseline file or PR notes archived (machine, macOS, NegPy tag, commit)
+
+**Phase 1 — Quick wins**
+
+- [ ] Warm second `render` faster than cold (hash + cache path) — compare to Phase 0 baseline
+- [ ] Slider scrub — preview updates without main-thread hitch (decode off main)
+- [ ] Selected frame strip thumb updates without a second engine `render` after preview
+- [ ] Export then preview — faster recovery than Phase 0 baseline (softer cache cleanup)
+- [ ] No preview parity regression vs NegPy desktop (spot-check M6)
+
+**Phase 2 — Interactive editing**
+
+- [ ] Rapid density slider scrub — no pile-up of stale previews; UI stays responsive
+
+**Phase 3 — Frame switch & strip**
+
+- [ ] Import folder 20+ frames — strip thumbs fill progressively; selected preview appears quickly
+- [ ] Frame switch baseline improved vs Phase 0
+
+**Phase 4 — Preview transport (optional)**
+
+- [ ] New transport format works; fallback PNG still works
+- [ ] IPC/decode baseline improved vs Phase 0
+
+---
+
 ## UI automation (NegSwiftUITests)
 
 Run from `App/` (requires `cd Engine && uv sync` first):

@@ -2,15 +2,9 @@
 
 macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) — film-negative processing with a simpler SwiftUI interface, backed by upstream NegPy as a drop-in engine.
 
-**Author:** [Gabriel Acevedo](https://gabrielacevedo.com)
-
-**License:** GPL-3.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
-
-**Source:** [github.com/gacevedo/NegSwift](https://github.com/gacevedo/NegSwift)
-
 ## Status
 
-**M0–M11 complete.** **Next:** release smoke on a Mac without Python; sign/notarize per [docs/RELEASE.md](docs/RELEASE.md).
+**M0–M11 complete.** **Next:** [M12 performance](PLAN.md#m12--performance-negswift-local) (baselines first) and/or release smoke on a Mac without Python; sign/notarize per [docs/RELEASE.md](docs/RELEASE.md).
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 
@@ -51,7 +45,5 @@ make sync
 ```
 
 NegPy contributors can point the engine at a sibling checkout via `Engine/pyproject.override.toml` (see [Engine/README.md](Engine/README.md)).
-
-**M9b onward:** CI and packaging use `Vendor/NegPy` only — not `../../NegPy`.
 
 See [PLAN.md](PLAN.md) and [docs/RELEASE.md](docs/RELEASE.md) for distribution builds.

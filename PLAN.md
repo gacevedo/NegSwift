@@ -23,8 +23,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.50.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
+| **M12** Performance | **Next** | NegSwift-local wins; **measure first**, then quick wins → queueing → transport |
 
-**Resume here:** Release prep — M10 smoke on a Mac without Python; sign/notarize per `docs/RELEASE.md`.
+**Resume here:** **M12** — establish performance baselines, then ship quick wins (see §7 M12). Release prep (M10 smoke, sign/notarize per `docs/RELEASE.md`) can run in parallel.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -507,6 +508,77 @@ cd NegSwift/Engine && uv sync && uv run negswift-engine info
 
 ---
 
+### M12 — Performance (NegSwift-local)
+
+Improve preview latency, frame-switch time, and memory without forking NegPy pipeline math or waiting on upstream API changes. All work stays in `Engine/negswift_engine/`, `App/`, and `docs/ENGINE_PROTOCOL.md` (transport only).
+
+**Non-goals:** Reimplementing density curves, shaders, or `ImageProcessor` stages in Swift; PyInstaller size optimization; iOS.
+
+Work in order — **do not ship optimizations before baselines exist** for the scenarios they target.
+
+#### Phase 0 — Measurement (first)
+
+- [ ] `docs/PERFORMANCE.md` — scenarios, commands, how to record before/after
+- [ ] Engine benchmark harness — e.g. `Engine/scripts/bench_render.py` and/or `tests/test_perf.py` (non-integration asset for CI; `@pytest.mark.integration` + env scan path for GPU realism)
+- [ ] Baseline metrics (wall time, ms) for at least:
+  - cold `render` (first touch of a scan)
+  - warm `render` (same path + config, NegPy cache hot)
+  - slider settle (one debounced preview after config change)
+  - frame switch (select frame B after editing frame A)
+  - export → next preview (cache eviction path)
+  - optional: hash-only / sidecar-only timing (isolates orchestration overhead)
+- [ ] Checked-in baseline snapshot — e.g. `Engine/tests/fixtures/perf_baseline.json` (machine label + commit; CI compares with tolerance or manual gate)
+- [ ] Swift Debug timing hooks — frame-switch end-to-end, IPC wait, PNG decode (log or lightweight overlay; no release impact)
+
+**Automated:** `uv run pytest tests/test_perf.py -v` (or `make bench-engine`) completes and writes comparable JSON.
+
+**Manual:** Run benchmark script on a representative scan (≥ 20 MP TIFF); archive output in PR / milestone notes. Repeat after each M12 phase to confirm impact.
+
+#### Phase 1 — Quick wins (highest ROI)
+
+Engine:
+
+- [ ] File hash cache keyed by `(path, mtime_ns, size)` — avoid re-reading head/tail on every `render` / `open` / `export` / `detect`
+- [ ] Sidecar read cache keyed by `(path, sidecar_mtime_ns)`
+- [ ] Softer export cleanup — do not `release_source_cache=True` on every export; evict on asset switch or explicit pressure only
+
+Swift:
+
+- [ ] Chunked NDJSON stdout read (replace byte-by-byte loop in `EngineClient`)
+- [ ] Off-main-thread PNG/base64 decode; release base64 `String` before holding bitmap
+- [ ] Skip redundant strip thumbnail `render` after preview — derive selected-frame thumb from preview `CGImage`; IPC thumbs only for non-selected frames when config unchanged
+
+**Gate:** Phase 0 baselines show measurable improvement on warm render, frame switch, and/or decode time without preview parity regression (manual M6 compare).
+
+#### Phase 2 — Interactive editing
+
+- [ ] Single GPU render executor (one worker thread) — no unbounded `threading.Thread` per job
+- [ ] Per-path job supersession (“latest wins”; drop queued stale renders)
+- [ ] Cancel checks before hash, sidecar read, and `load_linear_preview` (pipeline mid-flight still best-effort without upstream hooks)
+- [ ] Swift: defer `previewGeneration` bump until debounced task starts (fewer cancel IPC storms while dragging)
+
+**Gate:** Rapid slider scrub — fewer completed stale renders; UI stays responsive (manual M6 scrub test).
+
+#### Phase 3 — Frame switch & strip
+
+- [ ] `EngineClient.open` + prefetch on import / `selectFrame` (warm `PreviewManager` before first `render`)
+- [ ] Overlap `load_config` and first `render` where safe; defer previous-frame thumbnail refresh
+- [ ] Parallel strip thumbnail loading (`TaskGroup`, concurrency 2–3, prioritize selected / near-visible)
+- [ ] Skip `detect_process_mode` IPC when `load_config` already has `process_mode`
+
+**Gate:** Baseline “frame switch” and strip-fill metrics improve; folder of 20+ frames stays responsive (manual M5).
+
+#### Phase 4 — Preview transport (larger, optional within M12)
+
+- [ ] Optional preview format in protocol — e.g. `jpeg_base64` with quality param, or length-prefixed binary RGBA after a JSON header (see `docs/ENGINE_PROTOCOL.md` future note)
+- [ ] Swift client support + fallback to PNG for compatibility
+
+**Gate:** IPC + decode time down on baseline; no visible quality regression at default settings.
+
+**Regression:** Full `make test`; manual regression smoke; re-run M6 parity spot-check after engine transport changes.
+
+---
+
 ## 8. Project structure
 
 ```
@@ -555,6 +627,7 @@ NegSwift/
 └── docs/
     ├── ENGINE_PROTOCOL.md
     ├── MANUAL_TEST_CHECKLIST.md
+    ├── PERFORMANCE.md                 # M12 baselines and benchmark methodology
     └── RELEASE.md
 ```
 
@@ -571,6 +644,7 @@ NegSwift/
 | Swift UI | XCTest + mocked `EngineClient` | M4+ |
 | Integration | Tag `@pytest.mark.integration` — needs GPU + sample scan | CI optional / nightly |
 | Manual | `docs/MANUAL_TEST_CHECKLIST.md` per milestone | Before tagging |
+| Performance | `docs/PERFORMANCE.md` + `tests/test_perf.py` / `Engine/scripts/bench_render.py` | M12+; before/after each optimization phase |
 
 **Parity rule:** Lite does not reimplement math; if preview differs from NegPy desktop, treat as **engine wiring bug**, not “Swift UI bug”.
 
@@ -607,7 +681,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 | Submodule drift / forgotten init | Document `--recurse-submodules`; CI fails fast if `Vendor/NegPy` empty |
 | PyInstaller + wgpu/numba fails | Fall back to embedded CPython; build always from submodule tree |
 | Large app size (~200MB+) | Engine-only freeze (no Qt); strip tests/docs from bundle |
-| Preview latency | Debounce, cancel jobs, reuse `PreviewManager` cache |
+| Preview latency | M12: measure first; debounce, cancel/supersede jobs, hash/sidecar cache, softer export cleanup, transport v2 |
 | Config drift vs NegPy | Always serialize full `WorkspaceConfig`; lite UI only *shows* subset |
 | GPU OOM on huge scans | Same preview downscale as desktop (`preview_render_size`) |
 | Code signing embedded Python | Document entitlements; sign all `.so`; use `--onedir` |
@@ -616,8 +690,10 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **Release smoke:** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
-2. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
+1. **M12 Phase 0:** Add `docs/PERFORMANCE.md` and engine benchmark harness; capture baselines on a representative scan before any optimization PRs.
+2. **M12 Phase 1:** Quick wins (hash cache, chunked IPC read, off-main decode, thumbnail dedup) — re-run benchmarks and attach delta in PR.
+3. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
+4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 
 ---
 
@@ -661,7 +737,7 @@ flowchart LR
   M6 --> M8
   M7 --> M9 --> M9b --> M10
   M8 --> M9
-  M10 --> M11
+  M10 --> M11 --> M12
 ```
 
-M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling.
+M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs.

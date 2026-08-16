@@ -14,6 +14,7 @@ struct GeometryPanelView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle("Crop Tool", isOn: cropToolBinding)
                     .controlSize(.small)
+                    .help("Draw and adjust the crop box on the preview (⇧C)")
 
                 if session.isCropToolActive {
                     Picker("Ratio", selection: aspectRatioBinding) {

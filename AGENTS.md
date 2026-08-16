@@ -78,9 +78,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M4–M9 | SwiftUI shell, controls, sidecars, crop, export |
 | **M9b** | **Done** — NegPy submodule at `Vendor/NegPy` |
 | M10 | PyInstaller / bundle — **Done** |
-| M11 | Polish |
+| M11 | Polish — **Done** |
 
-**Current status (2026-08-16):** M0–M10 done. **M11 in progress** — DnD import, Preferences, and keyboard shortcuts wired; DnD edge-case polish remains. See [PLAN.md](PLAN.md) and [docs/RELEASE.md](docs/RELEASE.md).
+**Current status (2026-08-16):** M0–M11 done. **Resume at release prep** — M10 smoke on a Mac without Python; sign/notarize per [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Architecture rules
 

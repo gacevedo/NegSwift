@@ -70,6 +70,12 @@ struct NegSwiftApp: App {
                 }
                 .keyboardShortcut(.space, modifiers: [])
                 .disabled(!commandBridge.canToggleCanvasZoom)
+
+                Button("Toggle Crop Tool") {
+                    commandBridge.performToggleCropTool()
+                }
+                .keyboardShortcut("c", modifiers: .shift)
+                .disabled(!commandBridge.canToggleCropTool)
             }
         }
         Settings {

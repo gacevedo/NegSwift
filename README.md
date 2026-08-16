@@ -10,7 +10,7 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M10 complete.** **Next: M11** polish.
+**M0–M11 complete.** **Next:** release smoke on a Mac without Python; sign/notarize per [docs/RELEASE.md](docs/RELEASE.md).
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 

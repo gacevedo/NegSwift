@@ -725,6 +725,7 @@ final class EngineSession {
 
     private func scheduleDebouncedThumbnailRefresh(for path: String) {
         if isCropToolActive, path == selectedFramePath { return }
+        guard !isThumbnailLoadRunning else { return }
         thumbnailGeneration += 1
         let generation = thumbnailGeneration
         thumbnailDebounce.schedule { [weak self] in
@@ -797,6 +798,10 @@ final class EngineSession {
     }
 
     private func loadThumbnails(generation: Int) async {
+        // Preview completion schedules a debounced thumb for the selected frame;
+        // cancel it so that job does not pre-empt the next strip thumbnail.
+        thumbnailDebounce.cancel()
+        thumbnailGeneration += 1
         for index in frames.indices {
             guard generation == stripGeneration else {
                 resetStuckThumbnailSpinners()

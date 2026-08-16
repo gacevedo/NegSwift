@@ -12,10 +12,12 @@ final class MainWindowCommandBridge {
     var canOpenImport = false
     var canOpenExport = false
     var canToggleCanvasZoom = false
+    var canToggleCropTool = false
 
     var openImport: (() -> Void)?
     var openExport: (() -> Void)?
     var toggleCanvasZoom: (() -> Void)?
+    var toggleCropTool: (() -> Void)?
 
     func performOpenImport() {
         openImport?()
@@ -27,5 +29,9 @@ final class MainWindowCommandBridge {
 
     func performToggleCanvasZoom() {
         toggleCanvasZoom?()
+    }
+
+    func performToggleCropTool() {
+        toggleCropTool?()
     }
 }

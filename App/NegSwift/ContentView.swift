@@ -173,6 +173,7 @@ struct ContentView: View {
         }
         .onChange(of: engineSession.engineReady) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.isExporting) { _, _ in syncCommandBridgeState() }
+        .onChange(of: engineSession.isCropToolActive) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.previewImage) { _, _ in syncCommandBridgeState() }
         .onChange(of: showExportSheet) { _, _ in syncCommandBridgeState() }
         .onChange(of: showEngineSheet) { _, _ in syncCommandBridgeState() }
@@ -189,18 +190,26 @@ struct ContentView: View {
         commandBridge.toggleCanvasZoom = {
             previewZoomMode.toggle()
         }
+        commandBridge.toggleCropTool = {
+            Task { @MainActor in
+                await Task.yield()
+                engineSession.setCropToolActive(!engineSession.isCropToolActive)
+            }
+        }
         syncCommandBridgeState()
     }
 
     private func syncCommandBridgeState() {
+        let modalOpen = showExportSheet || showEngineSheet || showAbout
         commandBridge.canOpenImport = engineSession.engineReady
         commandBridge.canOpenExport = engineSession.engineReady
             && engineSession.selectedFrameID != nil
             && !engineSession.isExporting
         commandBridge.canToggleCanvasZoom = engineSession.previewImage != nil
-            && !showExportSheet
-            && !showEngineSheet
-            && !showAbout
+            && !modalOpen
+        commandBridge.canToggleCropTool = engineSession.engineReady
+            && engineSession.selectedFrameID != nil
+            && !modalOpen
     }
 
     private func performOpenImport() async {

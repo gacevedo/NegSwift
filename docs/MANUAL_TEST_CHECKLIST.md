@@ -129,15 +129,16 @@ Test scan path:
 
 ---
 
-## M11 — Polish
+## M11 — Polish ✅
 
 - [x] Drag-and-drop import — folder, single file, or multiple scans onto the window
-- [ ] Drop mixed folder + files shows an error (not both)
-- [ ] Drop multiple folders shows “one folder at a time” error
-- [ ] Dashed accent overlay while dragging over the window (engine ready)
+- [x] Drop mixed folder + files shows an error (not both)
+- [x] Drop multiple folders shows “one folder at a time” error
+- [x] Dashed accent overlay while dragging over the window (engine ready)
 - [x] Process mode picker (C-41 / B&W)
 - [x] Preferences (⌘,) — preview quality, GPU toggle, NegPy data folder (shared `edits.db` with desktop NegPy)
-- [x] Keyboard: Space toggle fit, ⌘O import, ⌘E export; double-click preview toggles fit / 1:1
+- [x] Keyboard: Space toggle fit, ⇧C crop tool, ⌘O import, ⌘E export; double-click preview toggles fit / 1:1
+- [x] Crop overlay hides during 90° rotation until preview catches up (no wrong-aspect flash)
 
 ---
 

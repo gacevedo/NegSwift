@@ -22,9 +22,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9** Export | **Done** | Engine `export`, Swift export sheet |
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.50.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
-| M11 | In progress | DnD edge-case polish remains; keyboard shortcuts done |
+| M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
 
-**Resume here:** M11 — DnD edge-case polish; release smoke on a Mac without Python.
+**Resume here:** Release prep — M10 smoke on a Mac without Python; sign/notarize per `docs/RELEASE.md`.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -496,12 +496,14 @@ cd NegSwift/Engine && uv sync && uv run negswift-engine info
 
 ---
 
-### M11 — Polish (post-MVP)
+### M11 — Polish (post-MVP) ✅
 
 - [x] Drag-and-drop import (folder, single file, or multiple scans)
+- [x] DnD edge cases — mixed folder+files error, multiple-folders error, dashed accent drag overlay (manual verify)
 - [x] Process mode picker — C-41 / B&W (`ProcessModePickerView`; maps to NegPy `process_mode`)
 - [x] Preferences: preview quality, GPU toggle, NegPy data folder (`NEGPY_USER_DIR` — isolated vs shared with desktop NegPy)
-- [x] Keyboard: Space toggle fit/1:1, ⌘O import, ⌘E export
+- [x] Keyboard: Space toggle fit/1:1, ⇧C toggle crop tool, ⌘O import, ⌘E export
+- [x] Crop overlay hides during 90° rotation until crop-preview render catches up (no transient wrong aspect ratio)
 
 ---
 
@@ -614,8 +616,8 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M11 — DnD edge cases:** mixed folder+files error, multiple folders error, drag overlay polish (see `docs/MANUAL_TEST_CHECKLIST.md` M11).
-2. **Release prep:** Manual M10 smoke on a Mac without Python; sign/notarize per `docs/RELEASE.md` when ready to ship.
+1. **Release smoke:** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
+2. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 
 ---
 

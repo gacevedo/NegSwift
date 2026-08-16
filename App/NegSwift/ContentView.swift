@@ -16,6 +16,7 @@ struct ContentView: View {
     @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
     @AppStorage("negSwift.sidebar.color") private var colorExpanded = false
     @AppStorage("negSwift.sidebar.crop") private var cropExpanded = false
+    @State private var isImportDropTargeted = false
 
     var body: some View {
         NavigationSplitView {
@@ -25,7 +26,7 @@ struct ContentView: View {
                         Button {
                             showAbout = true
                         } label: {
-                            HStack(alignment: .center, spacing: 6) {
+                            HStack(alignment: .bottom, spacing: 6) {
                                 if let icon = AppMetadata.appIcon {
                                     Image(nsImage: icon)
                                         .resizable()
@@ -37,6 +38,7 @@ struct ContentView: View {
                                 Text(AppMetadata.appVersion)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
+                                    .padding(.bottom, 1)
                             }
                         }
                         .buttonStyle(.plain)
@@ -155,6 +157,7 @@ struct ContentView: View {
             Text("Returns the selected frame to default settings and removes its saved sidecar. This cannot be undone.")
         }
         .navigationSplitViewStyle(.balanced)
+        .importDropTarget(session: engineSession, isTargeted: $isImportDropTargeted)
     }
 
     @ViewBuilder
@@ -170,7 +173,7 @@ struct ContentView: View {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.system(size: 48))
                         .foregroundStyle(.secondary)
-                    Text("Import a folder or open a scan")
+                    Text("Open a folder, open a file, or drop files here")
                         .foregroundStyle(.secondary)
                     if !engineSession.engineReady {
                         switch engineSession.state {

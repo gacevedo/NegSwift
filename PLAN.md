@@ -22,9 +22,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9** Export | **Done** | Engine `export`, Swift export sheet |
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.50.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
-| M11 | Not started | Polish |
+| M11 | In progress | DnD import done; preferences & shortcuts remain |
 
-**Resume here:** M11 — preferences, DnD, shortcuts.
+**Resume here:** M11 — preferences, shortcuts (⌘O, ⌘E, Space).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -501,7 +501,7 @@ cd NegSwift/Engine && uv sync && uv run negswift-engine info
 - Process mode picker (C-41 / E-6 / B&W)
 - E-6 normalization toggle
 - Preferences: preview quality, GPU toggle, shared DB path
-- Drag-and-drop import
+- Drag-and-drop import ✅
 - Keyboard: space toggle fit, Cmd+O, Cmd+E
 
 ---

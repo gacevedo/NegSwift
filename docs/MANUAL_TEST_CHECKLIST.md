@@ -129,6 +129,19 @@ Test scan path:
 
 ---
 
+## M11 — Polish
+
+- [x] Drag-and-drop import — folder, single file, or multiple scans onto the window
+- [ ] Drop mixed folder + files shows an error (not both)
+- [ ] Drop multiple folders shows “one folder at a time” error
+- [ ] Dashed accent overlay while dragging over the window (engine ready)
+- [ ] Process mode picker (C-41 / E-6 / B&W)
+- [ ] E-6 normalization toggle
+- [ ] Preferences: preview quality, GPU toggle, shared DB path
+- [ ] Keyboard: Space toggle fit, ⌘O import, ⌘E export
+
+---
+
 ## Regression smoke (any milestone after M4)
 
 Quick pass before release tags:

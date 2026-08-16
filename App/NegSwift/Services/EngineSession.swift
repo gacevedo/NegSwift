@@ -475,6 +475,55 @@ final class EngineSession {
         await importFile(at: url)
     }
 
+    func importDroppedURLs(_ urls: [URL]) async {
+        guard engineReady else { return }
+        previewError = nil
+
+        switch ImportDropResolver.action(for: urls) {
+        case let .folder(url):
+            await importFolder(at: url)
+        case let .singleFile(url):
+            await importFileFromPicker(url)
+        case let .multipleFiles(urls):
+            await importDroppedFiles(urls)
+        case let .unsupported(message):
+            previewError = message
+        }
+    }
+
+    private func importDroppedFiles(_ urls: [URL]) async {
+        stopFolderAccess()
+        stopFileAccess()
+        for url in urls {
+            if url.startAccessingSecurityScopedResource() {
+                scopedFileURLs[url.path] = url
+            }
+        }
+        if let first = urls.first {
+            RecentPathsStore.remember(first.deletingLastPathComponent(), for: .openFileDirectory)
+        }
+        stripGeneration += 1
+        previewError = nil
+        do {
+            let discovered = try await client.discover(paths: urls.map(\.path))
+            frames = discovered.assets.map { asset in
+                ScanFrame(
+                    id: UUID(),
+                    url: URL(fileURLWithPath: asset.path),
+                    path: asset.path,
+                    name: asset.name
+                )
+            }
+            if let first = frames.first {
+                await selectFrame(first.id)
+            } else {
+                previewError = "No supported scans in the dropped files."
+            }
+        } catch {
+            previewError = error.localizedDescription
+        }
+    }
+
     func selectFrame(_ id: UUID) async {
         let previousPath = selectedFramePath
         isCropToolActive = false

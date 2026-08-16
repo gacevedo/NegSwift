@@ -8,7 +8,7 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum FolderPicker {
-    private static let scanTypes: [UTType] = [.tiff, .png, .jpeg, .heic, .rawImage]
+    private static let scanTypes = ScanImportTypes.scanTypes
 
     @MainActor
     static func chooseFolder(
@@ -38,7 +38,7 @@ enum FolderPicker {
     }
 
     @MainActor
-    static func chooseScanFile(prompt: String = "Open Scan") async -> URL? {
+    static func chooseScanFile(prompt: String = "Open File") async -> URL? {
         await withCheckedContinuation { continuation in
             let panel = NSOpenPanel()
             panel.title = prompt

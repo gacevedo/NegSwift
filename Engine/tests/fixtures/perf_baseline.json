@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "profile": "synthetic_large",
+  "captured_at": "2026-08-16T17:36:32Z",
+  "commit": "8d0be33",
+  "machine": {
+    "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "python": "3.13.11"
+  },
+  "scan_path": "synthetic:2000x1500",
+  "prefer_gpu": false,
+  "long_edge_px": null,
+  "timings_ms": {
+    "hash_ms": 4.972041992004961,
+    "sidecar_ms": 0.056791992392390966,
+    "resolve_config_ms": 0.6088750087656081,
+    "render_cold_ms": 2470.3216669731773,
+    "render_warm_ms": 93.60324998851866,
+    "render_config_change_ms": 310.88258302770555,
+    "frame_switch_ms": 94.57420802209526,
+    "export_ms": 899.9981249799021,
+    "export_then_preview_ms": 497.22066696267575,
+    "protocol_ping_ms": 520.2424579765648,
+    "protocol_render_cold_ms": 2519.499709014781,
+    "protocol_render_warm_ms": 94.7489170357585
+  }
+}

@@ -1,4 +1,4 @@
-.PHONY: sync lint format test test-swift bundle-engine build-app build-release \
+.PHONY: sync lint format test test-swift bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -21,6 +21,9 @@ test: sync test-swift
 
 test-swift:
 	cd App && xcodebuild -scheme NegSwift -configuration Debug -destination 'platform=macOS' test -quiet
+
+bench-engine:
+	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json
 
 bundle-engine:
 	./Packaging/build_engine.sh

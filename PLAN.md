@@ -23,9 +23,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.50.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
-| **M12** Performance | **Next** | NegSwift-local wins; **measure first**, then quick wins → queueing → transport |
+| **M12** Performance | **In progress** | Phase 0 done (baselines); Phase 1 quick wins next |
 
-**Resume here:** **M12** — establish performance baselines, then ship quick wins (see §7 M12). Release prep (M10 smoke, sign/notarize per `docs/RELEASE.md`) can run in parallel.
+**Resume here:** **M12 Phase 1** (quick wins — see §7 M12). Release prep can run in parallel.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -516,19 +516,19 @@ Improve preview latency, frame-switch time, and memory without forking NegPy pip
 
 Work in order — **do not ship optimizations before baselines exist** for the scenarios they target.
 
-#### Phase 0 — Measurement (first)
+#### Phase 0 — Measurement (first) ✅
 
-- [ ] `docs/PERFORMANCE.md` — scenarios, commands, how to record before/after
-- [ ] Engine benchmark harness — e.g. `Engine/scripts/bench_render.py` and/or `tests/test_perf.py` (non-integration asset for CI; `@pytest.mark.integration` + env scan path for GPU realism)
-- [ ] Baseline metrics (wall time, ms) for at least:
+- [x] `docs/PERFORMANCE.md` — scenarios, commands, how to record before/after
+- [x] Engine benchmark harness — `Engine/scripts/bench_render.py` + `tests/test_perf.py` (synthetic asset for CI; `@pytest.mark.integration` + `NEGSWIFT_PERF_SCAN` for GPU realism)
+- [x] Baseline metrics (wall time, ms) for at least:
   - cold `render` (first touch of a scan)
   - warm `render` (same path + config, NegPy cache hot)
   - slider settle (one debounced preview after config change)
   - frame switch (select frame B after editing frame A)
   - export → next preview (cache eviction path)
-  - optional: hash-only / sidecar-only timing (isolates orchestration overhead)
-- [ ] Checked-in baseline snapshot — e.g. `Engine/tests/fixtures/perf_baseline.json` (machine label + commit; CI compares with tolerance or manual gate)
-- [ ] Swift Debug timing hooks — frame-switch end-to-end, IPC wait, PNG decode (log or lightweight overlay; no release impact)
+  - hash-only / sidecar-only timing (isolates orchestration overhead)
+- [x] Checked-in baseline snapshot — `Engine/tests/fixtures/perf_baseline.json` (machine label + commit; regression compare via `NEGSWIFT_PERF_COMPARE=1`)
+- [x] Swift Debug timing hooks — `NEGSWIFT_PERF_LOG=1` → `frame_switch_total`, `render_ipc`, `render_decode_png`
 
 **Automated:** `uv run pytest tests/test_perf.py -v` (or `make bench-engine`) completes and writes comparable JSON.
 
@@ -690,10 +690,9 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M12 Phase 0:** Add `docs/PERFORMANCE.md` and engine benchmark harness; capture baselines on a representative scan before any optimization PRs.
-2. **M12 Phase 1:** Quick wins (hash cache, chunked IPC read, off-main decode, thumbnail dedup) — re-run benchmarks and attach delta in PR.
-3. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
-4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
+1. **M12 Phase 1:** Quick wins (hash cache, chunked IPC read, off-main decode, thumbnail dedup) — re-run `make bench-engine` and attach delta in PR.
+2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
+3. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 
 ---
 

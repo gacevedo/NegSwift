@@ -35,6 +35,8 @@ uv run ruff check negswift_engine tests
 uv run ruff format negswift_engine tests
 uv run pytest tests/ -v
 uv run pytest tests/test_render.py -v      # single test
+uv run pytest tests/test_perf.py -v        # M12 perf harness (synthetic)
+make bench-engine                          # from repo root — refresh perf_baseline.json
 ```
 
 Never invoke `pytest` or `ruff` directly — use `uv run`.
@@ -79,9 +81,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M9b** | **Done** — NegPy submodule at `Vendor/NegPy` |
 | M10 | PyInstaller / bundle — **Done** |
 | M11 | Polish — **Done** |
-| **M12** | **Next** — Performance (NegSwift-local); measure first, then quick wins |
+| **M12** | **In progress** — Performance; Phase 0 baselines done, Phase 1 next |
 
-**Current status (2026-08-16):** M0–M11 done. **Resume at M12 Phase 0** (baselines in `docs/PERFORMANCE.md`) or release prep in parallel — M10 smoke on a Mac without Python; sign/notarize per [docs/RELEASE.md](docs/RELEASE.md).
+**Current status (2026-08-16):** M0–M11 done; **M12 Phase 0 complete**. Resume at Phase 1 quick wins or release prep in parallel — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

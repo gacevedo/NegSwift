@@ -145,12 +145,13 @@ Test scan path:
 
 ## M12 — Performance (NegSwift-local)
 
-**Phase 0 — Measurement (do this first)**
+**Phase 0 — Measurement (do this first)** ✅
 
-- [ ] `docs/PERFORMANCE.md` exists with scenarios and capture commands
-- [ ] `uv run pytest tests/test_perf.py -v` (or `Engine/scripts/bench_render.py`) runs and emits JSON timings
-- [ ] Baseline recorded for: cold render, warm render, frame switch, export → preview
-- [ ] Baseline file or PR notes archived (machine, macOS, NegPy tag, commit)
+- [x] `docs/PERFORMANCE.md` exists with scenarios and capture commands
+- [x] `uv run pytest tests/test_perf.py -v` (or `make bench-engine`) runs and emits JSON timings
+- [x] Baseline recorded for: cold render, warm render, frame switch, export → preview
+- [x] Baseline file archived at `Engine/tests/fixtures/perf_baseline.json` (machine, macOS, commit in JSON)
+- [ ] Optional: real-scan baseline with `NEGSWIFT_PERF_SCAN` on a ≥ 20 MP TIFF (manual, for PR notes)
 
 **Phase 1 — Quick wins**
 

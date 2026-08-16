@@ -628,6 +628,7 @@ final class EngineSession {
     }
 
     func selectFrame(_ id: UUID) async {
+        let selectStart = CFAbsoluteTimeGetCurrent()
         let previousPath = selectedFramePath
         isCropToolActive = false
         isCropOverlayReady = false
@@ -646,6 +647,10 @@ final class EngineSession {
         let generation = previewGeneration
         await renderPreview(at: frame.url, generation: generation)
         await loadMissingThumbnails()
+        if PerformanceLogger.isEnabled {
+            let ms = (CFAbsoluteTimeGetCurrent() - selectStart) * 1000
+            PerformanceLogger.event("frame_switch_total", milliseconds: ms)
+        }
     }
 
     private func ensureEditLoaded(for path: String) async {
@@ -716,15 +721,21 @@ final class EngineSession {
 
         do {
             let settings = PreviewRenderSettings(preferences: preferences)
-            let result = try await client.render(
-                path: path,
-                longEdgePx: settings.longEdgePx,
-                preferGPU: settings.preferGPU,
-                config: effectiveConfig,
-                cropPreviewFull: isCropToolActive
-            )
+            let result = try await PerformanceLogger.measure("render_ipc") {
+                try await client.render(
+                    path: path,
+                    longEdgePx: settings.longEdgePx,
+                    preferGPU: settings.preferGPU,
+                    config: effectiveConfig,
+                    cropPreviewFull: isCropToolActive
+                )
+            }
             guard generation == previewGeneration else { return }
-            guard let data = result.pngData, let image = NSImage(data: data) else {
+            let image = PerformanceLogger.measureSync("render_decode_png") {
+                guard let data = result.pngData else { return nil as NSImage? }
+                return NSImage(data: data)
+            }
+            guard let image else {
                 previewError = "Engine returned an invalid PNG."
                 await finishCropCloseThumbnailRefresh(
                     for: path,

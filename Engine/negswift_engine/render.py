@@ -45,6 +45,15 @@ def _preview_manager_instance() -> PreviewManager:
     return _preview_manager
 
 
+def reset_render_cache() -> None:
+    """Drop singleton processor/preview manager — benchmarks and tests only."""
+    global _processor, _preview_manager
+    if _processor is not None:
+        _processor.cleanup(release_source_cache=True, collect=True)
+    _processor = None
+    _preview_manager = None
+
+
 def _base_flat_dict(path: str) -> dict[str, Any]:
     raw = read_raw_sidecar(path)
     if raw is not None:

@@ -4,13 +4,14 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M11 complete.** **Next:** [M12 performance](PLAN.md#m12--performance-negswift-local) (baselines first) and/or release smoke on a Mac without Python; sign/notarize per [docs/RELEASE.md](docs/RELEASE.md).
+**M0–M11 complete.** **M12 Phase 0** (perf baselines) done — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **Next:** M12 Phase 1 quick wins and/or release smoke.
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 
 ```bash
 make sync          # init submodule + uv sync (first time)
 make test          # engine pytest + Swift unit tests
+make bench-engine  # M12: refresh synthetic perf baseline JSON
 make build-app     # Xcode Debug build
 make build-release # PyInstaller engine + Xcode Release build
 make bundle-engine # freeze negswift-engine only (smoke test)

@@ -6,7 +6,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 ---
 
-## Plan status (last updated: 2026-08-15)
+## Plan status (last updated: 2026-08-16)
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
@@ -22,9 +22,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9** Export | **Done** | Engine `export`, Swift export sheet |
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.50.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
-| M11 | In progress | DnD import done; preferences & shortcuts remain |
+| M11 | In progress | DnD + process picker done; preferences done; shortcuts remain |
 
-**Resume here:** M11 — preferences, shortcuts (⌘O, ⌘E, Space).
+**Resume here:** M11 — keyboard shortcuts (⌘O, ⌘E, Space); DnD edge-case polish.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -143,7 +143,7 @@ git clone --recurse-submodules https://github.com/you/NegSwift.git
 git submodule update --init --recursive
 ```
 
-**Dual-repo hacking (optional escape hatch):** document `NEGPY_PATH` or a local `Engine/pyproject.override.toml` (gitignored) so NegPy contributors can point `uv` at a sibling checkout without changing the committed submodule SHA. CI and release builds **never** use the override.
+**Dual-repo hacking (optional escape hatch):** a local `Engine/pyproject.override.toml` (gitignored; see `Engine/pyproject.override.toml.example`) can point `uv` at a sibling checkout (`../../NegPy` from `Engine/`, or any absolute path) without changing the committed submodule SHA. CI and release builds **never** use the override — always `Vendor/NegPy`.
 
 ```toml
 # Example gitignored Engine/pyproject.override.toml
@@ -187,7 +187,7 @@ Both ship a self-contained app with **no user Python install**. Recommendation: 
 - Entry: `Engine/negswift_engine/__main__.py` (no PyQt6).
 - Reuse NegPy’s hidden-import list **minus** Qt/scanner/camera unless lite adds them later.
 - Must bundle: WGSL shader dirs, `icc/`, `crosstalk/`, `gear/` data from NegPy package resources.
-- Output: `negpy-engine/` directory → copy to `NegSwift.app/Contents/Resources/engine/`.
+- Output: `negswift-engine/` directory → copy to `NegSwift.app/Contents/Resources/engine/`.
 
 **Pros:** Single artifact, no `.venv` in bundle, matches NegPy release engineering.  
 **Cons:** Slow rebuilds, opaque tracebacks in production, PyInstaller + numba/wgpu quirks.
@@ -240,7 +240,7 @@ Preview responses use **PNG bytes (base64)** in v1 for simplicity; Milestone 7+ 
 
 - Folder import + film strip (grid of thumbnails)
 - Canvas preview (fit / 1:1 zoom, pan)
-- **Setup:** process mode (C-41 / B&W in NegSwift; E-6 in full NegPy), auto density / auto grade
+- **Setup:** process mode (C-41 / B&W; slides/E-6 deferred to full NegPy), auto density / auto grade
 - **Tone:** density, grade, saturation (single slider)
 - **Color:** WB cyan/magenta/yellow
 - **Geometry:** auto crop, rotation, aspect ratio preset
@@ -273,7 +273,7 @@ Each milestone lists **automated** checks and a **manual smoke test** you can ru
 - [x] `Engine/pyproject.toml` with path dep on NegPy (sibling `../../NegPy` is fine until M9b)
 - [x] `Engine/negswift_engine/` package skeleton
 - [x] GPL-3.0 LICENSE, README, this plan, `.gitignore`
-- [ ] CI stub: GitHub Actions (`ruff` + `pytest` + `xcodebuild`) — **`.github/workflows/ci.yml`**
+- [x] CI: GitHub Actions (`ruff` + `pytest` + `xcodebuild`) — `.github/workflows/ci.yml`
 
 **Automated:** `uv sync` in `Engine/` succeeds; `xcodebuild -scheme NegSwift build` succeeds.
 
@@ -498,11 +498,10 @@ cd NegSwift/Engine && uv sync && uv run negswift-engine info
 
 ### M11 — Polish (post-MVP)
 
-- Process mode picker (C-41 / E-6 / B&W)
-- E-6 normalization toggle
-- Preferences: preview quality, GPU toggle, shared DB path
-- Drag-and-drop import ✅
-- Keyboard: space toggle fit, Cmd+O, Cmd+E
+- [x] Drag-and-drop import (folder, single file, or multiple scans)
+- [x] Process mode picker — C-41 / B&W (`ProcessModePickerView`; maps to NegPy `process_mode`)
+- [x] Preferences: preview quality, GPU toggle, NegPy data folder (`NEGPY_USER_DIR` — isolated vs shared with desktop NegPy)
+- [ ] Keyboard: Space toggle fit/1:1, ⌘O import, ⌘E export
 
 ---
 
@@ -615,8 +614,9 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M10:** Bundle engine in `.app` (PyInstaller / embedded CPython).
-2. **M0 debt:** GitHub Actions running `make test` + `make build-app`.
+1. **M11 — Shortcuts:** ⌘O (import/open), ⌘E (export sheet), Space (canvas fit ↔ 1:1).
+2. **M11 — DnD edge cases:** mixed folder+files error, multiple folders error, drag overlay polish (see `docs/MANUAL_TEST_CHECKLIST.md` M11).
+3. **Release prep:** Manual M10 smoke on a Mac without Python; sign/notarize per `docs/RELEASE.md` when ready to ship.
 
 ---
 

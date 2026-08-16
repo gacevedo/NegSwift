@@ -84,7 +84,7 @@ final class EngineSession {
     }
 
     func quickExport() async {
-        guard let destination = RecentPathsStore.quickExportDestinationURL() else {
+        guard let destination = UITestSupport.exportDestinationURL ?? RecentPathsStore.quickExportDestinationURL() else {
             exportError = "No export folder available. Use Export… to choose a destination."
             return
         }
@@ -131,7 +131,8 @@ final class EngineSession {
                 path: path,
                 destDir: destination.path,
                 config: config,
-                export: settings
+                export: settings,
+                preferGpu: AppPreferences.useGPU
             )
         }
         exportTask = task
@@ -413,6 +414,27 @@ final class EngineSession {
         await start()
     }
 
+    /// Re-render after preview quality or GPU preference changes (no engine restart).
+    func refreshAfterPreferenceChange() async {
+        guard engineReady, let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else { return }
+
+        previewDebounce.cancel()
+        thumbnailDebounce.cancel()
+        previewGeneration += 1
+        let previewGen = previewGeneration
+        stripGeneration += 1
+        let stripGen = stripGeneration
+
+        for index in frames.indices {
+            updateFrame(at: index) { $0.thumbnail = nil }
+        }
+
+        await renderPreview(at: frame.url, generation: previewGen)
+        await loadThumbnails(generation: stripGen)
+    }
+
     func stop() async {
         await flushPendingSaves()
         await client.stop()
@@ -577,8 +599,10 @@ final class EngineSession {
         do {
             let result = try await client.render(
                 path: path,
+                longEdgePx: AppPreferences.previewLongEdgePx,
                 config: effectiveConfig,
-                cropPreviewFull: isCropToolActive
+                cropPreviewFull: isCropToolActive,
+                preferGpu: AppPreferences.useGPU
             )
             guard generation == previewGeneration else { return }
             guard let data = result.pngData, let image = NSImage(data: data) else {
@@ -668,7 +692,8 @@ final class EngineSession {
                 path: path,
                 longEdgePx: FilmStripLayout.thumbnailLongEdge,
                 config: config,
-                cropPreviewFull: false
+                cropPreviewFull: false,
+                preferGpu: AppPreferences.useGPU
             )
             if let generation, generation != thumbnailGeneration { return }
             guard stripGen == stripGeneration else { return }
@@ -721,7 +746,8 @@ final class EngineSession {
                     path: path,
                     longEdgePx: FilmStripLayout.thumbnailLongEdge,
                     config: config,
-                    cropPreviewFull: false
+                    cropPreviewFull: false,
+                    preferGpu: AppPreferences.useGPU
                 )
                 guard generation == stripGeneration else {
                     resetStuckThumbnailSpinners()

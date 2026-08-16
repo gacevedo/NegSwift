@@ -237,5 +237,5 @@ NegSwift engine should stay thin as upstream adds headless APIs.
 | [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M11 |
 | [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md) | NDJSON API |
 | [docs/MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) | Manual smoke per milestone |
-| [NegPy CLAUDE.md](../NegPy/CLAUDE.md) | Pipeline, `WorkspaceConfig`, feature pattern |
-| [NegPy docs/PIPELINE.md](../NegPy/docs/PIPELINE.md) | Stage math (do not copy into NegSwift) |
+| [NegPy CLAUDE.md](Vendor/NegPy/CLAUDE.md) | Pipeline, `WorkspaceConfig`, feature pattern |
+| [NegPy docs/PIPELINE.md](Vendor/NegPy/docs/PIPELINE.md) | Stage math (do not copy into NegSwift) |

@@ -135,10 +135,24 @@ Test scan path:
 - [ ] Drop mixed folder + files shows an error (not both)
 - [ ] Drop multiple folders shows “one folder at a time” error
 - [ ] Dashed accent overlay while dragging over the window (engine ready)
-- [ ] Process mode picker (C-41 / E-6 / B&W)
-- [ ] E-6 normalization toggle
-- [ ] Preferences: preview quality, GPU toggle, shared DB path
+- [x] Process mode picker (C-41 / B&W)
+- [x] Preferences (⌘,) — preview quality, GPU toggle, NegPy data folder (shared `edits.db` with desktop NegPy)
 - [ ] Keyboard: Space toggle fit, ⌘O import, ⌘E export
+
+---
+
+## UI automation (NegSwiftUITests)
+
+Run from `App/` (requires `cd Engine && uv sync` first):
+
+```bash
+xcodebuild -scheme NegSwift -configuration Debug -destination 'platform=macOS' \
+  -only-testing:NegSwiftUITests test
+```
+
+- **Quit any manually launched NegSwift** (e.g. from Xcode ⌘R) before UI tests — XCTest launches its own instance; a running copy can cause hangs or failures.
+- Functional tests use launch hooks (`-UITesting`, `NEGSWIFT_UI_TEST_*` env) for import, drop simulation, and export paths — not real drag-and-drop or `NSOpenPanel`.
+- Fixture scan: `App/NegSwiftUITests/Fixtures/sample.tif`
 
 ---
 

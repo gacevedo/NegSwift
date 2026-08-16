@@ -2,8 +2,6 @@
 //  NegSwiftUITestsLaunchTests.swift
 //  NegSwiftUITests
 //
-//  Created by Gabriel Acevedo on 8/9/26.
-//
 
 import XCTest
 
@@ -20,12 +18,11 @@ final class NegSwiftUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
+        if FileManager.default.isExecutableFile(atPath: NegSwiftUITestCase.engineExecutablePath) {
+            app.launchEnvironment["NEGSWIFT_ENGINE"] = NegSwiftUITestCase.engineExecutablePath
+        }
+        app.launchArguments.append(UITestLaunch.launchArgument)
         app.launch()
-
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Launch Screen"

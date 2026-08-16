@@ -55,6 +55,7 @@ struct ContentView: View {
                                 }
                             }
                             .disabled(!engineSession.engineReady)
+                            .accessibilityIdentifier("negSwift.openFolder")
 
                             Button("Open File…") {
                                 Task {
@@ -63,6 +64,7 @@ struct ContentView: View {
                                 }
                             }
                             .disabled(!engineSession.engineReady || engineSession.isRenderingPreview)
+                            .accessibilityIdentifier("negSwift.openFile")
                         }
                         .controlSize(.small)
 
@@ -125,11 +127,13 @@ struct ContentView: View {
                                 Task { await engineSession.quickExport() }
                             }
                             .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
+                            .accessibilityIdentifier("negSwift.quickExport")
 
                             Button("Export…") {
                                 showExportSheet = true
                             }
                             .disabled(!engineSession.engineReady || engineSession.selectedFrameID == nil || engineSession.isExporting)
+                            .accessibilityIdentifier("negSwift.exportSheet")
                         }
                         .padding(.trailing, 16)
                     }
@@ -216,6 +220,7 @@ struct ContentView: View {
                         .foregroundStyle(.red)
                         .padding(8)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .accessibilityIdentifier("negSwift.previewError")
                 }
             }
             .padding()

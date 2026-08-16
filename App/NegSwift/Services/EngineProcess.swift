@@ -87,8 +87,7 @@ final class EngineProcess: @unchecked Sendable {
     }
 
     static func negpyUserDirectory() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return base.appendingPathComponent("NegSwift", isDirectory: true)
+        AppPreferences.negpyUserDirectoryURL
     }
 
     private func stopLocked() {

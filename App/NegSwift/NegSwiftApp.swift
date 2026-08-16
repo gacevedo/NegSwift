@@ -11,6 +11,10 @@ struct NegSwiftApp: App {
     @State private var engineSession = EngineSession()
     @State private var showAbout = false
 
+    init() {
+        AppPreferences.registerDefaults()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView(engineSession: engineSession, showAbout: $showAbout)
@@ -20,6 +24,7 @@ struct NegSwiftApp: App {
                 }
                 .task {
                     await engineSession.start()
+                    await UITestSupport.runAutomation(session: engineSession)
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .background {
@@ -33,6 +38,9 @@ struct NegSwiftApp: App {
                     showAbout = true
                 }
             }
+        }
+        Settings {
+            PreferencesView(session: engineSession)
         }
     }
 }

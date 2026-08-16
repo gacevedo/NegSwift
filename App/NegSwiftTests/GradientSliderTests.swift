@@ -11,8 +11,9 @@ import Testing
     private let whiteBalanceRange = EditControlRanges.whiteBalance
     private let densityRange = EditControlRanges.density
 
-    @Test func filtrationCyanEndpointsMatchNegPyConvention() {
+    @Test func filtrationCyanEndpointsMatchSliderDirection() {
         let style = SliderTrackStyle.filtration(.cyan)
+        // Left (−1) = complement; right (+1) = cyan filtration.
         #expect(style.knobColor(at: 0, enabled: true).isVisuallySimilar(to: FiltrationAxis.cyan.leftColor))
         #expect(style.knobColor(at: 1, enabled: true).isVisuallySimilar(to: FiltrationAxis.cyan.rightColor))
         #expect(style.knobColor(at: 0.5, enabled: true).isVisuallySimilar(to: SliderTrackPalette.neutral))

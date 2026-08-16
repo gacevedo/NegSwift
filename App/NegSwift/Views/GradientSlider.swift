@@ -6,7 +6,7 @@
 import AppKit
 import SwiftUI
 
-/// CMY filtration axis colors — negative = axis color, positive = complement (NegPy convention).
+/// CMY filtration axis colors — left = complement (negative slider), right = axis (positive).
 enum FiltrationAxis: CaseIterable {
     case cyan
     case magenta
@@ -14,17 +14,17 @@ enum FiltrationAxis: CaseIterable {
 
     var leftColor: NSColor {
         switch self {
-        case .cyan: NSColor(srgbRed: 0.0, green: 0.69, blue: 0.69, alpha: 1.0)
-        case .magenta: NSColor(srgbRed: 0.69, green: 0.0, blue: 0.69, alpha: 1.0)
-        case .yellow: NSColor(srgbRed: 0.69, green: 0.69, blue: 0.0, alpha: 1.0)
+        case .cyan: NSColor(srgbRed: 0.69, green: 0.18, blue: 0.18, alpha: 1.0)
+        case .magenta: NSColor(srgbRed: 0.18, green: 0.69, blue: 0.18, alpha: 1.0)
+        case .yellow: NSColor(srgbRed: 0.18, green: 0.35, blue: 0.69, alpha: 1.0)
         }
     }
 
     var rightColor: NSColor {
         switch self {
-        case .cyan: NSColor(srgbRed: 0.69, green: 0.18, blue: 0.18, alpha: 1.0)
-        case .magenta: NSColor(srgbRed: 0.18, green: 0.69, blue: 0.18, alpha: 1.0)
-        case .yellow: NSColor(srgbRed: 0.18, green: 0.35, blue: 0.69, alpha: 1.0)
+        case .cyan: NSColor(srgbRed: 0.0, green: 0.69, blue: 0.69, alpha: 1.0)
+        case .magenta: NSColor(srgbRed: 0.69, green: 0.0, blue: 0.69, alpha: 1.0)
+        case .yellow: NSColor(srgbRed: 0.69, green: 0.69, blue: 0.0, alpha: 1.0)
         }
     }
 }

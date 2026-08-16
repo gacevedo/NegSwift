@@ -14,26 +14,19 @@ import Testing
     }
 
     @Test func previewQualityStorageRoundTrip() {
-        let key = "negSwift.preferences.previewQuality"
-        let defaults = UserDefaults.standard
-        let saved = defaults.object(forKey: key)
-        defer {
-            if let saved { defaults.set(saved, forKey: key) }
-            else { defaults.removeObject(forKey: key) }
-        }
+        let suite = "NegSwiftTests.previewQuality.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
         AppPreferencesStorage.setPreviewQuality(.fast)
         #expect(AppPreferencesStorage.previewQuality() == .fast)
     }
 
     @Test func preferGPUDefaultsToOnWhenUnset() {
-        let key = "negSwift.preferences.preferGPU"
-        let defaults = UserDefaults.standard
-        let saved = defaults.object(forKey: key)
-        defer {
-            if let saved { defaults.set(saved, forKey: key) }
-            else { defaults.removeObject(forKey: key) }
-        }
-        defaults.removeObject(forKey: key)
+        let suite = "NegSwiftTests.preferGPU.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
         #expect(AppPreferencesStorage.preferGPU() == true)
     }
 

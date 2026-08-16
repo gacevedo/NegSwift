@@ -11,6 +11,9 @@ struct PreviewCanvasView: View {
     @Binding var zoomMode: PreviewZoomMode
     let image: NSImage
 
+    @State private var scrollPosition = ScrollPosition()
+    @State private var pendingOneToOneClick: CGPoint?
+
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
@@ -19,7 +22,7 @@ struct PreviewCanvasView: View {
                 case .fit:
                     fitCanvas(in: size)
                 case .oneToOne:
-                    oneToOneCanvas
+                    oneToOneCanvas(viewportSize: size)
                 }
 
                 if session.isLoadingCropPreview {
@@ -35,6 +38,10 @@ struct PreviewCanvasView: View {
             .overlay(alignment: .bottomLeading) {
                 canvasHUD
             }
+            .onChange(of: zoomMode) { _, newValue in
+                guard newValue == .oneToOne else { return }
+                applyOneToOneScroll(viewportSize: size)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -42,12 +49,12 @@ struct PreviewCanvasView: View {
     @ViewBuilder
     private func fitCanvas(in size: CGSize) -> some View {
         ZStack {
-            zoomOnDoubleClick(
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-            )
-            .frame(width: size.width, height: size.height)
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size.width, height: size.height)
+                .contentShape(Rectangle())
+                .gesture(fitDoubleClickGesture())
 
             if session.isCropToolActive, session.isCropOverlayReady {
                 cropOverlay
@@ -57,15 +64,17 @@ struct PreviewCanvasView: View {
     }
 
     @ViewBuilder
-    private var oneToOneCanvas: some View {
+    private func oneToOneCanvas(viewportSize: CGSize) -> some View {
         let pixelSize = displayedPixelSize
         ScrollView([.horizontal, .vertical]) {
             ZStack {
-                zoomOnDoubleClick(
-                    Image(nsImage: image)
-                        .resizable()
-                )
-                .frame(width: pixelSize.width, height: pixelSize.height)
+                Image(nsImage: image)
+                    .resizable()
+                    .frame(width: pixelSize.width, height: pixelSize.height)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        zoomToFit()
+                    }
 
                 if session.isCropToolActive, session.isCropOverlayReady {
                     cropOverlay
@@ -74,19 +83,40 @@ struct PreviewCanvasView: View {
             }
             .frame(width: pixelSize.width, height: pixelSize.height)
         }
+        .scrollPosition($scrollPosition)
     }
 
-    private func zoomOnDoubleClick<Content: View>(_ content: Content) -> some View {
-        content
-            .contentShape(Rectangle())
-            .onTapGesture(count: 2) {
-                toggleZoomMode()
+    private func fitDoubleClickGesture() -> some Gesture {
+        SpatialTapGesture(count: 2)
+            .onEnded { value in
+                zoomToOneToOne(at: value.location)
             }
     }
 
-    private func toggleZoomMode() {
+    private func zoomToOneToOne(at location: CGPoint) {
         guard !session.isCropToolActive else { return }
-        zoomMode.toggle()
+        pendingOneToOneClick = location
+        zoomMode = .oneToOne
+    }
+
+    private func zoomToFit() {
+        guard !session.isCropToolActive else { return }
+        pendingOneToOneClick = nil
+        zoomMode = .fit
+    }
+
+    private func applyOneToOneScroll(viewportSize: CGSize) {
+        let pixelSize = displayedPixelSize
+        let offset = PreviewCanvasGeometry.oneToOneScrollOffset(
+            clickInViewport: pendingOneToOneClick,
+            viewportSize: viewportSize,
+            pixelSize: pixelSize
+        )
+        Task { @MainActor in
+            await Task.yield()
+            scrollPosition.scrollTo(x: offset.x, y: offset.y)
+            pendingOneToOneClick = nil
+        }
     }
 
     private var cropOverlay: some View {

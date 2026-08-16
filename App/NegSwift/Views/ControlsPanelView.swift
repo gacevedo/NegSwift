@@ -18,9 +18,30 @@ struct ControlsPanelView: View {
                     if session.currentEdit.autoExposure {
                         meteringSection
                     }
-                    sliderRow("Print Density", value: densityBinding, range: EditControlRanges.density, defaultValue: EditControlDefaults.density, format: "%.2f")
-                    sliderRow("ISO-R Grade", value: gradeBinding, range: EditControlRanges.grade, defaultValue: EditControlDefaults.grade, format: "%.0f")
-                    sliderRow("Chroma", value: saturationBinding, range: EditControlRanges.saturation, defaultValue: EditControlDefaults.saturation, format: "%.2f")
+                    gradientSliderRow(
+                        "Print Density",
+                        style: .density,
+                        value: densityBinding,
+                        range: EditControlRanges.density,
+                        defaultValue: EditControlDefaults.density,
+                        format: "%.2f"
+                    )
+                    gradientSliderRow(
+                        "ISO-R Grade",
+                        style: .grade,
+                        value: gradeBinding,
+                        range: EditControlRanges.grade,
+                        defaultValue: EditControlDefaults.grade,
+                        format: "%.0f"
+                    )
+                    gradientSliderRow(
+                        "Chroma",
+                        style: .chroma,
+                        value: saturationBinding,
+                        range: EditControlRanges.saturation,
+                        defaultValue: EditControlDefaults.saturation,
+                        format: "%.2f"
+                    )
                 }
             }
 
@@ -46,8 +67,9 @@ struct ControlsPanelView: View {
 
     private var meteringSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sliderRow(
+            gradientSliderRow(
                 "Analysis Buffer",
+                style: .analysisBuffer,
                 value: analysisBufferBinding,
                 range: EditControlRanges.analysisBuffer,
                 defaultValue: EditControlDefaults.analysisBuffer,
@@ -69,31 +91,9 @@ struct ControlsPanelView: View {
         }
     }
 
-    private func filtrationSliderRow(
+    private func gradientSliderRow(
         _ title: String,
-        axis: FiltrationAxis,
-        value: Binding<Double>
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                    .font(.caption)
-                Spacer()
-                Text(String(format: "%.2f", value.wrappedValue))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            FiltrationSlider(
-                value: value,
-                axis: axis,
-                range: EditControlRanges.whiteBalance,
-                defaultValue: EditControlDefaults.whiteBalance
-            )
-        }
-    }
-
-    private func sliderRow(
-        _ title: String,
+        style: SliderTrackStyle,
         value: Binding<Double>,
         range: ClosedRange<Double>,
         defaultValue: Double,
@@ -109,8 +109,28 @@ struct ControlsPanelView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            ResetDefaultSlider(value: value, range: range, defaultValue: defaultValue)
+            GradientSlider(
+                value: value,
+                style: style,
+                range: range,
+                defaultValue: defaultValue
+            )
         }
+    }
+
+    private func filtrationSliderRow(
+        _ title: String,
+        axis: FiltrationAxis,
+        value: Binding<Double>
+    ) -> some View {
+        gradientSliderRow(
+            title,
+            style: .filtration(axis),
+            value: value,
+            range: EditControlRanges.whiteBalance,
+            defaultValue: EditControlDefaults.whiteBalance,
+            format: "%.2f"
+        )
     }
 
     private var densityBinding: Binding<Double> {

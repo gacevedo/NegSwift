@@ -75,11 +75,12 @@ struct GeometryPanelView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            ResetDefaultSlider(
+            GradientSlider(
                 value: Binding(
                     get: { -session.currentEdit.fineRotation },
                     set: { session.setFineRotation(-$0) }
                 ),
+                style: .fineRotation,
                 range: EditControlRanges.fineRotation,
                 defaultValue: EditControlDefaults.fineRotation
             )

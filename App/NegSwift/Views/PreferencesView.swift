@@ -24,12 +24,16 @@ struct PreferencesView: View {
 
                 Toggle("Auto-detect C-41 / B&W on new scans", isOn: $preferences.autodetectProcessMode)
                     .accessibilityIdentifier("negSwift.prefs.autodetectProcessMode")
+
+                Toggle("Auto crop film borders", isOn: $preferences.autoCropEnabled)
+                    .accessibilityIdentifier("negSwift.prefs.autoCropEnabled")
             } header: {
                 Text("Rendering")
             } footer: {
                 Text(
                     "Lower preview quality renders faster. GPU falls back to CPU when unavailable. "
-                        + "Auto-detect runs only on scans without a saved .negpy sidecar."
+                        + "Auto-detect runs only on scans without a saved .negpy sidecar. "
+                        + "Auto crop trims scanner bed borders on new scans; turn off to keep the full frame."
                 )
             }
 

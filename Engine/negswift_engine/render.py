@@ -77,6 +77,7 @@ def _base_flat_dict(path: str) -> dict[str, Any]:
         return dict(raw)
     flat = DEFAULT_WORKSPACE_CONFIG.to_dict()
     flat["auto_density_uses_crop"] = True
+    flat["auto_crop_enabled"] = True
     return flat
 
 
@@ -84,6 +85,8 @@ def load_config_dict(path: str) -> dict[str, Any]:
     flat = _base_flat_dict(path)
     if "auto_density_uses_crop" not in flat:
         flat["auto_density_uses_crop"] = True
+    if "auto_crop_enabled" not in flat:
+        flat["auto_crop_enabled"] = True
     return flat
 
 

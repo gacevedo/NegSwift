@@ -30,6 +30,14 @@ import Testing
         #expect(AppPreferencesStorage.preferGPU() == true)
     }
 
+    @Test func autoCropDefaultsToOnWhenUnset() {
+        let suite = "NegSwiftTests.autoCrop.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
+        #expect(AppPreferencesStorage.autoCropEnabled() == true)
+    }
+
     @Test func resolvedNegSwiftUserDirectory() {
         let url = AppPreferencesStorage.resolvedNegPyUserDirectoryURL(
             location: .negSwift,

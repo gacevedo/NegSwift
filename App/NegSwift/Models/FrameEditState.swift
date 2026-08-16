@@ -44,6 +44,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var analysisBuffer: Double = EditControlDefaults.analysisBuffer
     /// When set and a crop exists, Auto Density meters inside ``manualCropRect`` (NegPy ``active_roi``).
     var autoDensityUsesCrop: Bool = true
+    /// NegPy ``auto_crop_enabled`` — detect and crop film borders when no manual crop is set.
+    var autoCropEnabled: Bool = true
     var rotation: Int = 0
     var fineRotation: Double = 0
     var autocropRatio: String = "3:2"
@@ -63,6 +65,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
         case autoNormalizeContrast = "auto_normalize_contrast"
         case analysisBuffer = "analysis_buffer"
         case autoDensityUsesCrop = "auto_density_uses_crop"
+        case autoCropEnabled = "auto_crop_enabled"
         case rotation
         case fineRotation = "fine_rotation"
         case autocropRatio = "autocrop_ratio"
@@ -83,6 +86,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
         autoNormalizeContrast: Bool = true,
         analysisBuffer: Double = EditControlDefaults.analysisBuffer,
         autoDensityUsesCrop: Bool = true,
+        autoCropEnabled: Bool = true,
         rotation: Int = 0,
         fineRotation: Double = 0,
         autocropRatio: String = "3:2",
@@ -99,6 +103,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
         self.autoNormalizeContrast = autoNormalizeContrast
         self.analysisBuffer = analysisBuffer
         self.autoDensityUsesCrop = autoDensityUsesCrop
+        self.autoCropEnabled = autoCropEnabled
         self.rotation = rotation
         self.fineRotation = fineRotation
         self.autocropRatio = autocropRatio
@@ -119,6 +124,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
         analysisBuffer = try container.decodeIfPresent(Double.self, forKey: .analysisBuffer)
             ?? EditControlDefaults.analysisBuffer
         autoDensityUsesCrop = try container.decodeIfPresent(Bool.self, forKey: .autoDensityUsesCrop) ?? true
+        autoCropEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoCropEnabled) ?? true
         rotation = try container.decodeIfPresent(Int.self, forKey: .rotation) ?? 0
         fineRotation = try container.decodeIfPresent(Double.self, forKey: .fineRotation) ?? 0
         autocropRatio = try container.decodeIfPresent(String.self, forKey: .autocropRatio) ?? "3:2"
@@ -142,6 +148,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
         try container.encode(autoNormalizeContrast, forKey: .autoNormalizeContrast)
         try container.encode(analysisBuffer, forKey: .analysisBuffer)
         try container.encode(autoDensityUsesCrop, forKey: .autoDensityUsesCrop)
+        try container.encode(autoCropEnabled, forKey: .autoCropEnabled)
         try container.encode(rotation, forKey: .rotation)
         try container.encode(fineRotation, forKey: .fineRotation)
         try container.encode(autocropRatio, forKey: .autocropRatio)
@@ -163,6 +170,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
             autoNormalizeContrast: bool(config["auto_normalize_contrast"], default: true),
             analysisBuffer: double(config["analysis_buffer"], default: EditControlDefaults.analysisBuffer),
             autoDensityUsesCrop: bool(config["auto_density_uses_crop"], default: true),
+            autoCropEnabled: bool(config["auto_crop_enabled"], default: true),
             rotation: int(config["rotation"], default: 0),
             fineRotation: double(config["fine_rotation"], default: 0),
             autocropRatio: string(config["autocrop_ratio"], default: "3:2"),

@@ -66,6 +66,7 @@ final class EngineSession {
         self.preferences = preferences
         preferences.onPreviewSettingsChanged = { [weak self] in
             Task { @MainActor in
+                self?.applyAutoCropPreferenceToLoadedEdits()
                 self?.refreshPreviewNow()
             }
         }
@@ -134,7 +135,7 @@ final class EngineSession {
         exportTask?.cancel()
         await flushPendingSaves()
 
-        let config = frameEdits[path] ?? FrameEditState()
+        let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
         let task = Task { () throws -> ExportResult in
             try Task.checkCancellation()
             let gotAccess = beginFileAccess(for: frame.url)
@@ -204,7 +205,7 @@ final class EngineSession {
         cropPreviewBaseline = nil
         pendingThumbnailRefreshAfterCropClose = false
 
-        frameEdits[path] = FrameEditState()
+        frameEdits[path] = defaultEditState()
         dirtyPaths.remove(path)
 
         let gotAccess = beginFileAccess(for: frame.url)
@@ -226,6 +227,7 @@ final class EngineSession {
         {
             frameEdits[path]?.processMode = detected
         }
+        frameEdits[path]?.autoCropEnabled = preferences.autoCropEnabled
 
         if let index = frames.firstIndex(where: { $0.path == path }) {
             updateFrame(at: index) { $0.thumbnail = nil }
@@ -279,7 +281,10 @@ final class EngineSession {
     }
 
     func setManualCropRect(_ rect: NormalizedRect) {
-        updateEdit(refreshPreview: false) { $0.manualCropRect = rect }
+        updateEdit(refreshPreview: false) {
+            $0.manualCropRect = rect
+            $0.autoCropEnabled = false
+        }
         guard isCropToolActive,
               currentEdit.autoExposure,
               currentEdit.autoDensityUsesCrop,
@@ -292,11 +297,13 @@ final class EngineSession {
     func resetCrop() {
         updateEdit(refreshPreview: !isCropToolActive) { edit in
             edit.manualCropRect = nil
+            edit.autoCropEnabled = preferences.autoCropEnabled
             if isCropToolActive, let size = previewPixelSize {
                 edit.manualCropRect = NormalizedRect.centered(
                     ratioLabel: edit.autocropRatio,
                     imageAspect: size.width / max(size.height, 1)
                 )
+                edit.autoCropEnabled = false
             }
         }
     }
@@ -325,12 +332,52 @@ final class EngineSession {
 
     private func initializeCropRectIfNeeded() {
         guard let path = selectedFramePath else { return }
-        var edit = frameEdits[path] ?? FrameEditState()
+        var edit = frameEdits[path] ?? defaultEditState()
         guard edit.manualCropRect == nil else { return }
         let aspect = previewPixelSize.map { $0.width / max($0.height, 1) } ?? 1.5
         edit.manualCropRect = NormalizedRect.centered(ratioLabel: edit.autocropRatio, imageAspect: aspect)
+        edit.autoCropEnabled = false
         frameEdits[path] = edit
         dirtyPaths.insert(path)
+    }
+
+    private func defaultEditState() -> FrameEditState {
+        var edit = FrameEditState()
+        edit.autoCropEnabled = preferences.autoCropEnabled
+        return edit
+    }
+
+    private func applyAutoCropPreferenceToLoadedEdits() {
+        let enabled = preferences.autoCropEnabled
+        var changed = false
+        for path in frameEdits.keys {
+            guard frameEdits[path]?.manualCropRect == nil else { continue }
+            if frameEdits[path]?.autoCropEnabled != enabled {
+                frameEdits[path]?.autoCropEnabled = enabled
+                changed = true
+            }
+        }
+        guard changed else { return }
+        thumbnailGeneration += 1
+        let generation = thumbnailGeneration
+        Task {
+            for frame in frames {
+                await refreshThumbnail(for: frame.path, generation: generation)
+            }
+        }
+    }
+
+    /// Map UI edit state to NegPy pipeline config (auto crop, crop-tool preview metering).
+    private func pipelineConfig(for config: FrameEditState) -> FrameEditState {
+        var out = effectivePreviewConfig(config)
+        if out.manualCropRect != nil {
+            out.autoCropEnabled = false
+            return out
+        }
+        if out.autoCropEnabled {
+            out.autocropRatio = "Free"
+        }
+        return out
     }
 
     private func effectivePreviewConfig(_ config: FrameEditState) -> FrameEditState {
@@ -371,7 +418,7 @@ final class EngineSession {
         guard let path = selectedFramePath,
               let frame = frames.first(where: { $0.path == path })
         else { return }
-        var edit = frameEdits[path] ?? FrameEditState()
+        var edit = frameEdits[path] ?? defaultEditState()
         transform(&edit)
         frameEdits[path] = edit
         dirtyPaths.insert(path)
@@ -408,7 +455,7 @@ final class EngineSession {
         }
 
         do {
-            _ = try await client.saveConfig(path: path, config: edit)
+            _ = try await client.saveConfig(path: path, config: pipelineConfig(for: edit))
             dirtyPaths.remove(path)
         } catch {
             previewError = "Could not save edits: \(error.localizedDescription)"
@@ -669,13 +716,20 @@ final class EngineSession {
     private func fetchFrameEditState(for path: String) async -> FrameEditState {
         do {
             let loaded = try await client.loadConfig(path: path)
-            var edit = FrameEditState.fromFlatConfig(loaded.config.mapValues(\.anyValue))
+            let flat = loaded.config.mapValues(\.anyValue)
+            var edit = FrameEditState.fromFlatConfig(flat)
+            if flat["auto_crop_enabled"] == nil {
+                edit.autoCropEnabled = preferences.autoCropEnabled
+            }
+            if edit.manualCropRect != nil {
+                edit.autoCropEnabled = false
+            }
             if let detected = await detectProcessMode(path: path, force: false) {
                 edit.processMode = detected
             }
             return edit
         } catch {
-            return FrameEditState()
+            return defaultEditState()
         }
     }
 
@@ -715,8 +769,8 @@ final class EngineSession {
         previewError = nil
 
         let path = url.path
-        let baseConfig = frameEdits[path] ?? config ?? FrameEditState()
-        let effectiveConfig = effectivePreviewConfig(baseConfig)
+        let baseConfig = frameEdits[path] ?? config ?? defaultEditState()
+        let effectiveConfig = pipelineConfig(for: baseConfig)
         let refreshThumbnailAfterClose = pendingThumbnailRefreshAfterCropClose && path == selectedFramePath
 
         do {
@@ -815,7 +869,7 @@ final class EngineSession {
             }
         }
 
-        let config = frameEdits[path] ?? FrameEditState()
+        let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
         let stripGen = stripGeneration
         let showSpinner = frame.thumbnail == nil
         updateFrame(at: index) { $0.isLoadingThumbnail = showSpinner }

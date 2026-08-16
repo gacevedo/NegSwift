@@ -21,6 +21,7 @@ def test_load_config_defaults(sample_tiff: Path) -> None:
     assert config["saturation"] == 1.0
     assert config["analysis_buffer"] == 0.05
     assert config["auto_density_uses_crop"] is True
+    assert config["auto_crop_enabled"] is True
 
 
 def test_render_with_analysis_buffer(sample_tiff: Path) -> None:
@@ -56,6 +57,17 @@ def test_render_with_manual_exposure(sample_tiff: Path) -> None:
         },
     }
     msg = ndjson_request("render", params, req_id="render-manual")
+    assert msg["ok"] is True
+    assert msg["result"]["width"] > 0
+
+
+def test_render_respects_auto_crop_disabled(sample_tiff: Path) -> None:
+    params = {
+        "path": str(sample_tiff),
+        "prefer_gpu": False,
+        "config": {"auto_crop_enabled": False},
+    }
+    msg = ndjson_request("render", params, req_id="render-no-autocrop")
     assert msg["ok"] is True
     assert msg["result"]["width"] > 0
 

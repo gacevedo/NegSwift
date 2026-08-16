@@ -17,6 +17,7 @@ struct FrameEditStateTests {
             "auto_exposure": false,
             "analysis_buffer": 0.12,
             "auto_density_uses_crop": false,
+            "auto_crop_enabled": false,
             "manual_crop_rect": [0.1, 0.15, 0.9, 0.85],
         ])
         #expect(state.processMode == .bw)
@@ -26,6 +27,7 @@ struct FrameEditStateTests {
         #expect(state.autoExposure == false)
         #expect(state.analysisBuffer == 0.12)
         #expect(state.autoDensityUsesCrop == false)
+        #expect(state.autoCropEnabled == false)
         #expect(state.manualCropRect?.x2 == 0.9)
     }
 
@@ -43,6 +45,7 @@ struct FrameEditStateTests {
             autoExposure: false,
             analysisBuffer: 0.15,
             autoDensityUsesCrop: false,
+            autoCropEnabled: false,
             rotation: 1,
             fineRotation: -3.0,
             autocropRatio: "4:3",
@@ -55,6 +58,7 @@ struct FrameEditStateTests {
         #expect(object?["auto_exposure"] as? Bool == false)
         #expect(object?["analysis_buffer"] as? Double == 0.15)
         #expect(object?["auto_density_uses_crop"] as? Bool == false)
+        #expect(object?["auto_crop_enabled"] as? Bool == false)
         #expect(object?["manual_crop_rect"] as? [Double] == [0.1, 0.1, 0.9, 0.9])
 
         let decoded = try JSONDecoder().decode(FrameEditState.self, from: data)

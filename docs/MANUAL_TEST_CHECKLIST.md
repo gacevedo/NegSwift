@@ -243,9 +243,10 @@ See [docs/BATCH_EXPORT.md](BATCH_EXPORT.md) and [PLAN.md](../PLAN.md) §7 M14.
 
 **Phase 2 — Export sheet scope**
 
-- [ ] Export… sheet: scope picker (This Frame / Selected / All) when strip has 2+ frames
-- [ ] Summary line shows frame count and format
-- [ ] ⌘E default scope: selected (2+) or current (1)
+- [x] Export… sheet: scope picker (This Frame / All) when strip has 2+ frames
+- [x] Summary line shows frame count and format
+- [x] ⌘E default scope: current frame (selected when multi-select ships)
+- [ ] "Selected" segment when 2+ frames are multi-selected (Phase 3)
 
 **Phase 3 — Film strip multi-select**
 

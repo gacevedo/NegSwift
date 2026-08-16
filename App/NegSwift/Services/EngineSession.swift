@@ -139,7 +139,26 @@ final class EngineSession {
     }
 
     func frames(for scope: ExportScope) -> [ScanFrame] {
-        frames.resolvingExportScope(scope, selectedFrameID: selectedFrameID)
+        frames.resolvingExportScope(
+            scope,
+            selectedFrameID: selectedFrameID,
+            selectedFrameIDs: exportSelectedFrameIDs
+        )
+    }
+
+    /// Frames included in a `.selected` export. Until film-strip multi-select ships, this is the primary frame only.
+    var exportSelectedFrameIDs: Set<UUID> {
+        guard let id = selectedFrameID else { return [] }
+        return [id]
+    }
+
+    var exportSelectionCount: Int {
+        frames(for: .selected).count
+    }
+
+    var defaultExportScope: ExportScope {
+        if exportSelectionCount >= 2 { return .selected }
+        return .current
     }
 
     func cancelExport() {

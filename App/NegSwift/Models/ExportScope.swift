@@ -5,10 +5,30 @@
 
 import Foundation
 
-enum ExportScope: Equatable, Sendable {
+enum ExportScope: Equatable, Sendable, Hashable {
     case current
     case selected
     case all
+
+    func pickerLabel(selectionCount: Int, frameCount: Int) -> String {
+        switch self {
+        case .current:
+            "This Frame"
+        case .selected:
+            "Selected (\(selectionCount))"
+        case .all:
+            "All (\(frameCount))"
+        }
+    }
+
+    static func availableScopes(selectionCount: Int) -> [ExportScope] {
+        var scopes: [ExportScope] = [.current]
+        if selectionCount >= 2 {
+            scopes.append(.selected)
+        }
+        scopes.append(.all)
+        return scopes
+    }
 }
 
 struct BatchExportProgress {

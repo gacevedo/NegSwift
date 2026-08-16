@@ -26,9 +26,14 @@ struct ExportSheetView: View {
             Text("Export")
                 .font(.title2)
 
+            if showsScopePicker {
+                scopePickerSection
+            }
+
             Text(scopeSummary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(3)
 
             Picker("Format", selection: formatSelection) {
                 ForEach(ExportFileFormat.allCases) { format in
@@ -83,8 +88,9 @@ struct ExportSheetView: View {
             }
         }
         .padding(20)
-        .frame(width: 420, height: Self.sheetHeight)
+        .frame(width: 420, height: sheetHeight)
         .onAppear {
+            applyInitialScope()
             if destinationURL == nil {
                 destinationURL = RecentPathsStore.directoryURL(for: .exportFolder)
                     ?? defaultDestinationURL()
@@ -103,7 +109,36 @@ struct ExportSheetView: View {
     }
 
     private static let jpegQualitySectionHeight: CGFloat = 52
-    private static let sheetHeight: CGFloat = 340
+    private static let scopeSectionHeight: CGFloat = 44
+    private static let baseSheetHeight: CGFloat = 340
+
+    private var showsScopePicker: Bool {
+        session.frames.count > 1
+    }
+
+    private var sheetHeight: CGFloat {
+        Self.baseSheetHeight + (showsScopePicker ? Self.scopeSectionHeight : 0)
+    }
+
+    private var availableScopes: [ExportScope] {
+        ExportScope.availableScopes(selectionCount: session.exportSelectionCount)
+    }
+
+    private var scopePickerSection: some View {
+        Picker("Frames", selection: scopeSelection) {
+            ForEach(availableScopes, id: \.self) { exportScope in
+                Text(
+                    exportScope.pickerLabel(
+                        selectionCount: session.exportSelectionCount,
+                        frameCount: session.frames.count
+                    )
+                )
+                .tag(exportScope)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("negSwift.exportScopePicker")
+    }
 
     private var exportTargetCount: Int {
         session.frames(for: scope).count
@@ -120,20 +155,41 @@ struct ExportSheetView: View {
 
     private var scopeSummary: String {
         let targets = session.frames(for: scope)
+        let formatLabel = settings.format.label
+        let destination = destinationURL?.lastPathComponent ?? "chosen folder"
+
         switch scope {
         case .current:
-            return session.selectedFrameName ?? "No frame selected"
+            let name = session.selectedFrameName ?? "No frame selected"
+            if exportTargetCount <= 1 {
+                return "\(name) as \(formatLabel)"
+            }
+            return name
         case .all:
-            if targets.count == 1 {
-                return targets[0].name
+            if targets.count == 1, let name = targets.first?.name {
+                return "\(name) as \(formatLabel)"
             }
-            return "\(targets.count) frames in film strip"
+            return "Export \(targets.count) frames as \(formatLabel) to \(destination)"
         case .selected:
-            if targets.count == 1 {
-                return targets[0].name
+            if targets.count == 1, let name = targets.first?.name {
+                return "\(name) as \(formatLabel)"
             }
-            return "\(targets.count) selected frames"
+            return "Export \(targets.count) selected frames as \(formatLabel) to \(destination)"
         }
+    }
+
+    /// Defer scope changes so NSSegmentedControl finishes layout before the sheet updates.
+    private var scopeSelection: Binding<ExportScope> {
+        Binding(
+            get: { scope },
+            set: { newValue in
+                guard newValue != scope else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    scope = newValue
+                }
+            }
+        )
     }
 
     /// Defer format changes so NSSegmentedControl finishes layout before the sheet updates.
@@ -188,6 +244,20 @@ struct ExportSheetView: View {
             return URL(fileURLWithPath: path).deletingLastPathComponent()
         }
         return nil
+    }
+
+    private func applyInitialScope() {
+        if initialScope == .current {
+            scope = session.defaultExportScope
+        } else {
+            scope = initialScope
+        }
+        normalizeScopeSelection()
+    }
+
+    private func normalizeScopeSelection() {
+        guard !availableScopes.contains(scope) else { return }
+        scope = availableScopes.contains(.current) ? .current : (availableScopes.first ?? .current)
     }
 
     private func beginExport() {

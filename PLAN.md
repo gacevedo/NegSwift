@@ -779,9 +779,9 @@ NegPy reference: `request_batch_export`, `request_export_selected` in `negpy/des
 
 **Phase 2 — Export sheet scope**
 
-- [ ] Scope picker in `ExportSheetView` (This Frame / Selected / All)
-- [ ] Batch summary line; optional frame list when N > 3
-- [ ] ⌘E opens sheet with smart default scope
+- [x] Scope picker in `ExportSheetView` (This Frame / All; Selected when multi-select ships)
+- [x] Batch summary line with frame count and format
+- [x] ⌘E opens sheet with smart default scope (current until multi-select)
 
 **Phase 3 — Film strip multi-select**
 

@@ -70,6 +70,22 @@ struct ExportScopeTests {
     #expect(progress.statusText == "Exporting 3 of 5 — scan_003.tif…")
   }
 
+  @Test func availableScopesOmitsSelectedUntilMultiSelect() {
+    #expect(ExportScope.availableScopes(selectionCount: 1) == [.current, .all])
+    #expect(ExportScope.availableScopes(selectionCount: 2) == [.current, .selected, .all])
+  }
+
+  @Test func pickerLabelsIncludeCounts() {
+    #expect(ExportScope.all.pickerLabel(selectionCount: 0, frameCount: 12) == "All (12)")
+    #expect(ExportScope.selected.pickerLabel(selectionCount: 3, frameCount: 12) == "Selected (3)")
+  }
+
+  @Test @MainActor func defaultExportScopeUsesCurrentUntilMultiSelect() {
+    let session = EngineSession.preview
+    #expect(session.exportSelectionCount == 1)
+    #expect(session.defaultExportScope == .current)
+  }
+
   @Test @MainActor func engineSessionFramesForAllScope() {
     let session = EngineSession.preview
     #expect(session.frames(for: .all).map(\.name) == ["a.tif", "b.tif"])

@@ -7,7 +7,7 @@ import os
 import tempfile
 from typing import Any
 
-from negpy.services.assets.sidecar import SIDECAR_EXT, sidecar_path_for
+from negpy.services.assets.sidecar import sidecar_path_for
 
 
 def read_raw_sidecar(source_path: str) -> dict[str, Any] | None:

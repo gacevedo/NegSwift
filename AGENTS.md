@@ -77,10 +77,10 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M1–M3 | Engine CLI, PNG render, NDJSON daemon — **no Swift required** |
 | M4–M9 | SwiftUI shell, controls, sidecars, crop, export |
 | **M9b** | **Done** — NegPy submodule at `Vendor/NegPy` |
-| M10 | PyInstaller / bundle |
+| M10 | PyInstaller / bundle — **Done** |
 | M11 | Polish |
 
-**Current status (2026-08-15):** M0–M9b done (M3 partial). **Next: M10** bundle. See [PLAN.md](PLAN.md).
+**Current status (2026-08-15):** M0–M10 done. **Next: M11** polish. See [PLAN.md](PLAN.md) and [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Architecture rules
 
@@ -171,6 +171,7 @@ NegSwift/
 | Layer | Tool | Notes |
 |-------|------|-------|
 | Engine unit | `uv run pytest` in `Engine/` | Required on engine changes |
+| Lock file | `uv sync --locked` | Fails if `pyproject.toml` and `uv.lock` diverge |
 | Protocol | pytest client → `serve --stdio` | M3+ |
 | Swift | XCTest with mocked `EngineClient` | M4+ |
 | Integration | `@pytest.mark.integration` | GPU + real scan; optional in CI |
@@ -178,15 +179,16 @@ NegSwift/
 
 Add tests for new engine methods and non-trivial Swift logic. Do not add tests that only assert mocks or trivial getters.
 
-## Packaging (M10+)
+## Packaging (M10)
 
-- Freeze **engine only** (no PyQt6) via PyInstaller `--onedir`, or embedded CPython fallback.
-- Input tree: **`Vendor/NegPy`** after M9b.
+- Freeze **engine only** (no PyQt6) via PyInstaller `--onedir` — see `Packaging/build_engine.sh` and `Packaging/engine.spec`.
+- Input tree: **`Vendor/NegPy`**.
 - Bundle WGSL shaders, `icc/`, `crosstalk/`, `gear/` from NegPy package data.
-- App locates engine at `Contents/Resources/engine/`.
-- Set user data dir under `~/Library/Application Support/NegSwift/`.
+- `make build-release` runs PyInstaller then `ditto` into the built Release `.app` at `Contents/Resources/engine/`
+- App locates engine at `Contents/Resources/engine/negswift-engine` (after bundled path in `EngineLocator`).
+- Engine subprocess gets `NEGPY_USER_DIR=~/Library/Application Support/NegSwift/`.
 
-See `PLAN.md` §4 for PyInstaller vs embedded CPython decision gate.
+See `docs/RELEASE.md` for signing/notarization.
 
 ## Style
 

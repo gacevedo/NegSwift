@@ -121,8 +121,10 @@ Test scan path:
 
 ## M10 — Bundled app
 
+- [x] `make bundle-engine` → `Packaging/out/negswift-engine/negswift-engine info` succeeds
+- [x] CI smoke-tests bundled engine
 - [ ] Built `.app` runs on Mac without system Python
-- [ ] `Contents/Resources/engine/` present
+- [ ] `Contents/Resources/engine/` present in Release build
 - [ ] Import → render → export on clean user account or second Mac
 
 ---

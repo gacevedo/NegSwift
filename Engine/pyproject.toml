@@ -4,9 +4,9 @@ version = "0.1.0"
 description = "Headless NegPy wrapper for NegSwift"
 readme = "README.md"
 license = "GPL-3.0"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
-    "negpy",
+    "negpy==0.50.0",
 ]
 
 [project.scripts]
@@ -14,12 +14,28 @@ negswift-engine = "negswift_engine.main:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0",
-    "ruff>=0.14",
+    "pyinstaller>=6.0,<7",
+    "pytest>=9.0,<10",
+    "ruff>=0.14,<0.17",
 ]
 
 [tool.uv.sources]
 negpy = { path = "../Vendor/NegPy", editable = true }
+
+# Extra bounds on transitive runtime deps (NegPy pins exact versions; these guard `uv lock --upgrade`).
+[tool.uv]
+constraint-dependencies = [
+    "imagecodecs>=2026.6,<2027",
+    "imageio>=2.37,<3",
+    "jinja2>=3.1,<4",
+    "numba>=0.65,<0.66",
+    "numpy>=2.4,<3",
+    "opencv-python-headless>=4.13,<5",
+    "pillow>=12,<13",
+    "rawpy>=0.27,<0.28",
+    "tifffile>=2026.6,<2027",
+    "wgpu>=0.31,<0.32",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -33,7 +49,7 @@ line-length = 120
 target-version = "py313"
 
 [build-system]
-requires = ["setuptools>=80"]
+requires = ["setuptools>=80,<85"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

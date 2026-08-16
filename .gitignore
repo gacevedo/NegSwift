@@ -20,11 +20,13 @@ Engine/**/__pycache__/
 Engine/pyproject.override.toml
 *.egg-info/
 dist/
-*.spec
+!Packaging/engine.spec
 
 # Engine runtime
 Engine/.negpy-dev/
 Packaging/out/
+App/NegSwift/Resources/engine/
+App/build/
 
 # macOS
 .DS_Store

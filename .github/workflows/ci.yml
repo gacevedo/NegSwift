@@ -25,12 +25,15 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
 
+      - name: Install libomp (numba OpenMP)
+        run: brew install libomp
+
       - name: Verify NegPy submodule
         run: test -f Vendor/NegPy/VERSION
 
       - name: Install engine dependencies
         working-directory: Engine
-        run: uv sync
+        run: uv sync --locked
 
       - name: Lint engine
         run: make lint
@@ -44,3 +47,9 @@ jobs:
           cd App && xcodebuild -scheme NegSwift -configuration Debug \
             -destination 'platform=macOS' \
             -only-testing:NegSwiftTests test -quiet
+
+      - name: Bundle engine (PyInstaller)
+        run: make bundle-engine
+
+      - name: Smoke test bundled engine
+        run: chmod +x Packaging/smoke_test_engine.sh && ./Packaging/smoke_test_engine.sh

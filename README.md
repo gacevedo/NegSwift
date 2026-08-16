@@ -10,14 +10,16 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M9b complete.** **Next: M10** bundle.
+**M0–M10 complete.** **Next: M11** polish.
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 
 ```bash
-make sync      # init submodule + uv sync (first time)
-make test      # engine pytest + Swift unit tests
-make build-app # Xcode Debug build
+make sync          # init submodule + uv sync (first time)
+make test          # engine pytest + Swift unit tests
+make build-app     # Xcode Debug build
+make build-release # PyInstaller engine + Xcode Release build
+make bundle-engine # freeze negswift-engine only (smoke test)
 ```
 
 ## Layout
@@ -27,7 +29,7 @@ NegSwift/
 ├── Vendor/NegPy/        # upstream engine (git submodule, pinned SHA)
 ├── App/                 # SwiftUI macOS app (Xcode)
 ├── Engine/              # Thin Python daemon + CLI (imports negpy)
-├── Packaging/           # PyInstaller / embedded CPython (M10)
+├── Packaging/           # PyInstaller bundle scripts + frozen engine output
 └── docs/                # Manual test checklists, protocol spec
 ```
 
@@ -52,4 +54,4 @@ NegPy contributors can point the engine at a sibling checkout via `Engine/pyproj
 
 **M9b onward:** CI and packaging use `Vendor/NegPy` only — not `../../NegPy`.
 
-See [PLAN.md](PLAN.md) — **M10 (bundling)** requires M9b complete.
+See [PLAN.md](PLAN.md) and [docs/RELEASE.md](docs/RELEASE.md) for distribution builds.

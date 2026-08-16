@@ -163,3 +163,33 @@ def test_reset_config_removes_sidecar(sample_tiff: Path, tmp_path: Path) -> None
     loaded = ndjson_request("load_config", {"path": str(frame)}, req_id="post-reset-load")["result"]["config"]
     assert loaded["density"] == 1.0
     assert loaded.get("manual_crop_rect") in (None, [])
+
+
+def test_reset_config_without_sidecar(sample_tiff: Path, tmp_path: Path) -> None:
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    reset_msg = ndjson_request("reset_config", {"path": str(frame)}, req_id="reset-empty")
+    assert reset_msg["ok"] is True
+    assert reset_msg["result"]["sidecar_removed"] is False
+
+
+def test_render_thumbnail_long_edge_honors_crop(sample_tiff: Path) -> None:
+    base = {
+        "path": str(sample_tiff),
+        "prefer_gpu": False,
+        "long_edge_px": 256,
+        "crop_preview_full": False,
+    }
+    cropped = ndjson_request(
+        "render",
+        {**base, "config": {"manual_crop_rect": [0.25, 0.25, 0.75, 0.75]}},
+        req_id="thumb-crop",
+    )
+    full = ndjson_request("render", {**base, "config": {}}, req_id="thumb-full")
+    assert cropped["ok"] is True
+    assert full["ok"] is True
+    crop_pixels = cropped["result"]["width"] * cropped["result"]["height"]
+    full_pixels = full["result"]["width"] * full["result"]["height"]
+    assert crop_pixels < full_pixels
+    assert cropped["result"]["width"] < full["result"]["width"]
+    assert cropped["result"]["height"] < full["result"]["height"]

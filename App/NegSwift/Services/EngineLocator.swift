@@ -6,36 +6,45 @@
 import Foundation
 
 enum EngineLocator {
+    static let bundledRelativePath = "engine/negswift-engine"
+
     /// Resolved path to `negswift-engine` for the current build.
-    static func executableURL() throws -> URL {
-        for candidate in candidatePaths() {
-            let url = URL(fileURLWithPath: candidate)
-            if FileManager.default.isExecutableFile(atPath: url.path) {
-                return url
+    static func executableURL(bundle: Bundle = .main) throws -> URL {
+        for candidate in candidateURLs(bundle: bundle) {
+            if FileManager.default.isExecutableFile(atPath: candidate.path) {
+                return candidate
             }
         }
 
-        if let configured = configuredPaths().first {
-            throw EngineLocatorError.notExecutable(configured)
+        if let configured = configuredURLs(bundle: bundle).first {
+            throw EngineLocatorError.notExecutable(configured.path)
         }
         throw EngineLocatorError.notConfigured
     }
 
-    private static func configuredPaths() -> [String] {
-        var paths: [String] = []
-        if let env = ProcessInfo.processInfo.environment["NEGSWIFT_ENGINE"], !env.isEmpty {
-            paths.append(env)
-        }
-        if let plist = Bundle.main.object(forInfoDictionaryKey: "NegSwiftEnginePath") as? String, !plist.isEmpty {
-            paths.append(plist)
-        }
-        return paths
+    /// Search order: `NEGSWIFT_ENGINE` env → bundled Resources → Info.plist dev path.
+    static func candidateURLs(bundle: Bundle = .main) -> [URL] {
+        configuredURLs(bundle: bundle)
+            .filter { !$0.path.contains("$(") }
+            .map { $0.standardizedFileURL }
     }
 
-    private static func candidatePaths() -> [String] {
-        configuredPaths()
-            .filter { !$0.contains("$(") }
-            .map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+    static func bundledEngineURL(bundle: Bundle = .main) -> URL? {
+        bundle.resourceURL?.appendingPathComponent(bundledRelativePath)
+    }
+
+    private static func configuredURLs(bundle: Bundle = .main) -> [URL] {
+        var urls: [URL] = []
+        if let env = ProcessInfo.processInfo.environment["NEGSWIFT_ENGINE"], !env.isEmpty {
+            urls.append(URL(fileURLWithPath: env))
+        }
+        if let bundled = bundledEngineURL(bundle: bundle) {
+            urls.append(bundled)
+        }
+        if let plist = bundle.object(forInfoDictionaryKey: "NegSwiftEnginePath") as? String, !plist.isEmpty {
+            urls.append(URL(fileURLWithPath: plist))
+        }
+        return urls
     }
 }
 

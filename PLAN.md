@@ -6,11 +6,11 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 ---
 
-## Plan status (last updated: 2026-08-14)
+## Plan status (last updated: 2026-08-15)
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
-| **M0** Bootstrap | **Done** | `Makefile`; GitHub CI not yet wired |
+| **M0** Bootstrap | **Done** | `Makefile`; GitHub CI |
 | **M1** Engine CLI | **Done** | `info`, `open`; `tests/test_cli.py` |
 | **M2** Render PNG | **Done** | `render` CLI; `tests/test_render.py` |
 | **M3** NDJSON daemon | **Done** | `serve --stdio`, `serve --socket`, `cancel`; Unix socket for production |
@@ -19,13 +19,14 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M6** Controls | **Done** | Sliders, process mode, debounced preview |
 | **M7** Persist | **Done** | `save_config`, debounced `.negpy` sidecars |
 | **M8** Crop | **Done** | Crop overlay, rotation, aspect ratio, fine rotation |
-| **M9** Export | **Done** | Engine `export`, Swift export sheet, 4 pytest cases |
+| **M9** Export | **Done** | Engine `export`, Swift export sheet |
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.50.0, CI, `uv.lock` |
-| M10–M11 | Not started | — |
+| **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
+| M11 | Not started | Polish |
 
-**Resume here:** M10 — bundle engine in `.app` (PyInstaller or embedded CPython).
+**Resume here:** M11 — preferences, DnD, shortcuts.
 
-**Verify:** `make test` (24 engine + 7 Swift tests) · export JPEG/TIFF · crop + export dimensions.
+**Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
 ---
 
@@ -479,17 +480,17 @@ cd NegSwift/Engine && uv sync && uv run negswift-engine info
 
 ---
 
-### M10 — Bundle for distribution
+### M10 — Bundle for distribution ✅
 
 **Deliverables**
 
-- [ ] **M9b complete** (submodule is the only NegPy source for this milestone)
-- [ ] PyInstaller (or embedded CPython) build script in `Packaging/` — inputs from `Vendor/NegPy`
-- [ ] Xcode copy-files phase: engine into `Contents/Resources/`
-- [ ] App finds engine relative to bundle; sets `NEGPY_USER_DIR` to Application Support
-- [ ] Signed/notarized build instructions in `docs/RELEASE.md`
+- [x] **M9b complete** (submodule is the only NegPy source for this milestone)
+- [x] PyInstaller build script in `Packaging/` — inputs from `Vendor/NegPy`
+- [x] Stage bundled engine into Release `.app` via `make build-release` (`ditto` post-xcodebuild)
+- [x] App finds engine relative to bundle; sets `NEGPY_USER_DIR` to Application Support
+- [x] Signed/notarized build instructions in `docs/RELEASE.md`
 
-**Automated:** CI builds `.app`, runs `negswift-engine info` from inside bundle.
+**Automated:** CI runs `make bundle-engine` and smoke-tests `negswift-engine info`.
 
 **Manual:** Copy `.app` to another Mac (no Python installed) → import → render → export.
 

@@ -33,7 +33,10 @@ final class EngineProcess: @unchecked Sendable {
         let proc = Process()
         proc.executableURL = executable
         proc.arguments = ["serve", "--stdio"]
-        proc.currentDirectoryURL = executable.deletingLastPathComponent().deletingLastPathComponent()
+        proc.currentDirectoryURL = Self.workingDirectory(for: executable)
+        var env = ProcessInfo.processInfo.environment
+        env["NEGPY_USER_DIR"] = Self.negpyUserDirectory().path
+        proc.environment = env
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
@@ -72,6 +75,20 @@ final class EngineProcess: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         stopLocked()
+    }
+
+    /// PyInstaller onedir lives beside `_internal/`; venv binaries live under `.venv/bin/`.
+    static func workingDirectory(for executable: URL) -> URL {
+        let parent = executable.deletingLastPathComponent()
+        if parent.lastPathComponent == "bin" {
+            return parent.deletingLastPathComponent()
+        }
+        return parent
+    }
+
+    static func negpyUserDirectory() -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return base.appendingPathComponent("NegSwift", isDirectory: true)
     }
 
     private func stopLocked() {

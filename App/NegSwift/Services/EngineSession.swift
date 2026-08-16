@@ -738,7 +738,6 @@ final class EngineSession {
         scopedFolderURL = nil
     }
 
-    #if DEBUG
     static var preview: EngineSession {
         let session = EngineSession()
         session.state = .ready(
@@ -759,5 +758,4 @@ final class EngineSession {
         session.frameEdits["/preview/a.tif"] = FrameEditState()
         return session
     }
-    #endif
 }

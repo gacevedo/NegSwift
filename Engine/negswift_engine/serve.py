@@ -131,9 +131,7 @@ def serve_socket(path: str) -> None:
     sock_path = Path(path)
     path_len = len(os.fsencode(sock_path))
     if path_len >= 104:
-        raise OSError(
-            f"Unix socket path too long ({path_len} bytes, max 103): {sock_path}"
-        )
+        raise OSError(f"Unix socket path too long ({path_len} bytes, max 103): {sock_path}")
     sock_path.parent.mkdir(parents=True, exist_ok=True)
     if sock_path.exists():
         sock_path.unlink()

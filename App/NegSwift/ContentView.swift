@@ -173,9 +173,22 @@ struct ContentView: View {
                     Text("Import a folder or open a scan")
                         .foregroundStyle(.secondary)
                     if !engineSession.engineReady {
-                        Text("Waiting for engine…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        switch engineSession.state {
+                        case .starting:
+                            Text("Waiting for engine…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        case let .failed(message):
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        default:
+                            Text("Waiting for engine…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }

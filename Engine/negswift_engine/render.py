@@ -16,14 +16,15 @@ from negpy.kernel.system.config import APP_CONFIG, DEFAULT_WORKSPACE_CONFIG
 from negpy.services.assets.sidecar import load_sidecar
 from negpy.services.rendering.image_processor import ImageProcessor
 from negpy.services.rendering.preview_manager import PreviewManager
+from PIL import Image
+
 from negswift_engine.metering import (
     default_auto_density_uses_crop,
-    negswift_sidecar_extras,
     negpy_flat_for_pipeline,
     negpy_flat_for_save,
+    negswift_sidecar_extras,
 )
 from negswift_engine.sidecar_io import delete_sidecar, read_raw_sidecar, write_raw_sidecar
-from PIL import Image
 
 _processor: ImageProcessor | None = None
 _preview_manager: PreviewManager | None = None

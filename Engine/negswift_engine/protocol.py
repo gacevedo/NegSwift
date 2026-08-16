@@ -8,7 +8,13 @@ from typing import Any
 
 from negswift_engine.discover import discover_assets
 from negswift_engine.export import export_asset
-from negswift_engine.render import load_config_dict, open_asset, render_preview_base64, reset_config_dict, save_config_dict
+from negswift_engine.render import (
+    load_config_dict,
+    open_asset,
+    render_preview_base64,
+    reset_config_dict,
+    save_config_dict,
+)
 from negswift_engine.versions import negpy_version
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]

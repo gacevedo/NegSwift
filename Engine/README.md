@@ -36,6 +36,33 @@ uv pip install -e ../../NegPy
 
 CI and release builds **never** use the override.
 
+## Python dependencies
+
+Direct and transitive versions are **pinned intentionally**:
+
+- **`Engine/pyproject.toml`** — major-version bounds on negswift-engine and dev tools (`pyinstaller`, `pytest`, `ruff`), plus `[tool.uv.constraint-dependencies]` on runtime packages NegPy pulls in.
+- **`Engine/uv.lock`** — exact resolved versions; commit changes whenever bounds or the NegPy pin move.
+- **`requires-python = ">=3.13,<3.14"`** — Python 3.13 only (see `Engine/.python-version`).
+
+Always sync from the lock file:
+
+```bash
+cd Engine && uv sync --locked
+```
+
+To upgrade one package deliberately:
+
+```bash
+cd Engine && uv lock --upgrade-package pyinstaller && uv sync --locked
+make test
+```
+
+Fresh lock after a NegPy submodule bump:
+
+```bash
+cd Engine && uv lock && uv sync --locked
+```
+
 ## Bump NegPy pin
 
 Run from the **NegSwift repo root**. Prefer an upstream **tag** (e.g. `0.51.0`); pin a specific commit only when validating main before a tag lands.
@@ -44,7 +71,8 @@ Run from the **NegSwift repo root**. Prefer an upstream **tag** (e.g. `0.51.0`);
 cd Vendor/NegPy && git fetch --tags && git checkout 0.51.0
 cd ../..
 git add Vendor/NegPy
-cd Engine && uv lock && uv sync
+# Update negpy==… in Engine/pyproject.toml to match Vendor/NegPy/VERSION
+cd Engine && uv lock && uv sync --locked
 uv run negswift-engine info   # negpy_version should match the tag (not Unknown-dev)
 cd .. && make test
 ```

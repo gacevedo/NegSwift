@@ -25,7 +25,10 @@ struct EngineLocatorTests {
     }
 
     @Test func negpyUserDirectoryUnderApplicationSupport() {
-        let dir = EngineProcess.negpyUserDirectory()
+        let dir = AppPreferencesStorage.resolvedNegPyUserDirectoryURL(
+            location: .negSwift,
+            customPath: nil
+        )
         #expect(dir.path.contains("Application Support"))
         #expect(dir.lastPathComponent == "NegSwift")
     }

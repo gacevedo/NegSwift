@@ -213,6 +213,7 @@ actor EngineClient {
     func render(
         path: String,
         longEdgePx: Int? = nil,
+        preferGPU: Bool = true,
         config: FrameEditState? = nil,
         cropPreviewFull: Bool = false
     ) async throws -> RenderResult {
@@ -245,6 +246,7 @@ actor EngineClient {
                 params: RenderParams(
                     path: path,
                     longEdgePx: longEdgePx,
+                    preferGpu: preferGPU,
                     config: config,
                     cropPreviewFull: cropPreviewFull
                 ),
@@ -275,7 +277,8 @@ actor EngineClient {
         path: String,
         destDir: String,
         config: FrameEditState,
-        export settings: ExportSettings
+        export settings: ExportSettings,
+        preferGPU: Bool = true
     ) async throws -> ExportResult {
         let jobID = UUID().uuidString
         activeExportJobID = jobID
@@ -290,6 +293,7 @@ actor EngineClient {
                 params: ExportParams(
                     path: path,
                     destDir: destDir,
+                    preferGpu: preferGPU,
                     config: config,
                     export: ExportWireSettings(settings: settings)
                 ),
@@ -339,7 +343,7 @@ actor EngineClient {
     private struct ExportParams: Encodable {
         let path: String
         let destDir: String
-        let preferGpu: Bool = true
+        let preferGpu: Bool
         let overwrite: Bool = false
         let config: FrameEditState
         let export: ExportWireSettings
@@ -381,7 +385,7 @@ actor EngineClient {
     private struct RenderParams: Encodable {
         let path: String
         let longEdgePx: Int?
-        let preferGpu: Bool = true
+        let preferGpu: Bool
         let config: FrameEditState?
         let cropPreviewFull: Bool
 

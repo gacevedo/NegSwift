@@ -137,7 +137,7 @@ Test scan path:
 - [ ] Dashed accent overlay while dragging over the window (engine ready)
 - [ ] Process mode picker (C-41 / E-6 / B&W)
 - [ ] E-6 normalization toggle
-- [ ] Preferences: preview quality, GPU toggle, shared DB path
+- [x] Preferences — preview quality, GPU toggle, engine data path (⌘,)
 - [ ] Keyboard: Space toggle fit, ⌘O import, ⌘E export
 
 ---

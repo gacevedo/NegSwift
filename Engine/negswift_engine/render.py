@@ -6,6 +6,7 @@ import base64
 import io
 from typing import Any
 
+import cv2
 import numpy as np
 from negpy.domain.models import WorkspaceConfig
 from negpy.infrastructure.display.color_mgmt import apply_display_transform
@@ -113,12 +114,14 @@ def render_preview_png(
     config = resolve_config(path, config_overrides)
     f_hash = calculate_file_hash(path)
     preview_size = float(long_edge_px or APP_CONFIG.preview_render_size)
+    load_full_res = preview_size > float(APP_CONFIG.preview_render_size)
 
     pm = _preview_manager_instance()
     buffer, _dims, meta = pm.load_linear_preview(
         path,
         color_space=WORKING_COLOR_SPACE,
         file_hash=f_hash,
+        full_resolution=load_full_res,
     )
     ir_buffer = meta.get("ir_preview")
 
@@ -143,6 +146,13 @@ def render_preview_png(
 
     rgb = apply_display_transform(rgb.astype(np.float32, copy=False), WORKING_COLOR_SPACE)
     u8 = float_to_uint8(rgb)
+    h, w = u8.shape[:2]
+    long_edge = max(h, w)
+    if long_edge > preview_size:
+        scale = preview_size / long_edge
+        target_w = max(1, int(w * scale))
+        target_h = max(1, int(h * scale))
+        u8 = cv2.resize(u8, (target_w, target_h), interpolation=cv2.INTER_AREA)
     h, w = u8.shape[:2]
 
     png = Image.fromarray(u8, mode="RGB")

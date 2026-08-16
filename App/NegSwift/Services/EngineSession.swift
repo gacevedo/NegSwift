@@ -39,6 +39,7 @@ final class EngineSession {
     private var pendingThumbnailRefreshAfterCropClose = false
 
     private let client = EngineClient()
+    private let preferences: AppPreferences
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
     private let saveDebounce = DebounceScheduler(interval: DebounceScheduler.saveInterval)
     private let thumbnailDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
@@ -50,6 +51,7 @@ final class EngineSession {
     private var thumbnailGeneration = 0
     private var isThumbnailLoadRunning = false
     private(set) var isExporting = false
+    private(set) var isRestartingEngine = false
     private(set) var activeExportSettings: ExportSettings?
     private(set) var exportError: String?
 
@@ -58,6 +60,20 @@ final class EngineSession {
     var engineReady: Bool {
         if case .ready = state { return true }
         return false
+    }
+
+    init(preferences: AppPreferences) {
+        self.preferences = preferences
+        preferences.onPreviewSettingsChanged = { [weak self] in
+            Task { @MainActor in
+                self?.refreshPreviewNow()
+            }
+        }
+        preferences.onUserDataLocationChanged = { [weak self] in
+            Task { @MainActor in
+                await self?.restartEnginePreservingWorkspace()
+            }
+        }
     }
 
     var currentEdit: FrameEditState {
@@ -131,7 +147,8 @@ final class EngineSession {
                 path: path,
                 destDir: destination.path,
                 config: config,
-                export: settings
+                export: settings,
+                preferGPU: PreviewRenderSettings(preferences: preferences).preferGPU
             )
         }
         exportTask = task
@@ -403,14 +420,56 @@ final class EngineSession {
     }
 
     func restart() async {
+        await restartEnginePreservingWorkspace(clearWorkspace: true)
+    }
+
+    func restartEnginePreservingWorkspace(clearWorkspace: Bool = false) async {
+        isRestartingEngine = true
+        defer { isRestartingEngine = false }
+
         await flushPendingSaves()
+
+        let savedFrames = frames
+        let savedSelected = selectedFrameID
+        let savedEdits = frameEdits
+        let savedFolder = scopedFolderURL
+        let savedFiles = scopedFileURLs
+
+        previewDebounce.cancel()
+        thumbnailDebounce.cancel()
+        saveDebounce.cancel()
+
         await client.stop()
-        clearFilmStrip()
         state = .idle
         previewImage = nil
         previewError = nil
         currentPath = nil
+        isRenderingPreview = false
+
+        if clearWorkspace {
+            clearFilmStrip()
+            stopFolderAccess()
+            stopFileAccess()
+        } else {
+            frames = savedFrames
+            selectedFrameID = savedSelected
+            frameEdits = savedEdits
+            scopedFolderURL = savedFolder
+            scopedFileURLs = savedFiles
+        }
+
         await start()
+
+        guard !clearWorkspace,
+              let id = selectedFrameID,
+              let frame = frames.first(where: { $0.id == id })
+        else { return }
+
+        previewGeneration += 1
+        let generation = previewGeneration
+        await renderPreview(at: frame.url, generation: generation)
+        thumbnailGeneration += 1
+        await loadMissingThumbnails()
     }
 
     func stop() async {
@@ -575,8 +634,11 @@ final class EngineSession {
         let refreshThumbnailAfterClose = pendingThumbnailRefreshAfterCropClose && path == selectedFramePath
 
         do {
+            let settings = PreviewRenderSettings(preferences: preferences)
             let result = try await client.render(
                 path: path,
+                longEdgePx: settings.longEdgePx,
+                preferGPU: settings.preferGPU,
                 config: effectiveConfig,
                 cropPreviewFull: isCropToolActive
             )
@@ -664,9 +726,11 @@ final class EngineSession {
         defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
 
         do {
+            let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
             let result = try await client.render(
                 path: path,
                 longEdgePx: FilmStripLayout.thumbnailLongEdge,
+                preferGPU: preferGPU,
                 config: config,
                 cropPreviewFull: false
             )
@@ -716,10 +780,12 @@ final class EngineSession {
 
             let path = frames[index].path
             let config = frameEdits[path]
+            let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
             do {
                 let result = try await client.render(
                     path: path,
                     longEdgePx: FilmStripLayout.thumbnailLongEdge,
+                    preferGPU: preferGPU,
                     config: config,
                     cropPreviewFull: false
                 )
@@ -788,7 +854,7 @@ final class EngineSession {
     }
 
     static var preview: EngineSession {
-        let session = EngineSession()
+        let session = EngineSession(preferences: AppPreferences())
         session.state = .ready(
             EngineInfo(
                 protocolVersion: "0.1",

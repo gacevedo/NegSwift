@@ -11,19 +11,23 @@ struct PreviewCanvasView: View {
     let image: NSImage
 
     var body: some View {
-        Image(nsImage: image)
-            .resizable()
-            .scaledToFit()
-            .overlay {
+        GeometryReader { geometry in
+            let size = geometry.size
+            ZStack {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size.width, height: size.height)
+
                 if session.isCropToolActive, session.isCropOverlayReady {
                     CropOverlayView(
                         cropRect: cropBinding,
                         aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio),
+                        imagePixelSize: session.previewPixelSize ?? image.size,
                         onClickOutside: { session.setCropToolActive(false) }
                     )
                 }
-            }
-            .overlay {
+
                 if session.isLoadingCropPreview {
                     ZStack {
                         Color.black.opacity(0.25)
@@ -35,8 +39,8 @@ struct PreviewCanvasView: View {
                 }
             }
             .overlay(alignment: .bottomLeading) {
-                if let size = session.previewPixelSize {
-                    Text("\(Int(size.width)) × \(Int(size.height)) px")
+                if let pixelSize = session.previewPixelSize {
+                    Text("\(Int(pixelSize.width)) × \(Int(pixelSize.height)) px")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
@@ -45,6 +49,8 @@ struct PreviewCanvasView: View {
                         .padding(10)
                 }
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var cropBinding: Binding<NormalizedRect> {

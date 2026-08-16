@@ -8,6 +8,7 @@ import SwiftUI
 struct CropOverlayView: View {
     @Binding var cropRect: NormalizedRect
     let aspectRatio: CropAspectRatio
+    let imagePixelSize: CGSize
     var onClickOutside: () -> Void = {}
 
     @State private var dragRect: NormalizedRect?
@@ -26,34 +27,37 @@ struct CropOverlayView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
-            let rect = screenRect(for: activeRect, width: width, height: height)
+            let container = geometry.size
+            let imageRect = Self.aspectFitRect(
+                imageAspect: imagePixelSize.width / max(imagePixelSize.height, 1),
+                in: container
+            )
+            let cropScreenRect = screenRect(for: activeRect, in: imageRect)
 
             ZStack(alignment: .topLeading) {
                 Path { path in
-                    path.addRect(CGRect(x: 0, y: 0, width: width, height: height))
-                    path.addRect(rect)
+                    path.addRect(CGRect(origin: .zero, size: container))
+                    path.addRect(cropScreenRect)
                 }
                 .fill(Color.black.opacity(0.45), style: FillStyle(eoFill: true))
 
                 Rectangle()
                     .stroke(Color.white, lineWidth: 1.5)
-                    .frame(width: max(rect.width, 1), height: max(rect.height, 1))
-                    .offset(x: rect.minX, y: rect.minY)
+                    .frame(width: max(cropScreenRect.width, 1), height: max(cropScreenRect.height, 1))
+                    .offset(x: cropScreenRect.minX, y: cropScreenRect.minY)
                     .contentShape(Rectangle())
-                    .gesture(moveGesture(width: width, height: height))
+                    .gesture(moveGesture(imageRect: imageRect))
 
                 ForEach(CropHandle.allCases, id: \.self) { handle in
-                    handleView(handle, cropScreenRect: rect, width: width, height: height)
+                    handleView(handle, cropScreenRect: cropScreenRect, imageRect: imageRect)
                 }
             }
             .contentShape(Rectangle())
-            .gesture(outsideTapGesture(cropScreenRect: rect, width: width, height: height))
+            .gesture(outsideTapGesture(cropScreenRect: cropScreenRect))
         }
     }
 
-    private func outsideTapGesture(cropScreenRect rect: CGRect, width: CGFloat, height: CGFloat) -> some Gesture {
+    private func outsideTapGesture(cropScreenRect rect: CGRect) -> some Gesture {
         SpatialTapGesture()
             .onEnded { value in
                 let point = value.location
@@ -83,15 +87,15 @@ struct CropOverlayView: View {
         return CGRect(x: point.x - width / 2, y: point.y - height / 2, width: width, height: height)
     }
 
-    private func moveGesture(width: CGFloat, height: CGFloat) -> some Gesture {
+    private func moveGesture(imageRect: CGRect) -> some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
                 if dragStartRect == nil {
                     dragStartRect = activeRect
                 }
                 guard let start = dragStartRect else { return }
-                let dx = Double(value.translation.width / width)
-                let dy = Double(value.translation.height / height)
+                let dx = Double(value.translation.width / imageRect.width)
+                let dy = Double(value.translation.height / imageRect.height)
                 dragRect = NormalizedRect(
                     x1: start.x1 + dx,
                     y1: start.y1 + dy,
@@ -105,7 +109,7 @@ struct CropOverlayView: View {
     }
 
     @ViewBuilder
-    private func handleView(_ handle: CropHandle, cropScreenRect rect: CGRect, width: CGFloat, height: CGFloat) -> some View {
+    private func handleView(_ handle: CropHandle, cropScreenRect rect: CGRect, imageRect: CGRect) -> some View {
         let point = handle.point(in: rect)
         let size = handle.frameSize(
             cornerSize: cornerHandleSize,
@@ -130,7 +134,7 @@ struct CropOverlayView: View {
                         if activeHandle == nil {
                             activeHandle = handle
                             dragStartRect = activeRect
-                            dragStartHandlePoint = handle.point(in: screenRect(for: activeRect, width: width, height: height))
+                            dragStartHandlePoint = handle.point(in: screenRect(for: activeRect, in: imageRect))
                         }
                         guard activeHandle == handle,
                               let start = dragStartRect,
@@ -140,7 +144,7 @@ struct CropOverlayView: View {
                             x: startPoint.x + value.translation.width,
                             y: startPoint.y + value.translation.height
                         )
-                        dragRect = resized(from: start, handle: handle, to: loc, width: width, height: height)
+                        dragRect = resized(from: start, handle: handle, to: loc, imageRect: imageRect)
                     }
                     .onEnded { _ in
                         activeHandle = nil
@@ -164,11 +168,10 @@ struct CropOverlayView: View {
         from start: NormalizedRect,
         handle: CropHandle,
         to point: CGPoint,
-        width: CGFloat,
-        height: CGFloat
+        imageRect: CGRect
     ) -> NormalizedRect {
-        let nx = Double(min(max(point.x / width, 0), 1))
-        let ny = Double(min(max(point.y / height, 0), 1))
+        let nx = Double(min(max((point.x - imageRect.minX) / imageRect.width, 0), 1))
+        let ny = Double(min(max((point.y - imageRect.minY) / imageRect.height, 0), 1))
 
         var x1 = start.x1
         var y1 = start.y1
@@ -213,7 +216,7 @@ struct CropOverlayView: View {
         if y2 - y1 < minSpan { y2 = y1 + minSpan }
 
         if let wh = aspectRatio.widthOverHeight {
-            let imageAspect = Double(width / max(height, 1))
+            let imageAspect = Double(imagePixelSize.width / max(imagePixelSize.height, 1))
             let baseTarget = wh / imageAspect
             let orientedTarget = start.height > start.width
                 ? min(baseTarget, 1.0 / baseTarget)
@@ -276,13 +279,28 @@ struct CropOverlayView: View {
         return NormalizedRect(x1: x1, y1: y1, x2: x2, y2: y2).clamped()
     }
 
-    private func screenRect(for normalized: NormalizedRect, width: CGFloat, height: CGFloat) -> CGRect {
+    private func screenRect(for normalized: NormalizedRect, in imageRect: CGRect) -> CGRect {
         CGRect(
-            x: normalized.x1 * width,
-            y: normalized.y1 * height,
-            width: normalized.width * width,
-            height: normalized.height * height
+            x: imageRect.minX + normalized.x1 * imageRect.width,
+            y: imageRect.minY + normalized.y1 * imageRect.height,
+            width: normalized.width * imageRect.width,
+            height: normalized.height * imageRect.height
         )
+    }
+
+    private static func aspectFitRect(imageAspect: CGFloat, in container: CGSize) -> CGRect {
+        guard imageAspect > 0, container.width > 0, container.height > 0 else {
+            return CGRect(origin: .zero, size: container)
+        }
+        let containerAspect = container.width / container.height
+        if imageAspect > containerAspect {
+            let width = container.width
+            let height = width / imageAspect
+            return CGRect(x: 0, y: (container.height - height) / 2, width: width, height: height)
+        }
+        let height = container.height
+        let width = height * imageAspect
+        return CGRect(x: (container.width - width) / 2, y: 0, width: width, height: height)
     }
 }
 

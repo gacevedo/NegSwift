@@ -171,7 +171,6 @@ struct ContentView: View {
                 ProgressView("Rendering preview…")
             } else if let image = engineSession.previewImage {
                 PreviewCanvasView(session: engineSession, image: image)
-                    .padding()
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "photo.on.rectangle.angled")

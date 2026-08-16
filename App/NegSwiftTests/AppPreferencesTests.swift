@@ -69,6 +69,10 @@ import Testing
     }
 
     @Test @MainActor func previewRenderSettingsFollowPreferences() {
+        let suite = "NegSwiftTests.previewRender.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
         let prefs = AppPreferences()
         prefs.previewQuality = .high
         prefs.preferGPU = false
@@ -78,6 +82,10 @@ import Testing
     }
 
     @Test @MainActor func previewQualityChangeNotifiesListener() {
+        let suite = "NegSwiftTests.notify.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
         let prefs = AppPreferences()
         var notifications = 0
         prefs.onPreviewSettingsChanged = { notifications += 1 }

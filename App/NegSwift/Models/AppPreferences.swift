@@ -69,6 +69,56 @@ enum AppPreferencesStorage {
         return UserDefaults.standard
     }
 
+    /// One-time migration from pre-merge `negSwift.prefs.*` keys (string quality, `useGPU`).
+    static func migrateLegacyPreferencesIfNeeded() {
+        let legacyQualityKey = "negSwift.prefs.previewQuality"
+        if defaults.object(forKey: Key.previewQuality) == nil,
+           let legacy = defaults.string(forKey: legacyQualityKey)
+        {
+            switch legacy {
+            case "fast":
+                setPreviewQuality(.fast)
+            case "high":
+                setPreviewQuality(.high)
+            default:
+                setPreviewQuality(.standard)
+            }
+            defaults.removeObject(forKey: legacyQualityKey)
+        }
+
+        let legacyGPUKey = "negSwift.prefs.useGPU"
+        if defaults.object(forKey: Key.preferGPU) == nil,
+           defaults.object(forKey: legacyGPUKey) != nil
+        {
+            setPreferGPU(defaults.bool(forKey: legacyGPUKey))
+            defaults.removeObject(forKey: legacyGPUKey)
+        }
+
+        let legacyLocationKey = "negSwift.prefs.dataLocation"
+        if defaults.object(forKey: Key.userDataLocation) == nil,
+           let legacy = defaults.string(forKey: legacyLocationKey)
+        {
+            switch legacy {
+            case "negPyDesktop":
+                setUserDataLocation(.negPyDesktop)
+            case "custom":
+                setUserDataLocation(.custom)
+            default:
+                setUserDataLocation(.negSwift)
+            }
+            defaults.removeObject(forKey: legacyLocationKey)
+        }
+
+        let legacyCustomPathKey = "negSwift.prefs.customDataPath"
+        if defaults.string(forKey: Key.customUserDataPath) == nil,
+           let legacyPath = defaults.string(forKey: legacyCustomPathKey),
+           !legacyPath.isEmpty
+        {
+            setCustomUserDataPath(legacyPath)
+            defaults.removeObject(forKey: legacyCustomPathKey)
+        }
+    }
+
     static func previewQuality() -> PreviewQuality {
         let raw = defaults.integer(forKey: Key.previewQuality)
         return PreviewQuality(rawValue: raw) ?? .standard

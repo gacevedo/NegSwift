@@ -13,6 +13,7 @@ struct NegSwiftApp: App {
     @State private var showAbout = false
 
     init() {
+        AppPreferencesStorage.migrateLegacyPreferencesIfNeeded()
         let preferences = AppPreferences()
         _preferences = State(initialValue: preferences)
         _engineSession = State(initialValue: EngineSession(preferences: preferences))

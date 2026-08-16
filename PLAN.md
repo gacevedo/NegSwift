@@ -23,9 +23,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.51.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
-| **M12** Performance | **In progress** | Phase 1 done (quick wins); Phase 2 interactive next |
+| **M12** Performance | **In progress** | Phase 2 done; Phase 3 frame switch next |
 
-**Resume here:** **M12 Phase 2** (interactive editing — see §7 M12). Release prep can run in parallel.
+**Resume here:** **M12 Phase 3** (frame switch prefetch — see §7 M12). Release prep can run in parallel.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -552,19 +552,19 @@ Swift:
 
 #### Phase 2 — Interactive editing
 
-- [ ] Single GPU render executor (one worker thread) — no unbounded `threading.Thread` per job
-- [ ] Per-path job supersession (“latest wins”; drop queued stale renders)
-- [ ] Cancel checks before hash, sidecar read, and `load_linear_preview` (pipeline mid-flight still best-effort without upstream hooks)
-- [ ] Swift: defer `previewGeneration` bump until debounced task starts (fewer cancel IPC storms while dragging)
+- [x] Single GPU render executor (one worker thread) — no unbounded `threading.Thread` per job
+- [x] Per-path job supersession (“latest wins”; drop queued stale renders)
+- [x] Cancel checks before hash, sidecar read, and `load_linear_preview` (pipeline mid-flight still best-effort without upstream hooks)
+- [x] Swift: defer `previewGeneration` bump until debounced task starts (fewer cancel IPC storms while dragging)
 
 **Gate:** Rapid slider scrub — fewer completed stale renders; UI stays responsive (manual M6 scrub test).
 
 #### Phase 3 — Frame switch & strip
 
-- [ ] `EngineClient.open` + prefetch on import / `selectFrame` (warm `PreviewManager` before first `render`)
-- [ ] Overlap `load_config` and first `render` where safe; defer previous-frame thumbnail refresh
-- [ ] Parallel strip thumbnail loading (`TaskGroup`, concurrency 2–3, prioritize selected / near-visible)
-- [ ] Skip `detect_process_mode` IPC when `load_config` already has `process_mode`
+- [x] `EngineClient.open` + prefetch on import / `selectFrame` (warm `PreviewManager` before first `render`)
+- [x] Overlap `load_config` and first `render` where safe; defer previous-frame thumbnail refresh
+- [x] Parallel strip thumbnail loading (`TaskGroup`, concurrency 2–3, prioritize selected / near-visible)
+- [x] Skip `detect_process_mode` IPC when `load_config` already has `process_mode`
 
 **Gate:** Baseline “frame switch” and strip-fill metrics improve; folder of 20+ frames stays responsive (manual M5).
 
@@ -690,7 +690,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M12 Phase 2:** Interactive editing (render executor, job supersession, cancel checks) — re-run `make bench-engine` and attach delta in PR.
+1. **M12 Phase 3 gate:** Re-run `make bench-engine` + manual M5 folder import (20+ frames) after Phase 3 changes; attach delta in PR.
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 3. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 

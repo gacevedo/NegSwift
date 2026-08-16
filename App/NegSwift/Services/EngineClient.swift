@@ -135,6 +135,22 @@ struct DiscoverResult: Codable, Sendable {
     let assets: [DiscoverAsset]
 }
 
+struct OpenResult: Codable, Sendable {
+    let path: String
+    let hash: String
+    let width: Int
+    let height: Int
+    let hasSidecar: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case path
+        case hash
+        case width
+        case height
+        case hasSidecar = "has_sidecar"
+    }
+}
+
 struct EngineInfo: Codable, Sendable, Equatable {
     let protocolVersion: String?
     let negswiftVersion: String
@@ -221,6 +237,10 @@ actor EngineClient {
 
     func info() async throws -> EngineInfo {
         try await call(method: "info", params: EmptyParams())
+    }
+
+    func open(path: String) async throws -> OpenResult {
+        try await call(method: "open", params: OpenParams(path: path))
     }
 
     func render(
@@ -397,6 +417,10 @@ actor EngineClient {
 
     private struct DiscoverParams: Encodable {
         let paths: [String]
+    }
+
+    private struct OpenParams: Encodable {
+        let path: String
     }
 
     private struct LoadConfigParams: Encodable {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -112,7 +113,7 @@ def _cmd_detect_process_mode(params: dict[str, Any]) -> dict[str, Any]:
         raise ProtocolError("LOAD_FAILED", str(exc)) from exc
 
 
-def _cmd_render(params: dict[str, Any]) -> dict[str, Any]:
+def _cmd_render(params: dict[str, Any], cancel: threading.Event | None = None) -> dict[str, Any]:
     path = params.get("path")
     if not isinstance(path, str) or not path:
         raise ProtocolError("INVALID_REQUEST", "params.path is required")
@@ -135,6 +136,7 @@ def _cmd_render(params: dict[str, Any]) -> dict[str, Any]:
             long_edge_px=long_edge,
             prefer_gpu=prefer_gpu,
             crop_preview_full=crop_preview_full,
+            cancel=cancel,
         )
     except FileNotFoundError as exc:
         raise ProtocolError("NOT_FOUND", str(exc)) from exc
@@ -144,7 +146,7 @@ def _cmd_render(params: dict[str, Any]) -> dict[str, Any]:
         raise ProtocolError("RENDER_FAILED", str(exc)) from exc
 
 
-def _cmd_export(params: dict[str, Any]) -> dict[str, Any]:
+def _cmd_export(params: dict[str, Any], cancel: threading.Event | None = None) -> dict[str, Any]:
     path = params.get("path")
     if not isinstance(path, str) or not path:
         raise ProtocolError("INVALID_REQUEST", "params.path is required")
@@ -171,6 +173,7 @@ def _cmd_export(params: dict[str, Any]) -> dict[str, Any]:
             export_overrides=export,
             prefer_gpu=prefer_gpu,
             overwrite=overwrite,
+            cancel=cancel,
         )
     except FileNotFoundError as exc:
         raise ProtocolError("NOT_FOUND", str(exc)) from exc
@@ -196,10 +199,12 @@ _HANDLERS: dict[str, Handler] = {
 }
 
 
-def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
+def dispatch(method: str, params: dict[str, Any], cancel: threading.Event | None = None) -> dict[str, Any]:
     handler = _HANDLERS.get(method)
     if handler is None:
         raise ProtocolError("INVALID_REQUEST", f"Unknown method: {method}")
+    if method in ("render", "export"):
+        return handler(params, cancel)
     return handler(params)
 
 

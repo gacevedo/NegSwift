@@ -49,7 +49,12 @@ final class EngineSession {
     private var stripGeneration = 0
     private var previewGeneration = 0
     private var thumbnailGeneration = 0
+    private var pathsWithStoredProcessMode: Set<String> = []
     private var isThumbnailLoadRunning = false
+    private var thumbnailReloadPending = false
+    private var thumbnailReloadPasses = 0
+    private static let thumbnailLoadConcurrency = 3
+    private static let maxThumbnailReloadPasses = 3
     private(set) var isExporting = false
     private(set) var isRestartingEngine = false
     private(set) var activeExportSettings: ExportSettings?
@@ -472,10 +477,10 @@ final class EngineSession {
     }
 
     private func scheduleDebouncedPreview(for frame: ScanFrame) {
-        previewGeneration += 1
-        let generation = previewGeneration
         previewDebounce.schedule { [weak self] in
             guard let self else { return }
+            self.previewGeneration += 1
+            let generation = self.previewGeneration
             await self.renderPreview(
                 at: frame.url,
                 generation: generation
@@ -562,14 +567,14 @@ final class EngineSession {
         previewGeneration += 1
         let previewGen = previewGeneration
         stripGeneration += 1
-        let stripGen = stripGeneration
 
         for index in frames.indices {
             updateFrame(at: index) { $0.thumbnail = nil }
         }
 
         await renderPreview(at: frame.url, generation: previewGen)
-        await loadThumbnails(generation: stripGen)
+        thumbnailReloadPasses = 0
+        await loadMissingThumbnails()
     }
 
     func stop() async {
@@ -606,6 +611,7 @@ final class EngineSession {
             }
             if let first = frames.first {
                 await selectFrame(first.id)
+                prefetchAssets(around: first.id)
             } else {
                 previewError = "No supported scans found in this folder."
             }
@@ -675,6 +681,7 @@ final class EngineSession {
             }
             if let first = frames.first {
                 await selectFrame(first.id)
+                prefetchAssets(around: first.id)
             } else {
                 previewError = "No supported scans in the dropped files."
             }
@@ -698,12 +705,14 @@ final class EngineSession {
             await persistEdit(for: previousPath)
             Task { await refreshThumbnail(for: previousPath) }
         }
-        await ensureEditLoaded(for: frame.path)
+        async let editReady: Void = ensureEditLoaded(for: frame.path)
+        prefetchAsset(at: frame.url)
+        await editReady
         previewDebounce.cancel()
         previewGeneration += 1
         let generation = previewGeneration
         await renderPreview(at: frame.url, generation: generation)
-        Task { await loadMissingThumbnails() }
+        scheduleLoadMissingThumbnails()
         if PerformanceLogger.isEnabled {
             let ms = (CFAbsoluteTimeGetCurrent() - selectStart) * 1000
             PerformanceLogger.event("frame_switch_total", milliseconds: ms)
@@ -728,6 +737,9 @@ final class EngineSession {
             if edit.manualCropRect != nil {
                 edit.autoCropEnabled = false
             }
+            if flat["process_mode"] != nil {
+                pathsWithStoredProcessMode.insert(path)
+            }
             return edit
         } catch {
             return defaultEditState()
@@ -736,6 +748,7 @@ final class EngineSession {
 
     private func scheduleAutodetectIfNeeded(for path: String) {
         guard preferences.autodetectProcessMode else { return }
+        guard !pathsWithStoredProcessMode.contains(path) else { return }
         Task {
             guard let detected = await detectProcessMode(path: path, force: false) else { return }
             guard var edit = frameEdits[path], edit.processMode != detected else { return }
@@ -860,7 +873,6 @@ final class EngineSession {
     private func scheduleDebouncedThumbnailRefresh(for path: String) {
         if isCropToolActive, path == selectedFramePath { return }
         if applyPreviewToSelectedThumbnail(for: path) { return }
-        guard !isThumbnailLoadRunning else { return }
         thumbnailGeneration += 1
         let generation = thumbnailGeneration
         thumbnailDebounce.schedule { [weak self] in
@@ -920,13 +932,42 @@ final class EngineSession {
         frames[index] = frame
     }
 
+    private func scheduleLoadMissingThumbnails() {
+        Task { await loadMissingThumbnails() }
+    }
+
     private func loadMissingThumbnails() async {
         resetStuckThumbnailSpinners()
-        guard frames.contains(where: { $0.thumbnail == nil }) else { return }
-        guard !isThumbnailLoadRunning else { return }
+        guard frames.contains(where: { $0.thumbnail == nil }) else {
+            thumbnailReloadPending = false
+            thumbnailReloadPasses = 0
+            return
+        }
+        if isThumbnailLoadRunning {
+            thumbnailReloadPending = true
+            return
+        }
         isThumbnailLoadRunning = true
-        defer { isThumbnailLoadRunning = false }
-        await loadThumbnails(generation: stripGeneration)
+        defer {
+            isThumbnailLoadRunning = false
+            if thumbnailReloadPending {
+                thumbnailReloadPending = false
+                scheduleLoadMissingThumbnails()
+            }
+        }
+        let aborted = await loadThumbnails(generation: stripGeneration)
+        guard frames.contains(where: { $0.thumbnail == nil }) else {
+            thumbnailReloadPasses = 0
+            return
+        }
+        if aborted {
+            thumbnailReloadPending = true
+            return
+        }
+        thumbnailReloadPasses += 1
+        if thumbnailReloadPasses < Self.maxThumbnailReloadPasses {
+            thumbnailReloadPending = true
+        }
     }
 
     private func resetStuckThumbnailSpinners() {
@@ -935,55 +976,136 @@ final class EngineSession {
         }
     }
 
-    private func loadThumbnails(generation: Int) async {
+    private func loadThumbnails(generation: Int) async -> Bool {
         // Preview completion schedules a debounced thumb for the selected frame;
         // cancel it so that job does not pre-empt the next strip thumbnail.
         thumbnailDebounce.cancel()
         thumbnailGeneration += 1
         let thumbGen = thumbnailGeneration
-        for index in frames.indices {
-            guard generation == stripGeneration else {
-                resetStuckThumbnailSpinners()
-                return
-            }
-            guard thumbGen == thumbnailGeneration else {
-                resetStuckThumbnailSpinners()
-                return
-            }
-            guard frames[index].thumbnail == nil else { continue }
-            if applyPreviewToSelectedThumbnail(for: frames[index].path) { continue }
+        let indices = thumbnailLoadOrder().filter { index in
+            frames[index].thumbnail == nil && !applyPreviewToSelectedThumbnail(for: frames[index].path)
+        }
+        guard !indices.isEmpty else { return true }
 
-            updateFrame(at: index) { $0.isLoadingThumbnail = true }
-            defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
-
-            let path = frames[index].path
-            let config = pipelineConfig(for: await thumbnailEditState(for: path))
-            let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
-            do {
-                let result = try await client.render(
-                    path: path,
-                    longEdgePx: FilmStripLayout.thumbnailLongEdge,
-                    preferGPU: preferGPU,
-                    config: config,
-                    cropPreviewFull: false
-                )
-                guard generation == stripGeneration else {
+        var aborted = false
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = indices.makeIterator()
+            for _ in 0 ..< min(Self.thumbnailLoadConcurrency, indices.count) {
+                guard let index = iterator.next() else { break }
+                group.addTask { @MainActor in
+                    await self.loadThumbnailAt(
+                        index: index,
+                        generation: generation,
+                        thumbGen: thumbGen
+                    )
+                }
+            }
+            while await group.next() != nil {
+                guard generation == stripGeneration, thumbGen == thumbnailGeneration else {
+                    group.cancelAll()
                     resetStuckThumbnailSpinners()
+                    aborted = true
                     return
                 }
-                guard thumbGen == thumbnailGeneration else {
-                    resetStuckThumbnailSpinners()
-                    return
+                guard let index = iterator.next() else { continue }
+                group.addTask { @MainActor in
+                    await self.loadThumbnailAt(
+                        index: index,
+                        generation: generation,
+                        thumbGen: thumbGen
+                    )
                 }
-                if let data = result.pngData, let image = NSImage(data: data) {
-                    updateFrame(at: index) { $0.thumbnail = image }
-                }
-            } catch is CancellationError {
-                resetStuckThumbnailSpinners()
-                return
-            } catch {
-                // Thumbnail failure is non-fatal; full preview may still work.
             }
+        }
+        if aborted {
+            return false
+        }
+        guard generation == stripGeneration, thumbGen == thumbnailGeneration else {
+            resetStuckThumbnailSpinners()
+            return false
+        }
+        return true
+    }
+
+    /// Selected frame first, then outward — keeps near-selection thumbs ahead of distant ones.
+    private func thumbnailLoadOrder() -> [Int] {
+        guard let selectedID = selectedFrameID,
+              let selectedIndex = frames.firstIndex(where: { $0.id == selectedID })
+        else { return Array(frames.indices) }
+
+        var order: [Int] = [selectedIndex]
+        var offset = 1
+        while order.count < frames.count {
+            let before = selectedIndex - offset
+            let after = selectedIndex + offset
+            if before >= 0 { order.append(before) }
+            if after < frames.count { order.append(after) }
+            offset += 1
+        }
+        return order
+    }
+
+    private func loadThumbnailAt(index: Int, generation: Int, thumbGen: Int) async {
+        guard generation == stripGeneration, thumbGen == thumbnailGeneration else { return }
+        guard frames.indices.contains(index) else { return }
+        guard frames[index].thumbnail == nil else { return }
+        let path = frames[index].path
+        if applyPreviewToSelectedThumbnail(for: path) { return }
+
+        updateFrame(at: index) { $0.isLoadingThumbnail = true }
+        defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
+
+        let config = pipelineConfig(for: await thumbnailEditState(for: path))
+        guard generation == stripGeneration, thumbGen == thumbnailGeneration else { return }
+
+        let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
+        let frame = frames[index]
+        let gotAccess = beginFileAccess(for: frame.url)
+        defer {
+            if gotAccess {
+                endFileAccess(for: frame.url)
+            }
+        }
+
+        do {
+            let result = try await client.render(
+                path: path,
+                longEdgePx: FilmStripLayout.thumbnailLongEdge,
+                preferGPU: preferGPU,
+                config: config,
+                cropPreviewFull: false
+            )
+            guard generation == stripGeneration, thumbGen == thumbnailGeneration else { return }
+            guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
+            if let data = result.pngData, let image = NSImage(data: data) {
+                updateFrame(at: frameIndex) { $0.thumbnail = image }
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            // Thumbnail failure is non-fatal; full preview may still work.
+        }
+    }
+
+    private func prefetchAsset(at url: URL) {
+        Task {
+            let gotAccess = beginFileAccess(for: url)
+            defer {
+                if gotAccess {
+                    endFileAccess(for: url)
+                }
+            }
+            _ = try? await client.open(path: url.path)
+        }
+    }
+
+    private func prefetchAssets(around id: UUID) {
+        guard let center = frames.firstIndex(where: { $0.id == id }) else { return }
+        let span = 1 + Self.thumbnailLoadConcurrency
+        let lower = max(0, center - span)
+        let upper = min(frames.count, center + span + 1)
+        for frame in frames[lower ..< upper] {
+            prefetchAsset(at: frame.url)
         }
     }
 
@@ -1011,6 +1133,9 @@ final class EngineSession {
         selectedFrameID = nil
         frameEdits = [:]
         dirtyPaths = []
+        pathsWithStoredProcessMode = []
+        thumbnailReloadPending = false
+        thumbnailReloadPasses = 0
         isCropToolActive = false
         isCropOverlayReady = false
         cropPreviewBaseline = nil

@@ -161,13 +161,19 @@ Test scan path:
 - [x] Export then preview — softer cache cleanup (`release_source_cache=False` on export)
 - [ ] No preview parity regression vs NegPy desktop (spot-check M6)
 
-**Phase 2 — Interactive editing**
+**Phase 2 — Interactive editing** ✅ (engine)
 
-- [ ] Rapid density slider scrub — no pile-up of stale previews; UI stays responsive
+- [x] `RenderExecutor` — single GPU worker; per-path supersession; cancel before hash/sidecar/load
+- [x] Debounced slider — `previewGeneration` bumps when debounced task fires (not on every schedule)
+- [ ] Rapid density slider scrub — no pile-up of stale previews; UI stays responsive (manual M6)
 
-**Phase 3 — Frame switch & strip**
+**Phase 3 — Frame switch & strip** ✅ (Swift)
 
-- [ ] Import folder 20+ frames — strip thumbs fill progressively; selected preview appears quickly
+- [x] Preview preempts in-flight strip thumbnails; frame switch does not await previous-frame thumb
+- [x] Parallel strip thumbs (`TaskGroup`, concurrency 3); selected/near-visible frames first
+- [x] `open` prefetch on import / `selectFrame`; overlap `load_config` with prefetch
+- [x] Skip `detect_process_mode` when sidecar already has `process_mode`
+- [ ] Import folder 20+ frames — strip thumbs fill progressively; selected preview appears quickly (manual M5)
 - [ ] Frame switch baseline improved vs Phase 0
 
 **Phase 4 — Preview transport (optional)**

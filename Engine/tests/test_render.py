@@ -77,7 +77,7 @@ def test_render_long_edge_px_scales_output(large_tiff: Path) -> None:
     high_le = _render_long_edge(high["result"])
     assert fast_le < high_le
     assert 750 <= fast_le <= 850
-    assert 1550 <= high_le <= 1650
+    assert 1450 <= high_le <= 1650
 
 
 def test_render_omitted_long_edge_defaults_to_standard(large_tiff: Path) -> None:

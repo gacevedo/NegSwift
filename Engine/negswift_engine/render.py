@@ -22,6 +22,7 @@ from negpy.services.rendering.preview_manager import PreviewManager
 from PIL import Image
 
 from negswift_engine.file_hash_cache import cached_file_hash, clear_file_hash_cache
+from negswift_engine.jobs import JobCancelled
 from negswift_engine.metering import (
     default_auto_density_uses_crop,
     negpy_flat_for_pipeline,
@@ -29,6 +30,12 @@ from negswift_engine.metering import (
     negswift_sidecar_extras,
 )
 from negswift_engine.sidecar_io import clear_sidecar_cache, delete_sidecar, read_raw_sidecar, write_raw_sidecar
+
+
+def _check_cancel(cancel: threading.Event | None) -> None:
+    if cancel is not None and cancel.is_set():
+        raise JobCancelled()
+
 
 _processor: ImageProcessor | None = None
 _preview_manager: PreviewManager | None = None
@@ -145,12 +152,17 @@ def render_preview_png(
     long_edge_px: int | None = None,
     prefer_gpu: bool = True,
     crop_preview_full: bool = False,
+    cancel: threading.Event | None = None,
 ) -> tuple[bytes, int, int, dict[str, Any]]:
     """Run the NegPy preview pipeline; return PNG bytes, width, height, metrics."""
     with _pipeline_lock:
+        _check_cancel(cancel)
         _evict_source_cache_if_asset_changed(path)
+        _check_cancel(cancel)
         config = resolve_config(path, config_overrides)
+        _check_cancel(cancel)
         f_hash = cached_file_hash(path)
+        _check_cancel(cancel)
         preview_size = float(long_edge_px or APP_CONFIG.preview_render_size)
         load_full_res = preview_size > float(APP_CONFIG.preview_render_size)
 
@@ -161,6 +173,7 @@ def render_preview_png(
             file_hash=f_hash,
             full_resolution=load_full_res,
         )
+        _check_cancel(cancel)
         ir_buffer = meta.get("ir_preview")
 
         processor = _processor_instance()
@@ -206,6 +219,7 @@ def render_preview_base64(
     long_edge_px: int | None = None,
     prefer_gpu: bool = True,
     crop_preview_full: bool = False,
+    cancel: threading.Event | None = None,
 ) -> dict[str, Any]:
     png_bytes, width, height, metrics = render_preview_png(
         path,
@@ -213,6 +227,7 @@ def render_preview_base64(
         long_edge_px=long_edge_px,
         prefer_gpu=prefer_gpu,
         crop_preview_full=crop_preview_full,
+        cancel=cancel,
     )
     return {
         "width": width,

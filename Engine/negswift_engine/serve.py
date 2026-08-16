@@ -11,8 +11,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO
 
-from negswift_engine.jobs import JobCancelled, JobRegistry
+from negswift_engine.jobs import JobRegistry
 from negswift_engine.protocol import ProtocolError, dispatch
+from negswift_engine.render_executor import RenderExecutor
 
 _ASYNC_METHODS = frozenset({"render", "export"})
 
@@ -24,6 +25,7 @@ class NDJSONServer:
         self._write_line = write_line
         self._write_lock = threading.Lock()
         self._jobs = JobRegistry()
+        self._executor = RenderExecutor(self._jobs)
 
     def handle_message(self, raw: str) -> None:
         req_id: Any = None
@@ -67,7 +69,7 @@ class NDJSONServer:
         self.drain()
 
     def drain(self) -> None:
-        while self._jobs.pending_count() > 0:
+        while self._executor.pending_count() > 0:
             threading.Event().wait(0.05)
 
     def _cmd_cancel(self, req_id: Any, params: dict[str, Any]) -> None:
@@ -78,26 +80,20 @@ class NDJSONServer:
         self._emit_ok(req_id, {"cancelled": cancelled})
 
     def _run_async(self, job_id: str, req_id: Any, method: str, params: dict[str, Any]) -> None:
-        cancel = self._jobs.register(job_id)
+        path = params.get("path") if isinstance(params.get("path"), str) else None
+        supersede_path = method == "render"
 
-        def worker() -> None:
-            try:
-                if cancel.is_set():
-                    raise JobCancelled()
-                result = dispatch(method, params)
-                if cancel.is_set():
-                    raise JobCancelled()
-                self._emit_ok(req_id, result)
-            except JobCancelled:
-                self._emit_err(req_id, "CANCELLED", "Job cancelled")
-            except ProtocolError as exc:
-                self._emit_err(req_id, exc.code, exc.message)
-            except Exception as exc:  # noqa: BLE001
-                self._emit_err(req_id, "INTERNAL", str(exc))
-            finally:
-                self._jobs.discard(job_id)
+        def run(cancel: threading.Event) -> dict[str, Any]:
+            return dispatch(method, params, cancel=cancel)
 
-        threading.Thread(target=worker, name=f"negswift-{method}-{job_id}", daemon=True).start()
+        self._executor.submit(
+            job_id,
+            path=path,
+            supersede_path=supersede_path,
+            run=run,
+            emit_ok=lambda result: self._emit_ok(req_id, result),
+            emit_err=lambda code, message: self._emit_err(req_id, code, message),
+        )
 
     def _emit_ok(self, req_id: Any, result: dict[str, Any]) -> None:
         self._emit({"id": req_id, "ok": True, "result": result})

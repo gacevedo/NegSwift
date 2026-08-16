@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from negpy.domain.models import ExportFormat
 from PIL import Image
 
 from negswift_engine.file_hash_cache import cached_file_hash
+from negswift_engine.jobs import JobCancelled
 from negswift_engine.render import (
     _evict_source_cache_if_asset_changed,
     _pipeline_lock,
@@ -30,6 +32,7 @@ def export_asset(
     export_overrides: dict[str, Any] | None = None,
     prefer_gpu: bool = True,
     overwrite: bool = False,
+    cancel: threading.Event | None = None,
 ) -> dict[str, Any]:
     """Run ``ImageProcessor.process_export`` and write the file to ``dest_dir``."""
     source = Path(path)
@@ -37,6 +40,8 @@ def export_asset(
         raise FileNotFoundError(path)
 
     with _pipeline_lock:
+        if cancel is not None and cancel.is_set():
+            raise JobCancelled()
         _evict_source_cache_if_asset_changed(path)
 
         flat_overrides: dict[str, Any] = {}
@@ -45,9 +50,15 @@ def export_asset(
         if export_overrides:
             flat_overrides.update(export_overrides)
 
+        if cancel is not None and cancel.is_set():
+            raise JobCancelled()
         config = resolve_config(path, flat_overrides or None)
+        if cancel is not None and cancel.is_set():
+            raise JobCancelled()
         export_settings = config.export
         f_hash = cached_file_hash(path)
+        if cancel is not None and cancel.is_set():
+            raise JobCancelled()
 
         processor = _processor_instance()
         try:

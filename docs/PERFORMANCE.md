@@ -118,8 +118,8 @@ Include in the PR description or milestone notes:
 |-------|-------------------|
 | Phase 0 (this doc) | Capture initial baseline |
 | Phase 1 quick wins | `render_warm_ms`, `hash_warm_ms`, `export_then_preview_ms`, Swift `render_decode_png` |
-| Phase 2 interactive | Slider scrub manual + optional protocol warm/cancel notes |
-| Phase 3 frame switch | `frame_switch_ms`, Swift `frame_switch_total` |
+| Phase 2 interactive | Slider scrub manual + `test_render_executor` supersession/cancel |
+| Phase 3 frame switch | `frame_switch_ms`, Swift `frame_switch_total`, M5 folder import (20+ frames) |
 | Phase 4 transport | `protocol_render_*_ms`, Swift `render_decode_png` |
 
 ### Checked-in baseline (`tests/fixtures/perf_baseline.json`)

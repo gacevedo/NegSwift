@@ -181,6 +181,13 @@ Test scan path:
 - [ ] New transport format works; fallback PNG still works
 - [ ] IPC/decode baseline improved vs Phase 0
 
+**Phase 5 — Instant revisit (render memo)**
+
+- [ ] Navigate A → B → A with no edits — preview instant, no loading spinner (memo hit)
+- [ ] Edit on A, switch away, switch back — memo invalidated, fresh render shown
+- [ ] `frame_switch_revisit_ms` baseline recorded (real scan ≥ 20 MP)
+- [ ] No preview parity regression vs NegPy desktop after memo paths (spot-check M6)
+
 ---
 
 ## UI automation (NegSwiftUITests)

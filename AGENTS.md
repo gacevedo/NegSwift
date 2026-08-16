@@ -82,9 +82,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M9b** | **Done** — NegPy submodule at `Vendor/NegPy` |
 | M10 | PyInstaller / bundle — **Done** |
 | M11 | Polish — **Done** |
-| **M12** | **In progress** — Performance; Phase 2 complete, Phase 3 frame-switch gate next |
+| **M12** | **In progress** — Performance; Phase 3 done; Phase 5 instant revisit next |
 
-**Current status (2026-08-16):** M0–M11 done; **M12 Phase 2 complete** (render executor, supersession, cancel checks, parallel strip thumbs). Resume at Phase 3 gate — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-08-16):** M0–M11 done; **M12 Phase 3 complete** (prefetch, parallel strip thumbs). **Next:** Phase 5 instant revisit (render memo) — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) and [PLAN.md](PLAN.md) §7 M12 Phase 5. Phase 4 transport optional in parallel.
 
 ## Architecture rules
 

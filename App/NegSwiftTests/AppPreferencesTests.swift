@@ -7,7 +7,8 @@ import Foundation
 import Testing
 @testable import NegSwift
 
-@Suite struct AppPreferencesTests {
+@Suite(.serialized)
+struct AppPreferencesTests {
     @Test func previewQualityFallbackWhenUnset() {
         #expect(PreviewQuality(rawValue: 0) == nil)
         #expect(PreviewQuality(rawValue: 0) ?? .standard == .standard)

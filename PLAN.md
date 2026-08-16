@@ -23,9 +23,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.51.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
-| **M12** Performance | **In progress** | Phase 2 done; Phase 3 frame switch next |
+| **M12** Performance | **In progress** | Phase 3 done; Phase 5 instant revisit next (Phase 4 transport optional) |
 
-**Resume here:** **M12 Phase 3** (frame switch prefetch — see §7 M12). Release prep can run in parallel.
+**Resume here:** **M12 Phase 5** (instant revisit / render memo — see §7 M12). Phase 4 transport can run in parallel. Release prep can run in parallel.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -577,6 +577,33 @@ Swift:
 
 **Regression:** Full `make test`; manual regression smoke; re-run M6 parity spot-check after engine transport changes.
 
+#### Phase 5 — Instant revisit (render memo)
+
+NegPy desktop paints navigate-back **instantly** from `RenderMemo` (`negpy/desktop/render_memo.py`): the last displayed render per file is keyed by config fingerprint and reused when edits have not changed. NegSwift today always runs a full `render` on every `selectFrame`, so revisit feels slow even when the linear decode buffer is still hot (~100 ms synthetic baseline, often seconds on large scans when `PreviewBufferCache` misses). Phase 3 prefetch warms decode; it does not skip the pipeline or IPC round-trip.
+
+**Goal:** Selecting a frame you already viewed with the same edit state shows the last preview immediately (no loading overlay); authoritative render may refresh quietly in the background when needed.
+
+Swift (primary — no protocol change required):
+
+- [ ] Per-path preview memo in `EngineSession` — `(config fingerprint, NSImage, pixel size)` LRU (budget aligned with NegPy defaults, e.g. 8 entries)
+- [ ] Config fingerprint matches engine pipeline inputs (same fields as `pipelineConfig` / sidecar merge — process mode, density, grade, crop, WB, etc.)
+- [ ] On `selectFrame`: if memo hit, set `previewImage` / `currentPath` immediately (`isPreviewStale` false); skip engine `render` unless memo miss or forced refresh (export, crop overlay, explicit `refreshPreviewNow`)
+- [ ] Invalidate memo entry on edit, crop close, reset, export, or config save for that path
+- [ ] Optional background `render` after memo hit to refresh metrics / parity (same pattern as NegPy desktop quiet refresh)
+
+Engine (optional follow-on if Swift memo insufficient):
+
+- [ ] Engine-side processed-preview memo keyed by `(file_hash, memo_key)` — orchestration only; reference `RenderMemo` + controller store/get, do not fork pipeline math
+- [ ] Protocol hint or internal fast path so revisit avoids full pipeline when memo + `PreviewBufferCache` both hot
+
+UX:
+
+- [ ] Loading overlay only when there is no memo hit for the selected frame (not merely because `currentPath != selected` during a redundant re-render)
+
+**Gate:** Navigate A → B → A with no edits: preview appears instantly (perceived under 50 ms); Swift `frame_switch_total` on revisit near zero when memo hits. Large folder (20+ frames): back-navigation to recently viewed frames does not show spinner. Re-run M6 parity spot-check after memo invalidation paths.
+
+**Benchmarks:** Add `frame_switch_revisit_ms` (memo hit) to `docs/PERFORMANCE.md`; compare before/after on real scan ≥ 20 MP.
+
 ---
 
 ## 8. Project structure
@@ -681,7 +708,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 | Submodule drift / forgotten init | Document `--recurse-submodules`; CI fails fast if `Vendor/NegPy` empty |
 | PyInstaller + wgpu/numba fails | Fall back to embedded CPython; build always from submodule tree |
 | Large app size (~200MB+) | Engine-only freeze (no Qt); strip tests/docs from bundle |
-| Preview latency | M12: measure first; debounce, cancel/supersede jobs, hash/sidecar cache, softer export cleanup, transport v2 |
+| Preview latency | M12: measure first; debounce, cancel/supersede jobs, hash/sidecar cache, softer export cleanup, render memo (Phase 5), transport v2 (Phase 4) |
 | Config drift vs NegPy | Always serialize full `WorkspaceConfig`; lite UI only *shows* subset |
 | GPU OOM on huge scans | Same preview downscale as desktop (`preview_render_size`) |
 | Code signing embedded Python | Document entitlements; sign all `.so`; use `--onedir` |
@@ -690,9 +717,10 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M12 Phase 3 gate:** Re-run `make bench-engine` + manual M5 folder import (20+ frames) after Phase 3 changes; attach delta in PR.
-2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
-3. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
+1. **M12 Phase 5:** Implement Swift preview memo + revisit UX; add `frame_switch_revisit_ms` baseline; manual navigate-back test on real scan.
+2. **M12 Phase 4 (optional):** Preview transport v2 if IPC/decode still dominates after Phase 5 memo hits.
+3. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
+4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 
 ---
 

@@ -13,6 +13,7 @@ Measure before and after each M12 optimization phase. All engine benchmarks are 
 | `render_warm_ms` | Second render, same path (NegPy `PreviewManager` hot) |
 | `render_config_change_ms` | Render with a density override (slider settle proxy) |
 | `frame_switch_ms` | Render on a second file after warming the first |
+| `frame_switch_revisit_ms` | Navigate back to first file with unchanged edits (memo hit — Phase 5+) |
 | `export_ms` | Full `export_asset` |
 | `export_then_preview_ms` | Preview immediately after export (cache eviction path) |
 | `protocol_ping_ms` | NDJSON `ping` round-trip on a persistent `serve --stdio` session |
@@ -120,6 +121,7 @@ Include in the PR description or milestone notes:
 | Phase 1 quick wins | `render_warm_ms`, `hash_warm_ms`, `export_then_preview_ms`, Swift `render_decode_png` |
 | Phase 2 interactive | Slider scrub manual + `test_render_executor` supersession/cancel |
 | Phase 3 frame switch | `frame_switch_ms`, Swift `frame_switch_total`, M5 folder import (20+ frames) |
+| Phase 5 instant revisit | `frame_switch_revisit_ms`, Swift `frame_switch_total` on A→B→A, manual navigate-back |
 | Phase 4 transport | `protocol_render_*_ms`, Swift `render_decode_png` |
 
 ### Checked-in baseline (`tests/fixtures/perf_baseline.json`)

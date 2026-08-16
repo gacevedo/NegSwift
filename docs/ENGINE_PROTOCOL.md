@@ -212,6 +212,45 @@ Full-resolution export.
 **Params:** `{ "job_id": "<id of in-flight request>" }`  
 **Result:** `{ "cancelled": true }`
 
+### `append_heal_stroke` (M13 — planned)
+
+Map viewport-normalized polyline points to source space and append one heal stroke. NegPy stores strokes in `manual_heal_strokes`; repair runs on the next `render` / `export`.
+
+**Params:**
+
+```json
+{
+  "path": "/absolute/path/to/scan.tif",
+  "points": [[0.42, 0.55], [0.44, 0.58]],
+  "brush_size": 6,
+  "config": { }
+}
+```
+
+`points` — `[[nx, ny], ...]` in **display** space (0–1 over the preview image Swift shows).  
+`brush_size` — optional; defaults to sidecar `manual_dust_size` or **6**.  
+`config` — optional flat `WorkspaceConfig` overrides for the current edit (rotation, crop, etc.) so `uv_grid` matches the preview.
+
+**Result:**
+
+```json
+{
+  "manual_heal_strokes": [
+    [[[0.31, 0.52], [0.33, 0.55]], 6.0, 0.0, 0.0]
+  ],
+  "stroke_index": 0
+}
+```
+
+### `undo_last_heal` (M13b — planned)
+
+Remove the most recent manual heal (scratch polyline or legacy dust spot). Matches NegPy desktop context undo while a retouch tool is active.
+
+**Params:** `{ "path": "/absolute/path/to/scan.tif", "config": { } }`  
+**Result:** `{ "manual_heal_strokes": [ ], "manual_dust_spots": [ ], "removed": "stroke" }`
+
+`removed` is `"stroke"`, `"spot"`, or `null` when nothing to undo.
+
 ## Error codes
 
 | Code | Meaning |

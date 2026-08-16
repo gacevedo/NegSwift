@@ -139,6 +139,7 @@ Test scan path:
 - [x] Auto-detect C-41 / B&W on new scans (no sidecar); wand button re-runs detect on current frame
 - [x] Preferences (⌘,) — preview quality, GPU toggle, optical dust removal (threshold, size), NegPy data folder (shared `edits.db` with desktop NegPy)
 - [x] Keyboard: Space toggle fit, ⇧C crop tool, ⌘O import, ⌘E export; double-click preview toggles fit / 1:1
+- [ ] Keyboard (M13): ⇧S scratch tool; Enter finish polyline; ⌘Z undo last heal (M13b, scratch tool active)
 - [x] Crop overlay hides during 90° rotation until preview catches up (no wrong-aspect flash)
 
 ---
@@ -191,6 +192,40 @@ Test scan path:
 - [ ] Edit on A, switch away, switch back — memo invalidated, fresh render shown (manual)
 - [ ] `frame_switch_revisit_ms` baseline recorded on real scan ≥ 20 MP
 - [ ] No preview parity regression vs NegPy desktop after memo paths (spot-check M6)
+
+---
+
+## M13 — Scratch Tool (planned)
+
+HUD-only controls for v1 (toggle + brush size in canvas HUD; no Retouch sidebar until more tools ship). Default brush size **6** (NegPy `manual_dust_size`). See [PLAN.md](../PLAN.md) §7 M13.
+
+**Phase 0 — Engine + config**
+
+- [ ] `manual_heal_strokes` / `manual_dust_size` round-trip in `FrameEditState` and sidecar save/load
+- [ ] `append_heal_stroke` IPC maps viewport points to source coords (pytest on rotated frame)
+- [ ] `render` with committed stroke changes preview pixels
+
+**Phase 1 — Canvas**
+
+- [ ] ⇧S toggles scratch tool; mutual exclusion with crop tool
+- [ ] Click points along scratch/hair; double-click or Enter commits
+- [ ] Backspace removes last in-progress point; Esc clears points then exits tool
+- [ ] HUD shows tool state, brush size (2–16), and hint text
+- [ ] Preview double-click zoom disabled while tool active
+- [ ] Quit/reopen — strokes restored from `.negpy`
+- [ ] Same sidecar opens in NegPy desktop with strokes visible
+- [ ] Export TIFF — repair at full resolution
+
+**Phase 2 — Polish**
+
+- [ ] Placed-stroke overlay while tool active (optional)
+- [ ] Rotate frame 90° — new scratch still aligns with defect
+
+**M13b — Undo last heal**
+
+- [ ] `undo_last_heal` engine IPC
+- [ ] ⌘Z with scratch tool active removes most recent committed stroke (not general edit undo)
+- [ ] Undo persists to sidecar and invalidates preview memo
 
 ---
 

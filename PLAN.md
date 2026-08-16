@@ -24,8 +24,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
 | **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
+| **M13** Scratch Tool | **Planned** | Polyline scratch/hair heal; HUD controls; ⇧S; M13b ⌘Z undo last heal |
 
-**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **Then:** M13 — [§7 M13](#m13--scratch-tool-planned).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -229,6 +230,8 @@ Spec lives in `docs/ENGINE_PROTOCOL.md`. Summary:
 | `render` | `{ path, config }` → `{ png_base64 \| shared_memory_handle, metrics }` |
 | `export` | `{ path, config, export_settings, dest }` → `{ output_path }` |
 | `load_config` / `save_config` | Sidecar + optional DB |
+| `append_heal_stroke` | **M13** — viewport polyline → `manual_heal_strokes` (source coords) |
+| `undo_last_heal` | **M13b** — pop last manual heal stroke/spot |
 | `cancel` | Abort in-flight `render` / `export` by job id |
 
 Preview responses use **PNG bytes (base64)** in v1 for simplicity; Milestone 7+ can add shared memory or raw RGBA + width/height for Metal upload.
@@ -247,10 +250,11 @@ Preview responses use **PNG bytes (base64)** in v1 for simplicity; Milestone 7+ 
 - **Geometry:** auto crop, rotation, aspect ratio preset
 - **Export:** JPEG + TIFF, sRGB, next to source or chosen folder
 - Persist edits (`.negpy` sidecar; optional same DB path as NegPy)
+- **Retouch (M13):** scratch tool — click polyline along scratch/hair; commits to NegPy `manual_heal_strokes` (see [§7 M13](#m13--scratch-tool-planned))
 
 ### Deferred (open in full NegPy)
 
-- Dodge/burn, retouch brush, local masks
+- Dodge/burn, heal brush (paint), transport-line scratch tracer, local masks
 - Lab sharpening/clahe sliders, toning, finish borders/carrier
 - Scanner/camera capture, flat-field profile editor
 - History panel, work prints, metadata/gear, export presets/templates
@@ -606,6 +610,137 @@ UX:
 
 ---
 
+### M13 — Scratch Tool (planned)
+
+Manual scratch and hair repair via a click-polyline on the canvas. NegPy already implements the repair math (`strokes_to_score` on `manual_heal_strokes`); NegSwift adds canvas UX, config round-trip, and engine-side coordinate mapping. No algorithm fork.
+
+**Non-goals:** Heal brush (drag-paint), transport-line tool (`trace_scratch` / `scratch_lines`), IR removal UI, dust overlay inspector, right-click delete of placed strokes. A Retouch sidebar section may come later if heal brush or more tools are added.
+
+#### Locked decisions
+
+| Decision | Choice |
+|----------|--------|
+| **Panel location (v1)** | Compact controls in the **canvas HUD** only (tool toggle + brush size). No sidebar Retouch section until more tools warrant it. |
+| **M13b priority** | **⌘Z undo last heal** when scratch tool is active (NegPy context-undo pattern). Revisit delete-stroke / Clear All later. |
+| **Default brush size** | **6** px diameter — match NegPy `manual_dust_size` default (`HEAL_SIZE_REF` = 1600 px long edge). |
+
+#### NegPy reference (orchestration only)
+
+| Concern | Upstream |
+|---------|----------|
+| Stroke storage | `RetouchConfig.manual_heal_strokes` — `(points, size, 0.0, 0.0)`; `points` are **source-normalized** `[nx, ny]` |
+| Brush size key | `manual_dust_size` (default `6`) |
+| Repair | `negpy/features/retouch/logic.py` → `strokes_to_score` |
+| Desktop UX | `ToolMode.SCRATCH_PICK` — `negpy/desktop/view/canvas/overlay.py` |
+| Commit | `handle_heal_stroke_completed` → `CoordinateMapping.map_click_to_raw` via render `uv_grid` |
+| Shortcut | **⇧S** — `pick_scratch` in `negpy/desktop/view/shortcut_registry.py` |
+
+#### Interaction spec (match NegPy desktop)
+
+| Input | Behavior |
+|-------|----------|
+| **Left-click** | Append vertex on the image (ignore clicks outside image rect) |
+| **Double-click** | Finish polyline (dedupe near-duplicate last point from double-click) |
+| **Enter / Return** | Same as double-click when ≥ 1 point placed |
+| **Backspace** | Remove last in-progress point |
+| **Esc** | Ladder: (1) clear in-progress points → (2) deactivate tool |
+| **⇧S** | Toggle scratch tool (does not conflict with ⇧C crop) |
+| **⌘Z (M13b)** | While scratch tool active: remove most recent committed heal stroke (not general edit undo) |
+
+While active: show in-progress polyline; disable preview double-click zoom (same as crop tool); tool stays active after commit for multiple scratches per session.
+
+#### Architecture
+
+```
+SwiftUI — ScratchToolOverlayView + canvas HUD (toggle, brush size)
+    → EngineSession (tool state, manual_heal_strokes, debounced render/save)
+    → negswift-engine append_heal_stroke (viewport pts → source pts via uv_grid)
+    → NegPy ImageProcessor source bake (strokes_to_score)
+```
+
+**Coordinate mapping:** Preview clicks are in **display-normalized** space (0–1 in the bitmap Swift shows). NegPy stores strokes in **source-normalized** space. With rotation/fine rotation they differ. Do **not** reimplement `CoordinateMapping` in Swift.
+
+New engine IPC (see [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md)):
+
+- **`append_heal_stroke`** — map viewport points, append to `manual_heal_strokes`, return full updated list.
+- **`undo_last_heal` (M13b)** — pop last stroke from `manual_heal_strokes` (+ legacy `manual_dust_spots` if needed for parity); return updated list.
+
+Swift sends the **full** `manual_heal_strokes` array on `save_config` once it owns the field. Sidecar merge preserves other retouch keys (e.g. desktop `scratch_lines`) when Swift does not send them.
+
+#### Data model (`FrameEditState`)
+
+| Field | Flat key | Default |
+|-------|----------|---------|
+| `manualHealStrokes` | `manual_heal_strokes` | `[]` |
+| `manualDustSize` | `manual_dust_size` | `6` |
+
+Wire format per stroke: `[[[nx, ny], ...], size, 0.0, 0.0]`. Include in `PreviewRenderMemo` fingerprint; invalidate memo on stroke commit.
+
+#### UI (canvas HUD v1)
+
+Extend `PreviewCanvasView` HUD (bottom-leading, beside zoom/crop hints):
+
+- Scratch tool toggle (active state visible)
+- Brush size control (2–16 px) — visible when tool active
+- Short hint: “Click along scratch — Enter to finish”
+
+New `ScratchToolOverlayView` (pattern: `CropOverlayView`) — polyline capture, `PreviewCanvasGeometry.aspectFitRect` for hit testing. Mutual exclusion with crop tool in `EngineSession`.
+
+Menu / commands: **⇧S** in `NegSwiftApp` + `MainWindowCommandBridge`; Enter finishes in-progress polyline when tool active.
+
+#### Phased delivery
+
+**Phase 0 — Config + engine commit (no canvas UI)**
+
+- [ ] `FrameEditState` fields + round-trip tests
+- [ ] `append_heal_stroke` IPC + `docs/ENGINE_PROTOCOL.md` + pytest (mapping on rotated frame)
+- [ ] Render/export apply strokes; memo fingerprint includes heals
+
+**Gate:** `uv run pytest`; hand-authored stroke in sidecar shows repair on `render`.
+
+**Phase 1 — Canvas polyline**
+
+- [ ] `EngineSession.isScratchToolActive`; exclude crop tool
+- [ ] `ScratchToolOverlayView` — click, draw, double-click / Enter finish
+- [ ] Commit via `append_heal_stroke`; debounced preview + save
+- [ ] Esc / Backspace; HUD toggle + brush size (default 6)
+
+**Gate:** Place polyline on scratch; preview updates; `.negpy` round-trips; reopen restores.
+
+**Phase 2 — Shortcut + polish**
+
+- [ ] ⇧S menu shortcut
+- [ ] Placed-stroke overlay while tool active (optional; match NegPy `_draw_placed_heals`)
+- [ ] Manual checklist M13 complete
+
+**M13b — Undo last heal**
+
+- [ ] `undo_last_heal` engine IPC + protocol test
+- [ ] ⌘Z when scratch tool active → pop last stroke (NegPy `_context_undo` behavior)
+- [ ] Persist + memo invalidation
+
+**Deferred (post-M13b):** right-click delete stroke, transport-line tool, Retouch sidebar, Clear All heals.
+
+#### Testing
+
+| Layer | Coverage |
+|-------|----------|
+| Engine | `test_append_heal_stroke.py`, `test_undo_last_heal.py`; config round-trip |
+| Swift | `FrameEditStateTests`; overlay normalized coords; tool vs crop exclusion |
+| Manual | `docs/MANUAL_TEST_CHECKLIST.md` M13 |
+
+**Manual smoke:** ⇧S → polyline along defect → Enter → preview heals; quit/reopen; open sidecar in NegPy desktop; rotate 90° and place scratch (mapping); export TIFF at full res.
+
+#### Risks
+
+| Risk | Mitigation |
+|------|------------|
+| Coordinate drift with rotation | Engine-only `uv_grid` mapping; parity test vs NegPy |
+| Memo serves stale preview | Invalidate on commit; strokes in fingerprint |
+| ⌘Z conflicts with edit undo | Only when scratch tool active (match NegPy) |
+
+---
+
 ## 8. Project structure
 
 ```
@@ -719,7 +854,8 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 1. **M12 manual:** Navigate A→B→A on real scan ≥ 20 MP; record `frame_switch_revisit_ms` and JPEG transport baselines.
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
-3. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
+3. **M13 Phase 0:** `append_heal_stroke` IPC + `FrameEditState` heal fields (see [§7 M13](#m13--scratch-tool-planned)).
+4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 
 ---
 

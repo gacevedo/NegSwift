@@ -83,8 +83,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M10 | PyInstaller / bundle — **Done** |
 | M11 | Polish — **Done** |
 | **M12** | **In progress** — Performance; Phase 4 JPEG transport + Phase 5 preview memo done |
+| **M13** | **Planned** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 
-**Current status (2026-08-16):** M0–M11 done; **M12 Phase 4 complete** (JPEG preview IPC); **M12 Phase 5 complete** (Swift preview render memo). **Next:** M12 manual benchmarks on real scan; release smoke — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) and [PLAN.md](PLAN.md) §7 M12.
+**Current status (2026-08-16):** M0–M11 done; **M12 Phase 4 complete** (JPEG preview IPC); **M12 Phase 5 complete** (Swift preview render memo). **Next:** M12 manual benchmarks on real scan; release smoke — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) and [PLAN.md](PLAN.md) §7 M12. **Then M13** — [PLAN.md](PLAN.md) §7 M13.
 
 ## Architecture rules
 
@@ -144,9 +145,9 @@ When adding a protocol method: update `ENGINE_PROTOCOL.md`, engine dispatcher, S
 
 ## Lite UI scope (v1)
 
-**In scope:** folder import, film strip, canvas preview, process mode, auto density/grade, density/grade/saturation, WB CMY, crop/rotation, JPEG/TIFF export, sidecar persist.
+**In scope:** folder import, film strip, canvas preview, process mode, auto density/grade, density/grade/saturation, WB CMY, crop/rotation, JPEG/TIFF export, sidecar persist, **scratch tool (M13)** — polyline along scratch/hair into `manual_heal_strokes`.
 
-**Out of scope (defer to full NegPy):** scanner/camera, dodge/burn, retouch brush, lab/toning/finish panels, history/work prints, metadata gear library, soft proof, contact sheets, export presets/templates.
+**Out of scope (defer to full NegPy):** scanner/camera, dodge/burn, heal brush (paint), transport-line scratch tracer, lab/toning/finish panels, history/work prints, metadata gear library, soft proof, contact sheets, export presets/templates.
 
 Do not expand scope without explicit user request. Prefer opening full NegPy for advanced edits.
 

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import base64
 import json
+import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 
@@ -94,3 +96,60 @@ def test_render_omitted_long_edge_defaults_to_standard(large_tiff: Path) -> None
     assert explicit["ok"] is True
     assert default["ok"] is True
     assert _render_long_edge(explicit["result"]) == _render_long_edge(default["result"])
+
+
+def test_concurrent_frame_switch_renders(sample_tiff: Path, tmp_path: Path) -> None:
+    """Preview + thumbnail renders for different frames must not race on the GPU pool."""
+    from ndjson_helpers import ndjson_stdio_session
+
+    frame_a = tmp_path / "frame_a.tif"
+    frame_b = tmp_path / "frame_b.tif"
+    shutil.copy(sample_tiff, frame_a)
+    shutil.copy(sample_tiff, frame_b)
+
+    results: list[dict] = []
+    errors: list[BaseException] = []
+
+    def run_render(session, path: Path, req_id: str, *, long_edge_px: int | None) -> None:
+        try:
+            params: dict = {"path": str(path), "prefer_gpu": True}
+            if long_edge_px is not None:
+                params["long_edge_px"] = long_edge_px
+            results.append(session.request("render", params, req_id=req_id))
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    with ndjson_stdio_session() as session:
+        threads = [
+            threading.Thread(
+                target=run_render,
+                args=(
+                    session,
+                    frame_a,
+                    "preview-a",
+                ),
+                kwargs={"long_edge_px": None},
+                daemon=True,
+            ),
+            threading.Thread(
+                target=run_render,
+                args=(
+                    session,
+                    frame_b,
+                    "thumb-b",
+                ),
+                kwargs={"long_edge_px": 160},
+                daemon=True,
+            ),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=60)
+
+    assert not errors
+    assert len(results) == 2
+    for msg in results:
+        assert msg["ok"] is True, msg
+        png = base64.standard_b64decode(msg["result"]["png_base64"])
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"

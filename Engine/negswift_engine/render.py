@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import io
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,9 @@ from negswift_engine.sidecar_io import clear_sidecar_cache, delete_sidecar, read
 _processor: ImageProcessor | None = None
 _preview_manager: PreviewManager | None = None
 _active_asset_path: str | None = None
+# Preview and thumbnail renders run on separate engine threads; the shared
+# ImageProcessor GPU pool must not be torn down while another render holds textures.
+_pipeline_lock = threading.Lock()
 
 
 def _processor_instance() -> ImageProcessor:
@@ -51,11 +55,12 @@ def _preview_manager_instance() -> PreviewManager:
 def reset_render_cache() -> None:
     """Drop singleton processor/preview manager — benchmarks and tests only."""
     global _processor, _preview_manager, _active_asset_path
-    if _processor is not None:
-        _processor.cleanup(release_source_cache=True, collect=True)
-    _processor = None
-    _preview_manager = None
-    _active_asset_path = None
+    with _pipeline_lock:
+        if _processor is not None:
+            _processor.cleanup(release_source_cache=True, collect=True)
+        _processor = None
+        _preview_manager = None
+        _active_asset_path = None
     clear_file_hash_cache()
     clear_sidecar_cache()
 
@@ -119,7 +124,8 @@ def reset_config_dict(path: str) -> dict[str, Any]:
 
 
 def open_asset(path: str) -> dict[str, Any]:
-    _evict_source_cache_if_asset_changed(path)
+    with _pipeline_lock:
+        _evict_source_cache_if_asset_changed(path)
     pm = _preview_manager_instance()
     f_hash = cached_file_hash(path)
     buffer, dims, _meta = pm.load_linear_preview(path, color_space=WORKING_COLOR_SPACE, file_hash=f_hash)
@@ -141,56 +147,57 @@ def render_preview_png(
     crop_preview_full: bool = False,
 ) -> tuple[bytes, int, int, dict[str, Any]]:
     """Run the NegPy preview pipeline; return PNG bytes, width, height, metrics."""
-    _evict_source_cache_if_asset_changed(path)
-    config = resolve_config(path, config_overrides)
-    f_hash = cached_file_hash(path)
-    preview_size = float(long_edge_px or APP_CONFIG.preview_render_size)
-    load_full_res = preview_size > float(APP_CONFIG.preview_render_size)
+    with _pipeline_lock:
+        _evict_source_cache_if_asset_changed(path)
+        config = resolve_config(path, config_overrides)
+        f_hash = cached_file_hash(path)
+        preview_size = float(long_edge_px or APP_CONFIG.preview_render_size)
+        load_full_res = preview_size > float(APP_CONFIG.preview_render_size)
 
-    pm = _preview_manager_instance()
-    buffer, _dims, meta = pm.load_linear_preview(
-        path,
-        color_space=WORKING_COLOR_SPACE,
-        file_hash=f_hash,
-        full_resolution=load_full_res,
-    )
-    ir_buffer = meta.get("ir_preview")
+        pm = _preview_manager_instance()
+        buffer, _dims, meta = pm.load_linear_preview(
+            path,
+            color_space=WORKING_COLOR_SPACE,
+            file_hash=f_hash,
+            full_resolution=load_full_res,
+        )
+        ir_buffer = meta.get("ir_preview")
 
-    processor = _processor_instance()
-    result, metrics = processor.run_pipeline(
-        buffer,
-        config,
-        f_hash,
-        render_size_ref=preview_size,
-        prefer_gpu=prefer_gpu and APP_CONFIG.use_gpu,
-        readback_metrics=False,
-        ir_buffer=ir_buffer,
-        crop_preview_full=crop_preview_full,
-    )
+        processor = _processor_instance()
+        result, metrics = processor.run_pipeline(
+            buffer,
+            config,
+            f_hash,
+            render_size_ref=preview_size,
+            prefer_gpu=prefer_gpu and APP_CONFIG.use_gpu,
+            readback_metrics=False,
+            ir_buffer=ir_buffer,
+            crop_preview_full=crop_preview_full,
+        )
 
-    if isinstance(result, GPUTexture):
-        rgb = np.ascontiguousarray(result.readback()[:, :, :3])
-    elif isinstance(result, np.ndarray):
-        rgb = result[:, :, :3] if result.ndim == 3 and result.shape[2] >= 3 else result
-    else:
-        raise TypeError(f"Unexpected pipeline result type: {type(result)!r}")
+        if isinstance(result, GPUTexture):
+            rgb = np.ascontiguousarray(result.readback()[:, :, :3])
+        elif isinstance(result, np.ndarray):
+            rgb = result[:, :, :3] if result.ndim == 3 and result.shape[2] >= 3 else result
+        else:
+            raise TypeError(f"Unexpected pipeline result type: {type(result)!r}")
 
-    rgb = apply_display_transform(rgb.astype(np.float32, copy=False), WORKING_COLOR_SPACE)
-    u8 = float_to_uint8(rgb)
-    h, w = u8.shape[:2]
-    long_edge = max(h, w)
-    if long_edge > preview_size:
-        scale = preview_size / long_edge
-        target_w = max(1, int(w * scale))
-        target_h = max(1, int(h * scale))
-        u8 = cv2.resize(u8, (target_w, target_h), interpolation=cv2.INTER_AREA)
-    h, w = u8.shape[:2]
+        rgb = apply_display_transform(rgb.astype(np.float32, copy=False), WORKING_COLOR_SPACE)
+        u8 = float_to_uint8(rgb)
+        h, w = u8.shape[:2]
+        long_edge = max(h, w)
+        if long_edge > preview_size:
+            scale = preview_size / long_edge
+            target_w = max(1, int(w * scale))
+            target_h = max(1, int(h * scale))
+            u8 = cv2.resize(u8, (target_w, target_h), interpolation=cv2.INTER_AREA)
+        h, w = u8.shape[:2]
 
-    png = Image.fromarray(u8, mode="RGB")
-    out = io.BytesIO()
-    png.save(out, format="PNG")
-    slim_metrics = {k: metrics[k] for k in ("gpu_fallback",) if k in metrics}
-    return out.getvalue(), w, h, slim_metrics
+        png = Image.fromarray(u8, mode="RGB")
+        out = io.BytesIO()
+        png.save(out, format="PNG")
+        slim_metrics = {k: metrics[k] for k in ("gpu_fallback",) if k in metrics}
+        return out.getvalue(), w, h, slim_metrics
 
 
 def render_preview_base64(

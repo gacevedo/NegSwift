@@ -221,15 +221,13 @@ struct ContentView: View {
     @ViewBuilder
     private var previewPane: some View {
         ZStack {
-            if engineSession.isRenderingPreview, engineSession.previewImage == nil {
-                ProgressView("Rendering preview…")
-            } else if let image = engineSession.previewImage {
+            if let image = engineSession.previewImage {
                 PreviewCanvasView(
                     session: engineSession,
                     zoomMode: $previewZoomMode,
                     image: image
                 )
-            } else {
+            } else if !engineSession.isPreviewStale {
                 VStack(spacing: 16) {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.system(size: 48))
@@ -257,6 +255,12 @@ struct ContentView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay {
+            if engineSession.isPreviewStale {
+                previewLoadingOverlay
+            }
+        }
         .overlay {
             if engineSession.isExporting, let settings = engineSession.activeExportSettings {
                 ExportProgressView(statusText: settings.progressStatusText)
@@ -282,6 +286,21 @@ struct ContentView: View {
             }
             .padding()
         }
+    }
+
+    private var previewLoadingOverlay: some View {
+        ZStack {
+            if engineSession.previewImage != nil {
+                Color.black.opacity(0.25)
+            }
+            ProgressView("Loading image…")
+                .fixedSize()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityIdentifier("negSwift.previewLoading")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

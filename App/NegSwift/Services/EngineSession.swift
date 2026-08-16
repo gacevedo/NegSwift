@@ -92,6 +92,15 @@ final class EngineSession {
         return frames.first(where: { $0.id == id })?.path
     }
 
+    /// True while the canvas preview does not yet match the selected film-strip frame.
+    var isPreviewStale: Bool {
+        guard let selected = selectedFramePath else { return false }
+        if currentPath == selected { return false }
+        if isRenderingPreview { return true }
+        if previewError != nil { return false }
+        return true
+    }
+
     func clearExportError() {
         exportError = nil
     }
@@ -693,7 +702,7 @@ final class EngineSession {
         previewGeneration += 1
         let generation = previewGeneration
         await renderPreview(at: frame.url, generation: generation)
-        await loadMissingThumbnails()
+        Task { await loadMissingThumbnails() }
         if PerformanceLogger.isEnabled {
             let ms = (CFAbsoluteTimeGetCurrent() - selectStart) * 1000
             PerformanceLogger.event("frame_switch_total", milliseconds: ms)

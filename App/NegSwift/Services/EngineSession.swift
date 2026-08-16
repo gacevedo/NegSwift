@@ -223,7 +223,7 @@ final class EngineSession {
     }
 
     var isLoadingCropPreview: Bool {
-        isCropToolActive && !isCropOverlayReady && isRenderingPreview
+        isCropToolActive && !isCropOverlayReady
     }
 
     func setCropToolActive(_ active: Bool) {
@@ -291,13 +291,21 @@ final class EngineSession {
     func rotateCounterClockwise() { applyRotation(direction: 1) }
 
     private func applyRotation(direction: Int) {
-        updateEdit { edit in
+        updateEdit(refreshPreview: false) { edit in
             edit.rotation = (edit.rotation + direction + 4) % 4
             if let rect = edit.manualCropRect {
                 edit.manualCropRect = rect.rotated(quarterTurnsCCW: direction)
             }
         }
         syncCropPreviewBaselineGeometry(from: currentEdit)
+        invalidateCropOverlayForGeometryPreview()
+        refreshPreviewNow()
+    }
+
+    /// Hide the crop overlay until the crop-preview render catches up with geometry edits.
+    private func invalidateCropOverlayForGeometryPreview() {
+        guard isCropToolActive else { return }
+        isCropOverlayReady = false
     }
 
     private func initializeCropRectIfNeeded() {

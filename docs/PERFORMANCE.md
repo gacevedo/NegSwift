@@ -25,6 +25,7 @@ Swift UI timings (Debug only, env `NEGSWIFT_PERF_LOG=1`):
 | Log label | What it measures |
 |-----------|------------------|
 | `frame_switch_total` | `selectFrame` end-to-end |
+| `frame_switch_memo_hit` | `selectFrame` when preview memo restores canvas (Phase 5+) |
 | `render_ipc` | Engine `render` IPC wait |
 | `render_decode_png` | Base64 decode + `NSImage` creation |
 

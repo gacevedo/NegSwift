@@ -90,6 +90,7 @@ def run_scenarios(
     reset_render_cache()
     render_preview_png(path, **render_kwargs)
     _, timings["frame_switch_ms"] = _time_call(lambda: render_preview_png(alt, **render_kwargs))
+    _, timings["frame_switch_revisit_ms"] = _time_call(lambda: render_preview_png(path, **render_kwargs))
 
     reset_render_cache()
     render_preview_png(path, **render_kwargs)

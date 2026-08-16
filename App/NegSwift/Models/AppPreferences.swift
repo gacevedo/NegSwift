@@ -33,6 +33,11 @@ struct PreviewRenderSettings: Equatable, Sendable {
         longEdgePx = preferences.previewQuality.longEdgePx
         preferGPU = preferences.preferGPU
     }
+
+    init(longEdgePx: Int, preferGPU: Bool) {
+        self.longEdgePx = longEdgePx
+        self.preferGPU = preferGPU
+    }
 }
 
 enum NegPyUserDataLocation: String, CaseIterable, Identifiable, Sendable {

@@ -3,6 +3,7 @@
 //  NegSwiftTests
 //
 
+import AppKit
 import Testing
 @testable import NegSwift
 
@@ -18,5 +19,17 @@ struct EngineSessionPreviewStateTests {
         session.setPreviewLoadingMessageForTests(nil)
         session.setCurrentPathForTests(session.frames[0].path)
         #expect(!session.isPreviewStale)
+    }
+
+    @Test @MainActor func memoHitShowsCurrentFrameWithoutSpinner() {
+        let session = EngineSession.preview
+        let path = session.frames[0].path
+        let image = NSImage(size: NSSize(width: 100, height: 80))
+        session.storePreviewMemoForTests(path: path, image: image, pixelSize: CGSize(width: 100, height: 80))
+        session.setCurrentPathForTests(path)
+        session.setPreviewImageForTests(image)
+        session.setPreviewLoadingMessageForTests(nil)
+        #expect(!session.isPreviewStale)
+        #expect(session.previewMemoHitForTests(path: path))
     }
 }

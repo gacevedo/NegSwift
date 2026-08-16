@@ -66,6 +66,7 @@ final class EngineSession {
     private(set) var exportError: String?
 
     private var exportTask: Task<ExportResult, Error>?
+    private var previewMemo = PreviewRenderMemo()
 
     var engineReady: Bool {
         if case .ready = state { return true }
@@ -190,7 +191,9 @@ final class EngineSession {
             exportTask = nil
         }
         do {
-            return try await task.value
+            let result = try await task.value
+            previewMemo.invalidate(path: path)
+            return result
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -254,6 +257,7 @@ final class EngineSession {
         for path in targetPaths {
             guard let frame = frames.first(where: { $0.path == path }) else { continue }
 
+            previewMemo.invalidate(path: path)
             frameEdits[path] = defaultEditState()
             dirtyPaths.remove(path)
             pathsWithStoredProcessMode.remove(path)
@@ -561,6 +565,7 @@ final class EngineSession {
         guard let path = selectedFramePath,
               let frame = frames.first(where: { $0.path == path })
         else { return }
+        previewMemo.invalidate(path: path)
         var edit = frameEdits[path] ?? defaultEditState()
         transform(&edit)
         frameEdits[path] = edit
@@ -600,6 +605,7 @@ final class EngineSession {
         do {
             _ = try await client.saveConfig(path: path, config: pipelineConfig(for: edit))
             dirtyPaths.remove(path)
+            previewMemo.invalidate(path: path)
         } catch {
             previewError = "Could not save edits: \(error.localizedDescription)"
         }
@@ -658,6 +664,7 @@ final class EngineSession {
         previewError = nil
         currentPath = nil
         isRenderingPreview = false
+        previewMemo.clear()
 
         if clearWorkspace {
             clearFilmStrip()
@@ -696,6 +703,7 @@ final class EngineSession {
         previewGeneration += 1
         let previewGen = previewGeneration
         stripGeneration += 1
+        previewMemo.clear()
 
         for index in frames.indices {
             updateFrame(at: index) { $0.thumbnail = nil }
@@ -839,6 +847,20 @@ final class EngineSession {
         prefetchAsset(at: frame.url)
         await editReady
         previewDebounce.cancel()
+
+        let path = frame.path
+        let memoFingerprint = previewMemoFingerprint(for: path, cropPreviewFull: false)
+        if let memo = previewMemo.get(path: path, fingerprint: memoFingerprint) {
+            applyPreviewMemo(memo, path: path)
+            scheduleLoadMissingThumbnails()
+            if PerformanceLogger.isEnabled {
+                let ms = (CFAbsoluteTimeGetCurrent() - selectStart) * 1000
+                PerformanceLogger.event("frame_switch_total", milliseconds: ms)
+                PerformanceLogger.event("frame_switch_memo_hit", milliseconds: ms)
+            }
+            return
+        }
+
         previewGeneration += 1
         let generation = previewGeneration
         await renderPreview(at: frame.url, generation: generation)
@@ -885,6 +907,7 @@ final class EngineSession {
         Task {
             guard let detected = await detectProcessMode(path: path, force: false) else { return }
             guard var edit = frameEdits[path], edit.processMode != detected else { return }
+            previewMemo.invalidate(path: path)
             edit.processMode = detected
             frameEdits[path] = edit
             if path == selectedFramePath {
@@ -960,6 +983,12 @@ final class EngineSession {
             previewImage = image
             previewPixelSize = CGSize(width: result.width, height: result.height)
             currentPath = path
+            storePreviewMemo(
+                path: path,
+                image: image,
+                pixelSize: CGSize(width: result.width, height: result.height),
+                cropPreviewFull: isCropToolActive
+            )
             if isCropToolActive {
                 finishCropPreviewOverlay(for: path, result: result)
             } else {
@@ -1277,6 +1306,39 @@ final class EngineSession {
         pendingThumbnailRefreshAfterCropClose = false
         pendingAutoCropSeed = false
         previewPixelSize = nil
+        previewMemo.clear()
+    }
+
+    private func previewMemoFingerprint(for path: String, cropPreviewFull: Bool) -> String {
+        let base = frameEdits[path] ?? defaultEditState()
+        let config = pipelineConfig(for: base)
+        let settings = PreviewRenderSettings(preferences: preferences)
+        return PreviewMemoFingerprint.make(
+            pipelineConfig: config,
+            settings: settings,
+            cropPreviewFull: cropPreviewFull
+        )
+    }
+
+    private func applyPreviewMemo(_ entry: PreviewRenderMemo.Entry, path: String) {
+        previewImage = entry.image
+        previewPixelSize = entry.pixelSize
+        currentPath = path
+        isRenderingPreview = false
+        previewError = nil
+        if !isCropToolActive {
+            applyPreviewToSelectedThumbnail()
+        }
+    }
+
+    private func storePreviewMemo(path: String, image: NSImage, pixelSize: CGSize, cropPreviewFull: Bool) {
+        let fingerprint = previewMemoFingerprint(for: path, cropPreviewFull: cropPreviewFull)
+        previewMemo.store(
+            path: path,
+            fingerprint: fingerprint,
+            image: image,
+            pixelSize: pixelSize
+        )
     }
 
     private func beginFileAccess(for url: URL) -> Bool {
@@ -1361,6 +1423,19 @@ final class EngineSession {
 
     func setFramesForTests(_ frames: [ScanFrame]) {
         self.frames = frames
+    }
+
+    func setPreviewImageForTests(_ image: NSImage?) {
+        previewImage = image
+    }
+
+    func storePreviewMemoForTests(path: String, image: NSImage, pixelSize: CGSize) {
+        storePreviewMemo(path: path, image: image, pixelSize: pixelSize, cropPreviewFull: false)
+    }
+
+    func previewMemoHitForTests(path: String) -> Bool {
+        let fingerprint = previewMemoFingerprint(for: path, cropPreviewFull: false)
+        return previewMemo.get(path: path, fingerprint: fingerprint) != nil
     }
     #endif
 

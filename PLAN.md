@@ -23,9 +23,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.51.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
-| **M12** Performance | **In progress** | Phase 3 done; Phase 5 instant revisit next (Phase 4 transport optional) |
+| **M12** Performance | **In progress** | Phase 5 instant revisit done (Swift preview memo); Phase 4 transport optional |
 
-**Resume here:** **M12 Phase 5** (instant revisit / render memo — see §7 M12). Phase 4 transport can run in parallel. Release prep can run in parallel.
+**Resume here:** **M12 Phase 4** (optional preview transport) or release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -585,10 +585,10 @@ NegPy desktop paints navigate-back **instantly** from `RenderMemo` (`negpy/deskt
 
 Swift (primary — no protocol change required):
 
-- [ ] Per-path preview memo in `EngineSession` — `(config fingerprint, NSImage, pixel size)` LRU (budget aligned with NegPy defaults, e.g. 8 entries)
-- [ ] Config fingerprint matches engine pipeline inputs (same fields as `pipelineConfig` / sidecar merge — process mode, density, grade, crop, WB, etc.)
-- [ ] On `selectFrame`: if memo hit, set `previewImage` / `currentPath` immediately (`isPreviewStale` false); skip engine `render` unless memo miss or forced refresh (export, crop overlay, explicit `refreshPreviewNow`)
-- [ ] Invalidate memo entry on edit, crop close, reset, export, or config save for that path
+- [x] Per-path preview memo in `EngineSession` — `(config fingerprint, NSImage, pixel size)` LRU (budget aligned with NegPy defaults, e.g. 8 entries)
+- [x] Config fingerprint matches engine pipeline inputs (same fields as `pipelineConfig` / sidecar merge — process mode, density, grade, crop, WB, etc.)
+- [x] On `selectFrame`: if memo hit, set `previewImage` / `currentPath` immediately (`isPreviewStale` false); skip engine `render` unless memo miss or forced refresh (export, crop overlay, explicit `refreshPreviewNow`)
+- [x] Invalidate memo entry on edit, crop close, reset, export, or config save for that path
 - [ ] Optional background `render` after memo hit to refresh metrics / parity (same pattern as NegPy desktop quiet refresh)
 
 Engine (optional follow-on if Swift memo insufficient):
@@ -598,7 +598,7 @@ Engine (optional follow-on if Swift memo insufficient):
 
 UX:
 
-- [ ] Loading overlay only when there is no memo hit for the selected frame (not merely because `currentPath != selected` during a redundant re-render)
+- [x] Loading overlay only when there is no memo hit for the selected frame (not merely because `currentPath != selected` during a redundant re-render)
 
 **Gate:** Navigate A → B → A with no edits: preview appears instantly (perceived under 50 ms); Swift `frame_switch_total` on revisit near zero when memo hits. Large folder (20+ frames): back-navigation to recently viewed frames does not show spinner. Re-run M6 parity spot-check after memo invalidation paths.
 
@@ -717,8 +717,8 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M12 Phase 5:** Implement Swift preview memo + revisit UX; add `frame_switch_revisit_ms` baseline; manual navigate-back test on real scan.
-2. **M12 Phase 4 (optional):** Preview transport v2 if IPC/decode still dominates after Phase 5 memo hits.
+1. **M12 Phase 4 (optional):** Preview transport v2 if IPC/decode still dominates after Phase 5 memo hits.
+2. **M12 manual:** Navigate A→B→A on real scan ≥ 20 MP; record `frame_switch_revisit_ms` baseline.
 3. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 

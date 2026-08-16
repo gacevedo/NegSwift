@@ -1,8 +1,8 @@
 {
   "version": 1,
   "profile": "synthetic_large",
-  "captured_at": "2026-08-16T18:14:02Z",
-  "commit": "5c76128",
+  "captured_at": "2026-08-16T21:14:48Z",
+  "commit": "f5ebe21",
   "machine": {
     "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
     "processor": "arm",
@@ -12,18 +12,19 @@
   "prefer_gpu": false,
   "long_edge_px": null,
   "timings_ms": {
-    "hash_ms": 4.420707991812378,
-    "hash_warm_ms": 0.09145902004092932,
-    "sidecar_ms": 0.032333016861230135,
-    "resolve_config_ms": 0.3687090356834233,
-    "render_cold_ms": 2425.615415966604,
-    "render_warm_ms": 88.16254197154194,
-    "render_config_change_ms": 316.0178330144845,
-    "frame_switch_ms": 119.25225000595674,
-    "export_ms": 940.811208973173,
-    "export_then_preview_ms": 491.75087502226233,
-    "protocol_ping_ms": 685.7922920025885,
-    "protocol_render_cold_ms": 2382.9114160034806,
-    "protocol_render_warm_ms": 95.46695800963789
+    "hash_ms": 10.376624995842576,
+    "hash_warm_ms": 0.08583400631323457,
+    "sidecar_ms": 0.040040991734713316,
+    "resolve_config_ms": 0.4175839712843299,
+    "render_cold_ms": 2660.615083994344,
+    "render_warm_ms": 71.61070802249014,
+    "render_config_change_ms": 292.3985840170644,
+    "frame_switch_ms": 102.08354197675362,
+    "frame_switch_revisit_ms": 97.59508399292827,
+    "export_ms": 948.4593340312131,
+    "export_then_preview_ms": 518.3929579798132,
+    "protocol_ping_ms": 593.4690000140108,
+    "protocol_render_cold_ms": 2585.0412910222076,
+    "protocol_render_warm_ms": 74.53225000062957
   }
 }

@@ -110,6 +110,12 @@ enum JSONValue: Codable, Sendable {
     }
 }
 
+/// Preview image encoding for engine `render` IPC (M12 Phase 4).
+enum PreviewTransportFormat: String, Encodable, Sendable {
+    case png
+    case jpeg
+}
+
 struct RenderMetrics: Codable, Sendable {
     let detectedCropRect: [Double]?
 
@@ -121,18 +127,36 @@ struct RenderMetrics: Codable, Sendable {
 struct RenderResult: Codable, Sendable {
     let width: Int
     let height: Int
-    let pngBase64: String
+    let previewFormat: String?
+    let pngBase64: String?
+    let jpegBase64: String?
     let metrics: RenderMetrics?
 
     enum CodingKeys: String, CodingKey {
         case width
         case height
+        case previewFormat = "preview_format"
         case pngBase64 = "png_base64"
+        case jpegBase64 = "jpeg_base64"
         case metrics
     }
 
+    var imageBase64: String? {
+        if previewFormat == PreviewTransportFormat.jpeg.rawValue || jpegBase64 != nil && pngBase64 == nil {
+            return jpegBase64
+        }
+        return pngBase64 ?? jpegBase64
+    }
+
+    var imageData: Data? {
+        guard let imageBase64 else { return nil }
+        return Data(base64Encoded: imageBase64)
+    }
+
+    /// Legacy accessor — PNG responses only.
     var pngData: Data? {
-        Data(base64Encoded: pngBase64)
+        guard let pngBase64 else { return nil }
+        return Data(base64Encoded: pngBase64)
     }
 }
 
@@ -261,7 +285,9 @@ actor EngineClient {
         preferGPU: Bool = true,
         config: FrameEditState? = nil,
         cropPreviewFull: Bool = false,
-        stripThumbnail: Bool = false
+        stripThumbnail: Bool = false,
+        previewFormat: PreviewTransportFormat = .jpeg,
+        jpegQuality: Int = PreviewRenderSettings.previewJPEGQuality
     ) async throws -> RenderResult {
         if !stripThumbnail {
             if let previous = activePreviewJobID {
@@ -293,7 +319,9 @@ actor EngineClient {
                     longEdgePx: longEdgePx,
                     preferGpu: preferGPU,
                     config: config,
-                    cropPreviewFull: cropPreviewFull
+                    cropPreviewFull: cropPreviewFull,
+                    previewFormat: previewFormat,
+                    jpegQuality: jpegQuality
                 ),
                 id: jobID
             )
@@ -449,6 +477,8 @@ actor EngineClient {
         let preferGpu: Bool
         let config: FrameEditState?
         let cropPreviewFull: Bool
+        let previewFormat: PreviewTransportFormat
+        let jpegQuality: Int
 
         enum CodingKeys: String, CodingKey {
             case path
@@ -456,6 +486,8 @@ actor EngineClient {
             case preferGpu = "prefer_gpu"
             case config
             case cropPreviewFull = "crop_preview_full"
+            case previewFormat = "preview_format"
+            case jpegQuality = "jpeg_quality"
         }
 
         func encode(to encoder: Encoder) throws {
@@ -464,6 +496,10 @@ actor EngineClient {
             try container.encodeIfPresent(longEdgePx, forKey: .longEdgePx)
             try container.encode(preferGpu, forKey: .preferGpu)
             try container.encode(cropPreviewFull, forKey: .cropPreviewFull)
+            try container.encode(previewFormat, forKey: .previewFormat)
+            if previewFormat == .jpeg {
+                try container.encode(jpegQuality, forKey: .jpegQuality)
+            }
             if let config {
                 try container.encode(config, forKey: .config)
             }

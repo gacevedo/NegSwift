@@ -30,6 +30,9 @@ from negswift_engine.metering import (
 )
 from negswift_engine.sidecar_io import clear_sidecar_cache, delete_sidecar, read_raw_sidecar, write_raw_sidecar
 
+DEFAULT_PREVIEW_JPEG_QUALITY = 90
+VALID_PREVIEW_FORMATS = frozenset({"png", "jpeg"})
+
 
 def _check_cancel(cancel: threading.Event | None) -> None:
     if cancel is not None and cancel.is_set():
@@ -155,15 +158,15 @@ def open_asset(path: str) -> dict[str, Any]:
     }
 
 
-def render_preview_png(
+def render_preview_raster(
     path: str,
     config_overrides: dict[str, Any] | None = None,
     long_edge_px: int | None = None,
     prefer_gpu: bool = True,
     crop_preview_full: bool = False,
     cancel: threading.Event | None = None,
-) -> tuple[bytes, int, int, dict[str, Any]]:
-    """Run the NegPy preview pipeline; return PNG bytes, width, height, metrics."""
+) -> tuple[np.ndarray, int, int, dict[str, Any]]:
+    """Run the NegPy preview pipeline; return RGB uint8 raster, width, height, metrics."""
     with _pipeline_lock:
         _check_cancel(cancel)
         _evict_source_cache_if_asset_changed(path)
@@ -215,15 +218,46 @@ def render_preview_png(
             u8 = cv2.resize(u8, (target_w, target_h), interpolation=cv2.INTER_AREA)
         h, w = u8.shape[:2]
 
-        png = Image.fromarray(u8, mode="RGB")
-        out = io.BytesIO()
-        png.save(out, format="PNG")
         slim_metrics = {k: metrics[k] for k in ("gpu_fallback",) if k in metrics}
         if crop_preview_full:
             detected = _detected_crop_rect(metrics, frame_w, frame_h)
             if detected is not None:
                 slim_metrics["detected_crop_rect"] = detected
-        return out.getvalue(), w, h, slim_metrics
+        return u8, w, h, slim_metrics
+
+
+def render_preview_png(
+    path: str,
+    config_overrides: dict[str, Any] | None = None,
+    long_edge_px: int | None = None,
+    prefer_gpu: bool = True,
+    crop_preview_full: bool = False,
+    cancel: threading.Event | None = None,
+) -> tuple[bytes, int, int, dict[str, Any]]:
+    """Run the NegPy preview pipeline; return PNG bytes, width, height, metrics."""
+    u8, w, h, metrics = render_preview_raster(
+        path,
+        config_overrides=config_overrides,
+        long_edge_px=long_edge_px,
+        prefer_gpu=prefer_gpu,
+        crop_preview_full=crop_preview_full,
+        cancel=cancel,
+    )
+    image_bytes, _ = _encode_preview_raster(u8, "png", DEFAULT_PREVIEW_JPEG_QUALITY)
+    return image_bytes, w, h, metrics
+
+
+def _encode_preview_raster(u8: np.ndarray, preview_format: str, jpeg_quality: int) -> tuple[bytes, str]:
+    """Encode RGB uint8 raster as PNG or JPEG bytes."""
+    if preview_format == "jpeg":
+        img = Image.fromarray(u8, mode="RGB")
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=jpeg_quality)
+        return out.getvalue(), "jpeg"
+    png = Image.fromarray(u8, mode="RGB")
+    out = io.BytesIO()
+    png.save(out, format="PNG")
+    return out.getvalue(), "png"
 
 
 def render_preview_base64(
@@ -232,9 +266,13 @@ def render_preview_base64(
     long_edge_px: int | None = None,
     prefer_gpu: bool = True,
     crop_preview_full: bool = False,
+    preview_format: str = "png",
+    jpeg_quality: int = DEFAULT_PREVIEW_JPEG_QUALITY,
     cancel: threading.Event | None = None,
 ) -> dict[str, Any]:
-    png_bytes, width, height, metrics = render_preview_png(
+    if preview_format not in VALID_PREVIEW_FORMATS:
+        raise ValueError(f"preview_format must be one of {sorted(VALID_PREVIEW_FORMATS)}")
+    u8, width, height, metrics = render_preview_raster(
         path,
         config_overrides=config_overrides,
         long_edge_px=long_edge_px,
@@ -242,9 +280,15 @@ def render_preview_base64(
         crop_preview_full=crop_preview_full,
         cancel=cancel,
     )
-    return {
+    image_bytes, fmt = _encode_preview_raster(u8, preview_format, jpeg_quality)
+    payload: dict[str, Any] = {
         "width": width,
         "height": height,
-        "png_base64": base64.standard_b64encode(png_bytes).decode("ascii"),
+        "preview_format": fmt,
         "metrics": metrics,
     }
+    if fmt == "jpeg":
+        payload["jpeg_base64"] = base64.standard_b64encode(image_bytes).decode("ascii")
+    else:
+        payload["png_base64"] = base64.standard_b64encode(image_bytes).decode("ascii")
+    return payload

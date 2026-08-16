@@ -176,10 +176,10 @@ Test scan path:
 - [ ] Import folder 20+ frames — strip thumbs fill progressively; selected preview appears quickly (manual M5)
 - [ ] Frame switch baseline improved vs Phase 0
 
-**Phase 4 — Preview transport (optional)**
+**Phase 4 — Preview transport (optional)** ✅
 
-- [ ] New transport format works; fallback PNG still works
-- [ ] IPC/decode baseline improved vs Phase 0
+- [x] New transport format works; fallback PNG still works
+- [ ] IPC/decode baseline improved vs Phase 0 (re-run `make bench-engine` after merge)
 
 **Phase 5 — Instant revisit (render memo)** ✅ (Swift)
 

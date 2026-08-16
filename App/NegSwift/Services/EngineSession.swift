@@ -970,9 +970,18 @@ final class EngineSession {
                 )
             }
             guard generation == previewGeneration else { return }
-            let image = await decodePreviewPNG(base64: result.pngBase64)
+            guard let base64 = result.imageBase64 else {
+                previewError = "Engine returned no preview image."
+                await finishCropCloseThumbnailRefresh(
+                    for: path,
+                    generation: generation,
+                    refreshAfterClose: refreshThumbnailAfterClose
+                )
+                return
+            }
+            let image = await decodePreviewImage(base64: base64, format: result.previewFormat)
             guard let image else {
-                previewError = "Engine returned an invalid PNG."
+                previewError = "Engine returned an invalid preview image."
                 await finishCropCloseThumbnailRefresh(
                     for: path,
                     generation: generation,
@@ -1078,7 +1087,7 @@ final class EngineSession {
             if let generation, generation != thumbnailGeneration { return }
             guard stripGen == stripGeneration else { return }
             guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
-            if let data = result.pngData, let image = NSImage(data: data) {
+            if let data = result.imageData, let image = NSImage(data: data) {
                 updateFrame(at: frameIndex) { $0.thumbnail = image }
             }
         } catch is CancellationError {
@@ -1241,7 +1250,7 @@ final class EngineSession {
             )
             guard generation == stripGeneration, thumbGen == thumbnailGeneration else { return }
             guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
-            if let data = result.pngData, let image = NSImage(data: data) {
+            if let data = result.imageData, let image = NSImage(data: data) {
                 updateFrame(at: frameIndex) { $0.thumbnail = image }
             }
         } catch is CancellationError {
@@ -1373,27 +1382,32 @@ final class EngineSession {
         scopedFolderURL = nil
     }
 
-    private func decodePreviewPNG(base64: String) async -> NSImage? {
+    private func decodePreviewImage(base64: String, format: String?) async -> NSImage? {
         if PerformanceLogger.isEnabled {
             let start = CFAbsoluteTimeGetCurrent()
-            guard let cgImage = await Self.decodePNGCGImageOffMain(base64: base64) else { return nil }
+            guard let cgImage = await Self.decodePreviewCGImageOffMain(base64: base64) else { return nil }
             let image = NSImage(
                 cgImage: cgImage,
                 size: NSSize(width: cgImage.width, height: cgImage.height)
             )
             let ms = (CFAbsoluteTimeGetCurrent() - start) * 1000
-            PerformanceLogger.event("render_decode_png", milliseconds: ms)
+            if format == PreviewTransportFormat.jpeg.rawValue {
+                PerformanceLogger.event("render_decode_jpeg", milliseconds: ms)
+            } else {
+                PerformanceLogger.event("render_decode_png", milliseconds: ms)
+            }
+            PerformanceLogger.event("render_decode", milliseconds: ms)
             return image
         }
-        guard let cgImage = await Self.decodePNGCGImageOffMain(base64: base64) else { return nil }
+        guard let cgImage = await Self.decodePreviewCGImageOffMain(base64: base64) else { return nil }
         return NSImage(
             cgImage: cgImage,
             size: NSSize(width: cgImage.width, height: cgImage.height)
         )
     }
 
-    /// Base64 + PNG decode off the main thread; ``NSImage`` is built on the main actor (AppKit is not thread-safe).
-    nonisolated private static func decodePNGCGImageOffMain(base64: String) async -> CGImage? {
+    /// Base64 + ImageIO decode off the main thread; ``NSImage`` is built on the main actor (AppKit is not thread-safe).
+    nonisolated private static func decodePreviewCGImageOffMain(base64: String) async -> CGImage? {
         await Task.detached(priority: .userInitiated) {
             guard let data = Data(base64Encoded: base64) else { return nil as CGImage? }
             guard
@@ -1405,8 +1419,12 @@ final class EngineSession {
     }
 
     #if DEBUG
+    func decodePreviewImageForTesting(base64: String) async -> NSImage? {
+        await decodePreviewImage(base64: base64, format: nil)
+    }
+
     func decodePreviewPNGForTesting(base64: String) async -> NSImage? {
-        await decodePreviewPNG(base64: base64)
+        await decodePreviewImage(base64: base64, format: PreviewTransportFormat.png.rawValue)
     }
 
     func setPreviewLoadingMessageForTests(_ message: String?) {

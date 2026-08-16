@@ -4,7 +4,7 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M11 complete.** **M12 Phase 5** (instant revisit / preview memo) done — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **Next:** M12 Phase 4 transport (optional) or release smoke.
+**M0–M11 complete.** **M12 Phase 4** (JPEG preview transport) + **Phase 5** (preview memo) done — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **Next:** M12 manual benchmarks on real scan; release smoke.
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 

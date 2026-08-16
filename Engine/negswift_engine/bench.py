@@ -243,6 +243,14 @@ def _protocol_timings(path: str, *, prefer_gpu: bool, long_edge_px: int | None) 
 
         warm_msg, warm_ms = _time_call(lambda: session.request("render", params, req_id="bench-render-warm"))
         assert warm_msg.get("ok") is True, warm_msg
+
+        jpeg_params = dict(params)
+        jpeg_params["preview_format"] = "jpeg"
+        jpeg_params["jpeg_quality"] = 90
+        jpeg_warm_msg, jpeg_warm_ms = _time_call(
+            lambda: session.request("render", jpeg_params, req_id="bench-render-jpeg-warm")
+        )
+        assert jpeg_warm_msg.get("ok") is True, jpeg_warm_msg
     finally:
         session.close()
 
@@ -250,4 +258,5 @@ def _protocol_timings(path: str, *, prefer_gpu: bool, long_edge_px: int | None) 
         "protocol_ping_ms": ping_ms,
         "protocol_render_cold_ms": cold_ms,
         "protocol_render_warm_ms": warm_ms,
+        "protocol_render_jpeg_warm_ms": jpeg_warm_ms,
     }

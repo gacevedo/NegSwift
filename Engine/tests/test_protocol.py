@@ -55,3 +55,13 @@ def test_render_rejects_non_bool_crop_preview_full(sample_tiff) -> None:
     )
     assert msg["ok"] is False
     assert msg["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_render_rejects_invalid_preview_format(sample_tiff) -> None:
+    msg = ndjson_request(
+        "render",
+        {"path": str(sample_tiff), "preview_format": "webp"},
+        req_id="render-bad-format",
+    )
+    assert msg["ok"] is False
+    assert msg["error"]["code"] == "INVALID_REQUEST"

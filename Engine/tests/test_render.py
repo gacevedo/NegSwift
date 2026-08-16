@@ -48,8 +48,31 @@ def test_render_protocol(sample_tiff: Path) -> None:
     result = msg["result"]
     assert result["width"] > 0
     assert result["height"] > 0
+    assert result.get("preview_format", "png") == "png"
     png = base64.standard_b64decode(result["png_base64"])
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_render_protocol_jpeg(sample_tiff: Path) -> None:
+    from ndjson_helpers import ndjson_request
+
+    msg = ndjson_request(
+        "render",
+        {
+            "path": str(sample_tiff),
+            "prefer_gpu": False,
+            "preview_format": "jpeg",
+            "jpeg_quality": 90,
+        },
+        req_id="render-jpeg",
+    )
+    assert msg["ok"] is True, msg
+    result = msg["result"]
+    assert result["preview_format"] == "jpeg"
+    assert "jpeg_base64" in result
+    assert "png_base64" not in result
+    jpeg = base64.standard_b64decode(result["jpeg_base64"])
+    assert jpeg[:2] == b"\xff\xd8"
 
 
 def _render_long_edge(result: dict) -> int:

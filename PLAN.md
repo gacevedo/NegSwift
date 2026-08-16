@@ -23,9 +23,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.51.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
-| **M12** Performance | **In progress** | Phase 5 instant revisit done (Swift preview memo); Phase 4 transport optional |
+| **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
 
-**Resume here:** **M12 Phase 4** (optional preview transport) or release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -570,8 +570,8 @@ Swift:
 
 #### Phase 4 — Preview transport (larger, optional within M12)
 
-- [ ] Optional preview format in protocol — e.g. `jpeg_base64` with quality param, or length-prefixed binary RGBA after a JSON header (see `docs/ENGINE_PROTOCOL.md` future note)
-- [ ] Swift client support + fallback to PNG for compatibility
+- [x] Optional preview format in protocol — `jpeg_base64` with `jpeg_quality` param; PNG remains default
+- [x] Swift client support + fallback to PNG for compatibility
 
 **Gate:** IPC + decode time down on baseline; no visible quality regression at default settings.
 
@@ -717,10 +717,9 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M12 Phase 4 (optional):** Preview transport v2 if IPC/decode still dominates after Phase 5 memo hits.
-2. **M12 manual:** Navigate A→B→A on real scan ≥ 20 MP; record `frame_switch_revisit_ms` baseline.
-3. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
-4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
+1. **M12 manual:** Navigate A→B→A on real scan ≥ 20 MP; record `frame_switch_revisit_ms` and JPEG transport baselines.
+2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
+3. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 
 ---
 

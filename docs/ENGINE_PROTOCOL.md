@@ -143,19 +143,40 @@ Preview render at display resolution.
   "config": { },
   "long_edge_px": 1600,
   "prefer_gpu": true,
-  "crop_preview_full": false
+  "crop_preview_full": false,
+  "preview_format": "png",
+  "jpeg_quality": 90
 }
 ```
 
 `crop_preview_full` — when `true`, render the full transformed frame without applying the crop (for on-canvas crop editing). Matches NegPy desktop crop-tool behaviour.
 
-**Result:**
+`preview_format` — `"png"` (default) or `"jpeg"`. JPEG reduces IPC payload size for live preview; PNG remains the compatibility default when omitted.
+
+`jpeg_quality` — integer `1`–`100` (default `90`). Used when `preview_format` is `"jpeg"`.
+
+**Result (PNG):**
 
 ```json
 {
   "width": 1600,
   "height": 1066,
+  "preview_format": "png",
   "png_base64": "iVBORw0KG...",
+  "metrics": {
+    "gpu_fallback": false
+  }
+}
+```
+
+**Result (JPEG):**
+
+```json
+{
+  "width": 1600,
+  "height": 1066,
+  "preview_format": "jpeg",
+  "jpeg_base64": "/9j/4AAQ...",
   "metrics": {
     "gpu_fallback": false
   }

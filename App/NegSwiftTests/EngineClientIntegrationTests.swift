@@ -25,7 +25,7 @@ struct EngineClientIntegrationTests {
         await client.stop()
     }
 
-    @Test func renderReturnsValidPNG() async throws {
+    @Test func renderReturnsValidJPEG() async throws {
         let executable = try EngineLocator.executableURL()
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             Issue.record("Dev engine not found at \(executable.path). Run `cd Engine && uv sync`.")
@@ -36,8 +36,49 @@ struct EngineClientIntegrationTests {
         defer { try? FileManager.default.removeItem(at: scan) }
 
         let client = EngineClient()
-        let result = try await client.render(path: scan.path, preferGPU: false, cropPreviewFull: true)
-        guard let data = Data(base64Encoded: result.pngBase64) else {
+        let result = try await client.render(
+            path: scan.path,
+            preferGPU: false,
+            cropPreviewFull: true,
+            previewFormat: .jpeg
+        )
+        guard let data = result.imageData else {
+            Issue.record("render returned invalid base64")
+            await client.stop()
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(data as CFData, nil),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else {
+            Issue.record("render JPEG failed ImageIO decode")
+            await client.stop()
+            return
+        }
+        #expect(result.previewFormat == PreviewTransportFormat.jpeg.rawValue)
+        #expect(image.width == result.width)
+        #expect(image.height == result.height)
+        await client.stop()
+    }
+
+    @Test func renderReturnsValidPNGWhenRequested() async throws {
+        let executable = try EngineLocator.executableURL()
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            Issue.record("Dev engine not found at \(executable.path). Run `cd Engine && uv sync`.")
+            return
+        }
+
+        let scan = try Self.makeSampleScanURL()
+        defer { try? FileManager.default.removeItem(at: scan) }
+
+        let client = EngineClient()
+        let result = try await client.render(
+            path: scan.path,
+            preferGPU: false,
+            cropPreviewFull: true,
+            previewFormat: .png
+        )
+        guard let data = result.pngData else {
             Issue.record("render returned invalid base64")
             await client.stop()
             return
@@ -50,6 +91,7 @@ struct EngineClientIntegrationTests {
             await client.stop()
             return
         }
+        #expect(result.previewFormat == PreviewTransportFormat.png.rawValue)
         #expect(image.width == result.width)
         #expect(image.height == result.height)
         await client.stop()

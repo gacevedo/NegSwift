@@ -19,6 +19,7 @@ Measure before and after each M12 optimization phase. All engine benchmarks are 
 | `protocol_ping_ms` | NDJSON `ping` round-trip on a persistent `serve --stdio` session |
 | `protocol_render_cold_ms` | First `render` over NDJSON (includes PNG + base64 + JSON) |
 | `protocol_render_warm_ms` | Second `render` on the same stdio session |
+| `protocol_render_jpeg_warm_ms` | Second `render` with `preview_format: jpeg` (Phase 4+) |
 
 Swift UI timings (Debug only, env `NEGSWIFT_PERF_LOG=1`):
 
@@ -27,7 +28,9 @@ Swift UI timings (Debug only, env `NEGSWIFT_PERF_LOG=1`):
 | `frame_switch_total` | `selectFrame` end-to-end |
 | `frame_switch_memo_hit` | `selectFrame` when preview memo restores canvas (Phase 5+) |
 | `render_ipc` | Engine `render` IPC wait |
-| `render_decode_png` | Base64 decode + `NSImage` creation |
+| `render_decode` | Base64 decode + `NSImage` creation (PNG or JPEG) |
+| `render_decode_png` | PNG decode only (when `preview_format` is `png`) |
+| `render_decode_jpeg` | JPEG decode only (when `preview_format` is `jpeg`) |
 
 View Swift logs in **Console.app** (subsystem `com.negswift`, category `perf`) or Xcode debug console.
 
@@ -123,7 +126,7 @@ Include in the PR description or milestone notes:
 | Phase 2 interactive | Slider scrub manual + `test_render_executor` supersession/cancel |
 | Phase 3 frame switch | `frame_switch_ms`, Swift `frame_switch_total`, M5 folder import (20+ frames) |
 | Phase 5 instant revisit | `frame_switch_revisit_ms`, Swift `frame_switch_total` on A→B→A, manual navigate-back |
-| Phase 4 transport | `protocol_render_*_ms`, Swift `render_decode_png` |
+| Phase 4 transport | `protocol_render_*_ms`, `protocol_render_jpeg_warm_ms`, Swift `render_decode` |
 
 ### Checked-in baseline (`tests/fixtures/perf_baseline.json`)
 

@@ -22,11 +22,13 @@ _REQUIRED_TIMING_KEYS = (
     "render_warm_ms",
     "render_config_change_ms",
     "frame_switch_ms",
+    "frame_switch_revisit_ms",
     "export_ms",
     "export_then_preview_ms",
     "protocol_ping_ms",
     "protocol_render_cold_ms",
     "protocol_render_warm_ms",
+    "protocol_render_jpeg_warm_ms",
 )
 
 

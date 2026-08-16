@@ -26,6 +26,8 @@ enum PreviewQuality: Int, CaseIterable, Identifiable, Sendable {
 
 /// Canvas preview parameters derived from app preferences.
 struct PreviewRenderSettings: Equatable, Sendable {
+    static let previewJPEGQuality = 90
+
     let longEdgePx: Int
     let preferGPU: Bool
 

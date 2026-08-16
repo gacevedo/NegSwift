@@ -12,6 +12,8 @@ from negswift_engine.discover import discover_assets
 from negswift_engine.export import export_asset
 from negswift_engine.jobs import JobCancelled
 from negswift_engine.render import (
+    DEFAULT_PREVIEW_JPEG_QUALITY,
+    VALID_PREVIEW_FORMATS,
     load_config_dict,
     open_asset,
     render_preview_base64,
@@ -130,6 +132,12 @@ def _cmd_render(params: dict[str, Any], cancel: threading.Event | None = None) -
     crop_preview_full = params.get("crop_preview_full", False)
     if not isinstance(crop_preview_full, bool):
         raise ProtocolError("INVALID_REQUEST", "params.crop_preview_full must be a boolean")
+    preview_format = params.get("preview_format", "png")
+    if not isinstance(preview_format, str) or preview_format not in VALID_PREVIEW_FORMATS:
+        raise ProtocolError("INVALID_REQUEST", "params.preview_format must be 'png' or 'jpeg'")
+    jpeg_quality = params.get("jpeg_quality", DEFAULT_PREVIEW_JPEG_QUALITY)
+    if not isinstance(jpeg_quality, int) or jpeg_quality < 1 or jpeg_quality > 100:
+        raise ProtocolError("INVALID_REQUEST", "params.jpeg_quality must be an integer from 1 to 100")
     try:
         return render_preview_base64(
             path,
@@ -137,6 +145,8 @@ def _cmd_render(params: dict[str, Any], cancel: threading.Event | None = None) -
             long_edge_px=long_edge,
             prefer_gpu=prefer_gpu,
             crop_preview_full=crop_preview_full,
+            preview_format=preview_format,
+            jpeg_quality=jpeg_quality,
             cancel=cancel,
         )
     except JobCancelled as exc:

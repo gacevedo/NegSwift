@@ -213,9 +213,9 @@ actor EngineClient {
     func render(
         path: String,
         longEdgePx: Int? = nil,
+        preferGPU: Bool = true,
         config: FrameEditState? = nil,
-        cropPreviewFull: Bool = false,
-        preferGpu: Bool = true
+        cropPreviewFull: Bool = false
     ) async throws -> RenderResult {
         let isThumbnail = longEdgePx != nil && !cropPreviewFull
         if isThumbnail {
@@ -246,7 +246,7 @@ actor EngineClient {
                 params: RenderParams(
                     path: path,
                     longEdgePx: longEdgePx,
-                    preferGpu: preferGpu,
+                    preferGpu: preferGPU,
                     config: config,
                     cropPreviewFull: cropPreviewFull
                 ),
@@ -278,7 +278,7 @@ actor EngineClient {
         destDir: String,
         config: FrameEditState,
         export settings: ExportSettings,
-        preferGpu: Bool = true
+        preferGPU: Bool = true
     ) async throws -> ExportResult {
         let jobID = UUID().uuidString
         activeExportJobID = jobID
@@ -293,7 +293,7 @@ actor EngineClient {
                 params: ExportParams(
                     path: path,
                     destDir: destDir,
-                    preferGpu: preferGpu,
+                    preferGpu: preferGPU,
                     config: config,
                     export: ExportWireSettings(settings: settings)
                 ),

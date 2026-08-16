@@ -19,3 +19,15 @@ def sample_tiff(tmp_path: Path) -> Path:
     rgb[:, :, 2] = 10000
     tifffile.imwrite(path, rgb, photometric="rgb")
     return path
+
+
+@pytest.fixture
+def large_tiff(tmp_path: Path) -> Path:
+    """2000×1500 RGB TIFF — long edge exceeds preview quality presets."""
+    path = tmp_path / "large.tif"
+    rgb = np.zeros((1500, 2000, 3), dtype=np.uint16)
+    rgb[:, :, 0] = 40000
+    rgb[:, :, 1] = 20000
+    rgb[:, :, 2] = 10000
+    tifffile.imwrite(path, rgb, photometric="rgb")
+    return path

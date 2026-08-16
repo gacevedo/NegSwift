@@ -34,6 +34,17 @@ struct PreviewCanvasView: View {
                     }
                 }
             }
+            .overlay(alignment: .bottomLeading) {
+                if let size = session.previewPixelSize {
+                    Text("\(Int(size.width)) × \(Int(size.height)) px")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                        .padding(10)
+                }
+            }
     }
 
     private var cropBinding: Binding<NormalizedRect> {

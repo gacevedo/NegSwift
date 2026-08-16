@@ -13,7 +13,7 @@ enum FolderPicker {
     @MainActor
     static func chooseFolder(
         prompt: String = "Choose Folder",
-        recentKind: RecentPathKind
+        recentKind: RecentPathKind? = nil
     ) async -> URL? {
         await withCheckedContinuation { continuation in
             let panel = NSOpenPanel()
@@ -23,7 +23,7 @@ enum FolderPicker {
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = false
             panel.canCreateDirectories = true
-            if let start = RecentPathsStore.directoryURL(for: recentKind) {
+            if let recentKind, let start = RecentPathsStore.directoryURL(for: recentKind) {
                 panel.directoryURL = start
             }
             panel.begin { response in
@@ -31,7 +31,9 @@ enum FolderPicker {
                     continuation.resume(returning: nil)
                     return
                 }
-                RecentPathsStore.remember(url, for: recentKind)
+                if let recentKind {
+                    RecentPathsStore.remember(url, for: recentKind)
+                }
                 continuation.resume(returning: url)
             }
         }

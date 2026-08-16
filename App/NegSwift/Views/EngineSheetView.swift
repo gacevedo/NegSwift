@@ -74,7 +74,7 @@ struct EngineSheetView: View {
                 statusRow("NegPy", info.negpyVersion)
                 statusRow("Python", info.python)
                 statusRow("GPU", info.gpuAvailable ? (info.gpuBackend ?? "yes") : "CPU fallback")
-                statusRow("Data", AppPreferences.negpyUserDirectoryPath)
+                statusRow("Data", AppPreferencesStorage.resolvedNegPyUserDirectoryURL().path)
                 statusRow("Frames", "\(session.frames.count)")
                 if let path = session.currentPath {
                     statusRow("File", (path as NSString).lastPathComponent)

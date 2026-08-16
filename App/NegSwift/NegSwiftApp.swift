@@ -8,11 +8,14 @@ import SwiftUI
 @main
 struct NegSwiftApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @State private var engineSession = EngineSession()
+    @State private var preferences = AppPreferences()
+    @State private var engineSession: EngineSession
     @State private var showAbout = false
 
     init() {
-        AppPreferences.registerDefaults()
+        let preferences = AppPreferences()
+        _preferences = State(initialValue: preferences)
+        _engineSession = State(initialValue: EngineSession(preferences: preferences))
     }
 
     var body: some Scene {
@@ -40,7 +43,7 @@ struct NegSwiftApp: App {
             }
         }
         Settings {
-            PreferencesView(session: engineSession)
+            PreferencesView(preferences: preferences, session: engineSession)
         }
     }
 }

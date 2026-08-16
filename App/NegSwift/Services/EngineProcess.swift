@@ -35,7 +35,7 @@ final class EngineProcess: @unchecked Sendable {
         proc.arguments = ["serve", "--stdio"]
         proc.currentDirectoryURL = Self.workingDirectory(for: executable)
         var env = ProcessInfo.processInfo.environment
-        env["NEGPY_USER_DIR"] = Self.negpyUserDirectory().path
+        env["NEGPY_USER_DIR"] = AppPreferencesStorage.resolvedNegPyUserDirectoryURL().path
         proc.environment = env
 
         let stdinPipe = Pipe()
@@ -87,7 +87,7 @@ final class EngineProcess: @unchecked Sendable {
     }
 
     static func negpyUserDirectory() -> URL {
-        AppPreferences.negpyUserDirectoryURL
+        AppPreferencesStorage.resolvedNegPyUserDirectoryURL()
     }
 
     private func stopLocked() {

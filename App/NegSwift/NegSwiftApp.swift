@@ -11,6 +11,7 @@ struct NegSwiftApp: App {
     @State private var preferences = AppPreferences()
     @State private var engineSession: EngineSession
     @State private var showAbout = false
+    @State private var commandBridge = MainWindowCommandBridge()
 
     init() {
         AppPreferencesStorage.migrateLegacyPreferencesIfNeeded()
@@ -21,7 +22,11 @@ struct NegSwiftApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(engineSession: engineSession, showAbout: $showAbout)
+            ContentView(
+                engineSession: engineSession,
+                showAbout: $showAbout,
+                commandBridge: commandBridge
+            )
                 .frame(minWidth: 900, minHeight: 600)
                 .onAppear {
                     AppMetadata.syncApplicationIcon()
@@ -41,6 +46,30 @@ struct NegSwiftApp: App {
                 Button("About NegSwift") {
                     showAbout = true
                 }
+            }
+
+            CommandGroup(replacing: .newItem) {
+                Button("Open…") {
+                    commandBridge.performOpenImport()
+                }
+                .keyboardShortcut("o", modifiers: .command)
+                .disabled(!commandBridge.canOpenImport)
+            }
+
+            CommandGroup(replacing: .saveItem) {
+                Button("Export…") {
+                    commandBridge.performOpenExport()
+                }
+                .keyboardShortcut("e", modifiers: .command)
+                .disabled(!commandBridge.canOpenExport)
+            }
+
+            CommandMenu("View") {
+                Button("Toggle Fit / 1:1") {
+                    commandBridge.performToggleCanvasZoom()
+                }
+                .keyboardShortcut(.space, modifiers: [])
+                .disabled(!commandBridge.canToggleCanvasZoom)
             }
         }
         Settings {

@@ -63,4 +63,32 @@ enum FolderPicker {
             }
         }
     }
+
+    /// Open panel for folder, single scan, or multiple scans (⌘O).
+    @MainActor
+    static func chooseImport(prompt: String = "Open") async -> [URL]? {
+        await withCheckedContinuation { continuation in
+            let panel = NSOpenPanel()
+            panel.title = prompt
+            panel.prompt = prompt
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = true
+            panel.canCreateDirectories = false
+            panel.allowedContentTypes = scanTypes
+            if let start = RecentPathsStore.directoryURL(for: .importFolder)
+                ?? RecentPathsStore.directoryURL(for: .openFileDirectory)
+            {
+                panel.directoryURL = start
+            }
+            panel.begin { response in
+                guard response == .OK else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let urls = panel.urls.map(\.standardizedFileURL)
+                continuation.resume(returning: urls.isEmpty ? nil : urls)
+            }
+        }
+    }
 }

@@ -8,9 +8,11 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var engineSession: EngineSession
     @Binding var showAbout: Bool
+    @Bindable var commandBridge: MainWindowCommandBridge
     @State private var showExportSheet = false
     @State private var showEngineSheet = false
     @State private var showResetConfirm = false
+    @State private var previewZoomMode: PreviewZoomMode = .fit
 
     @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
     @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
@@ -162,6 +164,49 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .importDropTarget(session: engineSession, isTargeted: $isImportDropTargeted)
+        .onAppear {
+            wireCommandBridge()
+        }
+        .onChange(of: engineSession.selectedFrameID) { _, _ in
+            previewZoomMode = .fit
+            syncCommandBridgeState()
+        }
+        .onChange(of: engineSession.engineReady) { _, _ in syncCommandBridgeState() }
+        .onChange(of: engineSession.isExporting) { _, _ in syncCommandBridgeState() }
+        .onChange(of: engineSession.previewImage) { _, _ in syncCommandBridgeState() }
+        .onChange(of: showExportSheet) { _, _ in syncCommandBridgeState() }
+        .onChange(of: showEngineSheet) { _, _ in syncCommandBridgeState() }
+        .onChange(of: showAbout) { _, _ in syncCommandBridgeState() }
+    }
+
+    private func wireCommandBridge() {
+        commandBridge.openImport = {
+            Task { await performOpenImport() }
+        }
+        commandBridge.openExport = {
+            showExportSheet = true
+        }
+        commandBridge.toggleCanvasZoom = {
+            previewZoomMode.toggle()
+        }
+        syncCommandBridgeState()
+    }
+
+    private func syncCommandBridgeState() {
+        commandBridge.canOpenImport = engineSession.engineReady
+        commandBridge.canOpenExport = engineSession.engineReady
+            && engineSession.selectedFrameID != nil
+            && !engineSession.isExporting
+        commandBridge.canToggleCanvasZoom = engineSession.previewImage != nil
+            && !showExportSheet
+            && !showEngineSheet
+            && !showAbout
+    }
+
+    private func performOpenImport() async {
+        guard engineSession.engineReady else { return }
+        guard let urls = await FolderPicker.chooseImport() else { return }
+        await engineSession.importDroppedURLs(urls)
     }
 
     @ViewBuilder
@@ -170,7 +215,11 @@ struct ContentView: View {
             if engineSession.isRenderingPreview, engineSession.previewImage == nil {
                 ProgressView("Rendering preview…")
             } else if let image = engineSession.previewImage {
-                PreviewCanvasView(session: engineSession, image: image)
+                PreviewCanvasView(
+                    session: engineSession,
+                    zoomMode: $previewZoomMode,
+                    image: image
+                )
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "photo.on.rectangle.angled")
@@ -228,5 +277,9 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(engineSession: .preview, showAbout: .constant(false))
+    ContentView(
+        engineSession: .preview,
+        showAbout: .constant(false),
+        commandBridge: MainWindowCommandBridge()
+    )
 }

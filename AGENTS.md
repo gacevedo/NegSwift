@@ -80,7 +80,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M10 | PyInstaller / bundle — **Done** |
 | M11 | Polish |
 
-**Current status (2026-08-15):** M0–M10 done. **M11 in progress** — DnD import and Preferences wired; keyboard shortcuts remain. See [PLAN.md](PLAN.md) and [docs/RELEASE.md](docs/RELEASE.md).
+**Current status (2026-08-16):** M0–M10 done. **M11 in progress** — DnD import, Preferences, and keyboard shortcuts wired; DnD edge-case polish remains. See [PLAN.md](PLAN.md) and [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Architecture rules
 

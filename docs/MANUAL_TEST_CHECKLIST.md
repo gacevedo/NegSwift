@@ -137,7 +137,7 @@ Test scan path:
 - [ ] Dashed accent overlay while dragging over the window (engine ready)
 - [x] Process mode picker (C-41 / B&W)
 - [x] Preferences (⌘,) — preview quality, GPU toggle, NegPy data folder (shared `edits.db` with desktop NegPy)
-- [ ] Keyboard: Space toggle fit, ⌘O import, ⌘E export
+- [x] Keyboard: Space toggle fit, ⌘O import, ⌘E export; double-click preview toggles fit / 1:1
 
 ---
 

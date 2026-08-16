@@ -731,10 +731,7 @@ final class EngineSession {
                 )
             }
             guard generation == previewGeneration else { return }
-            let image = PerformanceLogger.measureSync("render_decode_png") {
-                guard let data = result.pngData else { return nil as NSImage? }
-                return NSImage(data: data)
-            }
+            let image = await decodePreviewPNG(base64: result.pngBase64)
             guard let image else {
                 previewError = "Engine returned an invalid PNG."
                 await finishCropCloseThumbnailRefresh(
@@ -749,6 +746,8 @@ final class EngineSession {
             currentPath = path
             if isCropToolActive {
                 isCropOverlayReady = true
+            } else {
+                applyPreviewToSelectedThumbnail()
             }
             await finishCropCloseThumbnailRefresh(
                 for: path,
@@ -780,7 +779,9 @@ final class EngineSession {
         guard generation == previewGeneration else { return }
         if refreshAfterClose {
             pendingThumbnailRefreshAfterCropClose = false
-            await refreshThumbnail(for: path)
+            if !applyPreviewToSelectedThumbnail(for: path) {
+                await refreshThumbnail(for: path)
+            }
         } else {
             scheduleDebouncedThumbnailRefresh(for: path)
         }
@@ -788,6 +789,7 @@ final class EngineSession {
 
     private func scheduleDebouncedThumbnailRefresh(for path: String) {
         if isCropToolActive, path == selectedFramePath { return }
+        if applyPreviewToSelectedThumbnail(for: path) { return }
         guard !isThumbnailLoadRunning else { return }
         thumbnailGeneration += 1
         let generation = thumbnailGeneration
@@ -803,6 +805,7 @@ final class EngineSession {
               let index = frames.firstIndex(where: { $0.path == path })
         else { return }
         if let generation, generation != thumbnailGeneration { return }
+        if applyPreviewToSelectedThumbnail(for: path) { return }
 
         let frame = frames[index]
         let gotAccess = beginFileAccess(for: frame.url)
@@ -871,6 +874,7 @@ final class EngineSession {
                 return
             }
             guard frames[index].thumbnail == nil else { continue }
+            if applyPreviewToSelectedThumbnail(for: frames[index].path) { continue }
 
             updateFrame(at: index) { $0.isLoadingThumbnail = true }
             defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
@@ -948,6 +952,81 @@ final class EngineSession {
     private func stopFolderAccess() {
         scopedFolderURL?.stopAccessingSecurityScopedResource()
         scopedFolderURL = nil
+    }
+
+    private func decodePreviewPNG(base64: String) async -> NSImage? {
+        if PerformanceLogger.isEnabled {
+            let start = CFAbsoluteTimeGetCurrent()
+            guard let cgImage = await Self.decodePNGCGImageOffMain(base64: base64) else { return nil }
+            let image = NSImage(
+                cgImage: cgImage,
+                size: NSSize(width: cgImage.width, height: cgImage.height)
+            )
+            let ms = (CFAbsoluteTimeGetCurrent() - start) * 1000
+            PerformanceLogger.event("render_decode_png", milliseconds: ms)
+            return image
+        }
+        guard let cgImage = await Self.decodePNGCGImageOffMain(base64: base64) else { return nil }
+        return NSImage(
+            cgImage: cgImage,
+            size: NSSize(width: cgImage.width, height: cgImage.height)
+        )
+    }
+
+    /// Base64 + PNG decode off the main thread; ``NSImage`` is built on the main actor (AppKit is not thread-safe).
+    nonisolated private static func decodePNGCGImageOffMain(base64: String) async -> CGImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let data = Data(base64Encoded: base64) else { return nil as CGImage? }
+            guard
+                let source = CGImageSourceCreateWithData(data as CFData, nil),
+                let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+            else { return nil }
+            return image
+        }.value
+    }
+
+    #if DEBUG
+    func decodePreviewPNGForTesting(base64: String) async -> NSImage? {
+        await decodePreviewPNG(base64: base64)
+    }
+    #endif
+
+    @discardableResult
+    private func applyPreviewToSelectedThumbnail(for path: String? = nil) -> Bool {
+        let targetPath = path ?? selectedFramePath
+        guard let targetPath,
+              targetPath == selectedFramePath,
+              targetPath == currentPath,
+              !isCropToolActive,
+              let preview = previewImage,
+              let index = frames.firstIndex(where: { $0.path == targetPath }),
+              let thumbnail = Self.makeStripThumbnail(from: preview)
+        else { return false }
+        updateFrame(at: index) { $0.thumbnail = thumbnail }
+        return true
+    }
+
+    nonisolated private static func makeStripThumbnail(from preview: NSImage) -> NSImage? {
+        let longEdge = CGFloat(FilmStripLayout.thumbnailLongEdge)
+        let sourceSize = preview.size
+        guard sourceSize.width > 0, sourceSize.height > 0 else { return nil }
+
+        let scale = longEdge / max(sourceSize.width, sourceSize.height)
+        let targetSize = NSSize(
+            width: max(1, sourceSize.width * scale),
+            height: max(1, sourceSize.height * scale)
+        )
+
+        let thumbnail = NSImage(size: targetSize)
+        thumbnail.lockFocus()
+        preview.draw(
+            in: NSRect(origin: .zero, size: targetSize),
+            from: NSRect(origin: .zero, size: sourceSize),
+            operation: .copy,
+            fraction: 1.0
+        )
+        thumbnail.unlockFocus()
+        return thumbnail
     }
 
     static var preview: EngineSession {

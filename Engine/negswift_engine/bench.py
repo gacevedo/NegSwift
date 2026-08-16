@@ -12,9 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from negpy.kernel.image.logic import calculate_file_hash
-
 from negswift_engine.export import export_asset
+from negswift_engine.file_hash_cache import cached_file_hash
 from negswift_engine.render import render_preview_png, reset_render_cache, resolve_config
 from negswift_engine.sidecar_io import read_raw_sidecar
 
@@ -74,17 +73,14 @@ def run_scenarios(
 
     timings: dict[str, float] = {}
 
-    _, timings["hash_ms"] = _time_call(lambda: calculate_file_hash(path))
+    _, timings["hash_ms"] = _time_call(lambda: cached_file_hash(path))
+    _, timings["hash_warm_ms"] = _time_call(lambda: cached_file_hash(path))
     _, timings["sidecar_ms"] = _time_call(lambda: read_raw_sidecar(path))
     _, timings["resolve_config_ms"] = _time_call(lambda: resolve_config(path, None))
 
     reset_render_cache()
-    _, timings["render_cold_ms"] = _time_call(
-        lambda: render_preview_png(path, **render_kwargs)
-    )
-    _, timings["render_warm_ms"] = _time_call(
-        lambda: render_preview_png(path, **render_kwargs)
-    )
+    _, timings["render_cold_ms"] = _time_call(lambda: render_preview_png(path, **render_kwargs))
+    _, timings["render_warm_ms"] = _time_call(lambda: render_preview_png(path, **render_kwargs))
 
     config_change = {"density": 0.15}
     _, timings["render_config_change_ms"] = _time_call(
@@ -93,9 +89,7 @@ def run_scenarios(
 
     reset_render_cache()
     render_preview_png(path, **render_kwargs)
-    _, timings["frame_switch_ms"] = _time_call(
-        lambda: render_preview_png(alt, **render_kwargs)
-    )
+    _, timings["frame_switch_ms"] = _time_call(lambda: render_preview_png(alt, **render_kwargs))
 
     reset_render_cache()
     render_preview_png(path, **render_kwargs)
@@ -113,9 +107,7 @@ def run_scenarios(
             },
         )
     )
-    _, timings["export_then_preview_ms"] = _time_call(
-        lambda: render_preview_png(path, **render_kwargs)
-    )
+    _, timings["export_then_preview_ms"] = _time_call(lambda: render_preview_png(path, **render_kwargs))
 
     protocol = _protocol_timings(path, prefer_gpu=prefer_gpu, long_edge_px=long_edge_px)
     timings.update(protocol)
@@ -245,14 +237,10 @@ def _protocol_timings(path: str, *, prefer_gpu: bool, long_edge_px: int | None) 
         ping_msg, ping_ms = _time_call(lambda: session.request("ping", req_id="bench-ping"))
         assert ping_msg.get("ok") is True, ping_msg
 
-        cold_msg, cold_ms = _time_call(
-            lambda: session.request("render", params, req_id="bench-render-cold")
-        )
+        cold_msg, cold_ms = _time_call(lambda: session.request("render", params, req_id="bench-render-cold"))
         assert cold_msg.get("ok") is True, cold_msg
 
-        warm_msg, warm_ms = _time_call(
-            lambda: session.request("render", params, req_id="bench-render-warm")
-        )
+        warm_msg, warm_ms = _time_call(lambda: session.request("render", params, req_id="bench-render-warm"))
         assert warm_msg.get("ok") is True, warm_msg
     finally:
         session.close()

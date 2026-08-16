@@ -185,11 +185,10 @@ enum EngineClientError: LocalizedError {
 /// NDJSON client over a long-lived `serve --stdio` process.
 actor EngineClient {
     private let processOwner = EngineProcess()
+    nonisolated private let stdoutAssembler = EngineStdoutLineAssembler()
     private var stdin: FileHandle?
     private var stdout: FileHandle?
-    private var stdoutTask: Task<Void, Never>?
     private var pending: [String: CheckedContinuation<Data, Error>] = [:]
-    private var lineBuffer = Data()
     private var activePreviewJobID: String?
     private var activeThumbnailJobID: String?
     private var activeExportJobID: String?
@@ -206,14 +205,14 @@ actor EngineClient {
     }
 
     func stop() {
-        stdoutTask?.cancel()
-        stdoutTask = nil
+        stdout?.readabilityHandler = nil
+        stdoutAssembler.onLine = nil
+        stdoutAssembler.reset()
         pending.values.forEach { $0.resume(throwing: CancellationError()) }
         pending.removeAll()
         processOwner.stop()
         stdin = nil
         stdout = nil
-        lineBuffer.removeAll()
     }
 
     func ping() async throws {
@@ -474,24 +473,18 @@ actor EngineClient {
 
     private func startReading() {
         guard let stdout else { return }
-        stdoutTask?.cancel()
-        stdoutTask = Task {
-            do {
-                for try await byte in stdout.bytes {
-                    try Task.checkCancellation()
-                    lineBuffer.append(byte)
-                    if byte == 0x0A {
-                        let line = lineBuffer
-                        lineBuffer.removeAll(keepingCapacity: true)
-                        handleLine(line)
-                    }
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                failAll(error)
-            }
+        stdoutAssembler.onLine = { line in
+            Task { await self.handleCompleteStdoutLine(line) }
         }
+        stdout.readabilityHandler = { [assembler = stdoutAssembler] handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            assembler.append(chunk)
+        }
+    }
+
+    private func handleCompleteStdoutLine(_ lineData: Data) {
+        handleLine(lineData)
     }
 
     private func handleLine(_ lineData: Data) {

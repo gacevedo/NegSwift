@@ -15,6 +15,7 @@ _BASELINE_PATH = _FIXTURES / "perf_baseline.json"
 
 _REQUIRED_TIMING_KEYS = (
     "hash_ms",
+    "hash_warm_ms",
     "sidecar_ms",
     "resolve_config_ms",
     "render_cold_ms",
@@ -52,6 +53,7 @@ def test_perf_harness_produces_valid_report(large_tiff: Path, tmp_path: Path) ->
     assert timings["render_warm_ms"] <= timings["render_cold_ms"] * 1.25, (
         "warm render should not be much slower than cold on the same process"
     )
+    assert timings["hash_warm_ms"] <= timings["hash_ms"] * 0.25, "cached hash should be much faster than cold hash"
 
 
 def test_perf_baseline_file_matches_harness_shape() -> None:

@@ -117,7 +117,29 @@ Include in the PR description or milestone notes:
 | Phase | Re-run benchmarks |
 |-------|-------------------|
 | Phase 0 (this doc) | Capture initial baseline |
-| Phase 1 quick wins | `render_warm_ms`, `hash_ms`, `export_then_preview_ms`, Swift `render_decode_png` |
+| Phase 1 quick wins | `render_warm_ms`, `hash_warm_ms`, `export_then_preview_ms`, Swift `render_decode_png` |
 | Phase 2 interactive | Slider scrub manual + optional protocol warm/cancel notes |
 | Phase 3 frame switch | `frame_switch_ms`, Swift `frame_switch_total` |
 | Phase 4 transport | `protocol_render_*_ms`, Swift `render_decode_png` |
+
+### Checked-in baseline (`tests/fixtures/perf_baseline.json`)
+
+Synthetic 2000×1500 TIFF, `prefer_gpu: false`, same machine (Apple Silicon, macOS 26.6). Engine harness only — Swift IPC/decode timings are separate (`NEGSWIFT_PERF_LOG=1`).
+
+| Metric | Phase 0 (2026-08-16) | Phase 1 post-fix (2026-08-16) | Notes |
+|--------|----------------------|-------------------------------|-------|
+| `hash_ms` | 5.0 | 4.4 | cold hash |
+| `hash_warm_ms` | — | **0.09** | cached hash (Phase 1+) |
+| `render_cold_ms` | 2470 | 2426 | first render |
+| `render_warm_ms` | 94 | **88** | second render, same path |
+| `render_config_change_ms` | 311 | 316 | density override |
+| `frame_switch_ms` | 95 | 119 | run variance |
+| `export_then_preview_ms` | 497 | **492** | after softer export cleanup |
+| `protocol_render_warm_ms` | 95 | 95 | NDJSON warm render |
+
+Refresh after Phase 1 engine + Swift bug fixes:
+
+```bash
+make bench-engine
+cd Engine && uv run pytest tests/test_perf.py -v
+```

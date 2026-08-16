@@ -23,9 +23,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.50.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
-| **M12** Performance | **In progress** | Phase 0 done (baselines); Phase 1 quick wins next |
+| **M12** Performance | **In progress** | Phase 1 done (quick wins); Phase 2 interactive next |
 
-**Resume here:** **M12 Phase 1** (quick wins — see §7 M12). Release prep can run in parallel.
+**Resume here:** **M12 Phase 2** (interactive editing — see §7 M12). Release prep can run in parallel.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -538,15 +538,15 @@ Work in order — **do not ship optimizations before baselines exist** for the s
 
 Engine:
 
-- [ ] File hash cache keyed by `(path, mtime_ns, size)` — avoid re-reading head/tail on every `render` / `open` / `export` / `detect`
-- [ ] Sidecar read cache keyed by `(path, sidecar_mtime_ns)`
-- [ ] Softer export cleanup — do not `release_source_cache=True` on every export; evict on asset switch or explicit pressure only
+- [x] File hash cache keyed by `(path, mtime_ns, size)` — avoid re-reading head/tail on every `render` / `open` / `export` / `detect`
+- [x] Sidecar read cache keyed by `(path, sidecar_mtime_ns)`
+- [x] Softer export cleanup — do not `release_source_cache=True` on every export; evict on asset switch or explicit pressure only
 
 Swift:
 
-- [ ] Chunked NDJSON stdout read (replace byte-by-byte loop in `EngineClient`)
-- [ ] Off-main-thread PNG/base64 decode; release base64 `String` before holding bitmap
-- [ ] Skip redundant strip thumbnail `render` after preview — derive selected-frame thumb from preview `CGImage`; IPC thumbs only for non-selected frames when config unchanged
+- [x] Chunked NDJSON stdout read (replace byte-by-byte loop in `EngineClient`)
+- [x] Off-main-thread PNG/base64 decode; release base64 `String` before holding bitmap
+- [x] Skip redundant strip thumbnail `render` after preview — derive selected-frame thumb from preview `CGImage`; IPC thumbs only for non-selected frames when config unchanged
 
 **Gate:** Phase 0 baselines show measurable improvement on warm render, frame switch, and/or decode time without preview parity regression (manual M6 compare).
 
@@ -690,7 +690,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 ## 13. Immediate next steps
 
-1. **M12 Phase 1:** Quick wins (hash cache, chunked IPC read, off-main decode, thumbnail dedup) — re-run `make bench-engine` and attach delta in PR.
+1. **M12 Phase 2:** Interactive editing (render executor, job supersession, cancel checks) — re-run `make bench-engine` and attach delta in PR.
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 3. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 

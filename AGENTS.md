@@ -45,6 +45,7 @@ Never invoke `pytest` or `ruff` directly — use `uv run`.
 
 ```bash
 xcodebuild -scheme NegSwift -configuration Debug build   # from App/
+xcodebuild -scheme NegSwift -configuration Debug test -destination 'platform=macOS'  # after EngineClient/session changes
 # Run from Xcode (⌘R) — engine starts automatically on launch
 ```
 
@@ -81,9 +82,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M9b** | **Done** — NegPy submodule at `Vendor/NegPy` |
 | M10 | PyInstaller / bundle — **Done** |
 | M11 | Polish — **Done** |
-| **M12** | **In progress** — Performance; Phase 0 baselines done, Phase 1 next |
+| **M12** | **In progress** — Performance; Phase 1 quick wins done, Phase 2 next |
 
-**Current status (2026-08-16):** M0–M11 done; **M12 Phase 0 complete**. Resume at Phase 1 quick wins or release prep in parallel — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-08-16):** M0–M11 done; **M12 Phase 1 complete**. Resume at Phase 2 interactive editing — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

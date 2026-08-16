@@ -5,7 +5,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from negswift_engine.sidecar_io import delete_sidecar, read_raw_sidecar, write_raw_sidecar
+from negswift_engine.sidecar_io import clear_sidecar_cache, delete_sidecar, read_raw_sidecar, write_raw_sidecar
 
 
 def test_write_and_read_raw_sidecar_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
@@ -24,3 +24,14 @@ def test_delete_sidecar_reports_presence(sample_tiff: Path, tmp_path: Path) -> N
     write_raw_sidecar(str(frame), {"density": 1.1})
     assert delete_sidecar(str(frame)) is True
     assert delete_sidecar(str(frame)) is False
+
+
+def test_sidecar_cache_invalidates_on_write(sample_tiff: Path, tmp_path: Path) -> None:
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    clear_sidecar_cache()
+    assert read_raw_sidecar(str(frame)) is None
+    write_raw_sidecar(str(frame), {"density": 1.0})
+    assert read_raw_sidecar(str(frame)) == {"density": 1.0}
+    write_raw_sidecar(str(frame), {"density": 2.0})
+    assert read_raw_sidecar(str(frame)) == {"density": 2.0}

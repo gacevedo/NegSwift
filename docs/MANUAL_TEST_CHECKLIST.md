@@ -153,12 +153,12 @@ Test scan path:
 - [x] Baseline file archived at `Engine/tests/fixtures/perf_baseline.json` (machine, macOS, commit in JSON)
 - [ ] Optional: real-scan baseline with `NEGSWIFT_PERF_SCAN` on a ≥ 20 MP TIFF (manual, for PR notes)
 
-**Phase 1 — Quick wins**
+**Phase 1 — Quick wins** ✅
 
-- [ ] Warm second `render` faster than cold (hash + cache path) — compare to Phase 0 baseline
-- [ ] Slider scrub — preview updates without main-thread hitch (decode off main)
-- [ ] Selected frame strip thumb updates without a second engine `render` after preview
-- [ ] Export then preview — faster recovery than Phase 0 baseline (softer cache cleanup)
+- [x] Warm second `render` faster than cold (hash + cache path) — compare to Phase 0 baseline
+- [x] Slider scrub — preview updates without main-thread hitch (decode off main)
+- [x] Selected frame strip thumb updates without a second engine `render` after preview
+- [x] Export then preview — softer cache cleanup (`release_source_cache=False` on export)
 - [ ] No preview parity regression vs NegPy desktop (spot-check M6)
 
 **Phase 2 — Interactive editing**

@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from negpy.domain.models import ExportFormat
-from negpy.kernel.image.logic import calculate_file_hash
 from PIL import Image
 
-from negswift_engine.render import _processor_instance, resolve_config
+from negswift_engine.file_hash_cache import cached_file_hash
+from negswift_engine.render import _evict_source_cache_if_asset_changed, _processor_instance, resolve_config
 
 _EXT = {
     ExportFormat.JPEG: "jpg",
@@ -31,6 +31,8 @@ def export_asset(
     if not source.is_file():
         raise FileNotFoundError(path)
 
+    _evict_source_cache_if_asset_changed(path)
+
     flat_overrides: dict[str, Any] = {}
     if config_overrides:
         flat_overrides.update(config_overrides)
@@ -39,7 +41,7 @@ def export_asset(
 
     config = resolve_config(path, flat_overrides or None)
     export_settings = config.export
-    f_hash = calculate_file_hash(path)
+    f_hash = cached_file_hash(path)
 
     processor = _processor_instance()
     try:
@@ -76,4 +78,4 @@ def export_asset(
             "format": export_settings.export_fmt,
         }
     finally:
-        processor.cleanup(release_source_cache=True, collect=True)
+        processor.cleanup(release_source_cache=False, collect=True)

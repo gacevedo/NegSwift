@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import io
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -12,23 +13,25 @@ from negpy.domain.models import WorkspaceConfig
 from negpy.infrastructure.display.color_mgmt import apply_display_transform
 from negpy.infrastructure.display.color_spaces import WORKING_COLOR_SPACE
 from negpy.infrastructure.gpu.resources import GPUTexture
-from negpy.kernel.image.logic import calculate_file_hash, float_to_uint8
+from negpy.kernel.image.logic import float_to_uint8
 from negpy.kernel.system.config import APP_CONFIG, DEFAULT_WORKSPACE_CONFIG
 from negpy.services.assets.sidecar import load_sidecar
 from negpy.services.rendering.image_processor import ImageProcessor
 from negpy.services.rendering.preview_manager import PreviewManager
 from PIL import Image
 
+from negswift_engine.file_hash_cache import cached_file_hash, clear_file_hash_cache
 from negswift_engine.metering import (
     default_auto_density_uses_crop,
     negpy_flat_for_pipeline,
     negpy_flat_for_save,
     negswift_sidecar_extras,
 )
-from negswift_engine.sidecar_io import delete_sidecar, read_raw_sidecar, write_raw_sidecar
+from negswift_engine.sidecar_io import clear_sidecar_cache, delete_sidecar, read_raw_sidecar, write_raw_sidecar
 
 _processor: ImageProcessor | None = None
 _preview_manager: PreviewManager | None = None
+_active_asset_path: str | None = None
 
 
 def _processor_instance() -> ImageProcessor:
@@ -47,11 +50,25 @@ def _preview_manager_instance() -> PreviewManager:
 
 def reset_render_cache() -> None:
     """Drop singleton processor/preview manager — benchmarks and tests only."""
-    global _processor, _preview_manager
+    global _processor, _preview_manager, _active_asset_path
     if _processor is not None:
         _processor.cleanup(release_source_cache=True, collect=True)
     _processor = None
     _preview_manager = None
+    _active_asset_path = None
+    clear_file_hash_cache()
+    clear_sidecar_cache()
+
+
+def _evict_source_cache_if_asset_changed(path: str) -> None:
+    """Release NegPy source cache when switching to a different scan."""
+    global _active_asset_path
+    resolved = str(Path(path).resolve())
+    if _active_asset_path is not None and _active_asset_path != resolved:
+        proc = _processor
+        if proc is not None:
+            proc.cleanup(release_source_cache=True, collect=True)
+    _active_asset_path = resolved
 
 
 def _base_flat_dict(path: str) -> dict[str, Any]:
@@ -99,8 +116,9 @@ def reset_config_dict(path: str) -> dict[str, Any]:
 
 
 def open_asset(path: str) -> dict[str, Any]:
+    _evict_source_cache_if_asset_changed(path)
     pm = _preview_manager_instance()
-    f_hash = calculate_file_hash(path)
+    f_hash = cached_file_hash(path)
     buffer, dims, _meta = pm.load_linear_preview(path, color_space=WORKING_COLOR_SPACE, file_hash=f_hash)
     sidecar = load_sidecar(path)
     return {
@@ -120,8 +138,9 @@ def render_preview_png(
     crop_preview_full: bool = False,
 ) -> tuple[bytes, int, int, dict[str, Any]]:
     """Run the NegPy preview pipeline; return PNG bytes, width, height, metrics."""
+    _evict_source_cache_if_asset_changed(path)
     config = resolve_config(path, config_overrides)
-    f_hash = calculate_file_hash(path)
+    f_hash = cached_file_hash(path)
     preview_size = float(long_edge_px or APP_CONFIG.preview_render_size)
     load_full_res = preview_size > float(APP_CONFIG.preview_render_size)
 

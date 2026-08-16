@@ -49,17 +49,20 @@ struct ScratchPanelView: View {
                     Text("\(session.scratchInProgressPoints.count) point\(session.scratchInProgressPoints.count == 1 ? "" : "s")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("negSwift.scratchPointCount")
 
                     HStack(spacing: 8) {
                         Button("Finish") {
                             Task { await session.finishScratchInProgress() }
                         }
                         .controlSize(.small)
+                        .accessibilityIdentifier("negSwift.scratchFinish")
 
                         Button("Clear") {
                             session.clearScratchInProgressPoints()
                         }
                         .controlSize(.small)
+                        .accessibilityIdentifier("negSwift.scratchClear")
                     }
 
                     Text("Enter or Finish to apply · Esc clears points or exits the tool")
@@ -75,6 +78,7 @@ struct ScratchPanelView: View {
                     Task { await session.undoLastHeal() }
                 }
                 .controlSize(.small)
+                .accessibilityIdentifier("negSwift.scratchUndoHeal")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,6 +102,7 @@ struct ScratchPanelView: View {
                 in: EditControlRanges.manualDustSize,
                 step: 1
             )
+            .accessibilityIdentifier("negSwift.scratchBrushSize")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

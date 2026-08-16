@@ -158,17 +158,17 @@ final class ScratchCaptureNSView: NSView {
 
     @discardableResult
     private func handleScratchKey(_ event: NSEvent) -> Bool {
-        switch event.keyCode {
-        case 36, 76:
+        switch ScratchToolKeyHandling.action(forKeyCode: event.keyCode) {
+        case .finish:
             coordinator?.onFinish?()
             return true
-        case 51:
+        case .backspace:
             coordinator?.onBackspace?()
             return true
-        case 53:
+        case .escape:
             coordinator?.onEscape?()
             return true
-        default:
+        case nil:
             return false
         }
     }

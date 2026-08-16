@@ -361,6 +361,7 @@ final class EngineSession {
                 setCropToolActive(false)
             }
             isScratchToolActive = true
+            applyScratchSeedFromUITestIfNeeded()
         } else {
             isScratchToolActive = false
             scratchInProgressPoints = []
@@ -398,6 +399,15 @@ final class EngineSession {
         } else {
             setScratchToolActive(false)
         }
+    }
+
+    private func applyScratchSeedFromUITestIfNeeded() {
+        guard UITestSupport.isActive,
+              scratchInProgressPoints.isEmpty,
+              let seed = UITestSupport.scratchSeedPoints
+        else { return }
+        scratchInProgressPoints = seed
+        scratchInteractionRevision += 1
     }
 
     func setManualDustSize(_ value: Int) {

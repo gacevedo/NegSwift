@@ -28,4 +28,27 @@ struct ScratchToolOverlayTests {
         #expect(point?.x == 0.5)
         #expect(point?.y == 0.5)
     }
+
+    @Test func dedupeRemovesPointsCloserThanScreenThreshold() {
+        let imageRect = CGRect(x: 0, y: 0, width: 200, height: 100)
+        let points = [
+            CGPoint(x: 0.5, y: 0.5),
+            CGPoint(x: 0.501, y: 0.5),
+            CGPoint(x: 0.8, y: 0.2),
+        ]
+        let deduped = ScratchToolOverlayGeometry.dedupeNormalizedPoints(points, imageRect: imageRect, minScreenDistance: 2)
+        #expect(deduped.count == 2)
+        #expect(deduped[0].x == 0.5)
+        #expect(deduped[1].x == 0.8)
+    }
+
+    @Test func dedupeKeepsDistinctPoints() {
+        let imageRect = CGRect(x: 10, y: 20, width: 200, height: 100)
+        let points = [
+            CGPoint(x: 0.2, y: 0.3),
+            CGPoint(x: 0.7, y: 0.8),
+        ]
+        let deduped = ScratchToolOverlayGeometry.dedupeNormalizedPoints(points, imageRect: imageRect)
+        #expect(deduped == points)
+    }
 }

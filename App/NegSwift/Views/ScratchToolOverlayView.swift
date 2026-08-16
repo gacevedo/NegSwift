@@ -13,8 +13,6 @@ struct ScratchToolOverlayView: View {
     var onBackspace: () -> Void
     var onEscape: () -> Void
 
-    private let dedupeScreenDistance: CGFloat = 2
-
     var body: some View {
         GeometryReader { geometry in
             let imageRect = PreviewCanvasGeometry.aspectFitRect(
@@ -48,7 +46,7 @@ struct ScratchToolOverlayView: View {
     }
 
     private func commit(points: [CGPoint], imageRect: CGRect) {
-        let deduped = dedupePoints(points, imageRect: imageRect)
+        let deduped = ScratchToolOverlayGeometry.dedupeNormalizedPoints(points, imageRect: imageRect)
         guard !deduped.isEmpty else { return }
         onCommit(deduped)
     }
@@ -75,21 +73,6 @@ struct ScratchToolOverlayView: View {
         }
     }
 
-    private func dedupePoints(_ points: [CGPoint], imageRect: CGRect) -> [CGPoint] {
-        var deduped: [CGPoint] = []
-        for point in points {
-            if let last = deduped.last {
-                let lastScreen = screenPoint(last, imageRect: imageRect)
-                let newScreen = screenPoint(point, imageRect: imageRect)
-                if hypot(newScreen.x - lastScreen.x, newScreen.y - lastScreen.y) <= dedupeScreenDistance {
-                    continue
-                }
-            }
-            deduped.append(point)
-        }
-        return deduped
-    }
-
     private func screenPoint(_ normalized: CGPoint, imageRect: CGRect) -> CGPoint {
         CGPoint(
             x: imageRect.minX + normalized.x * imageRect.width,
@@ -99,6 +82,25 @@ struct ScratchToolOverlayView: View {
 }
 
 enum ScratchToolOverlayGeometry {
+    static func dedupeNormalizedPoints(
+        _ points: [CGPoint],
+        imageRect: CGRect,
+        minScreenDistance: CGFloat = 2
+    ) -> [CGPoint] {
+        var deduped: [CGPoint] = []
+        for point in points {
+            if let last = deduped.last {
+                let lastScreen = screenPoint(last, imageRect: imageRect)
+                let newScreen = screenPoint(point, imageRect: imageRect)
+                if hypot(newScreen.x - lastScreen.x, newScreen.y - lastScreen.y) <= minScreenDistance {
+                    continue
+                }
+            }
+            deduped.append(point)
+        }
+        return deduped
+    }
+
     /// Map a click in overlay coordinates to normalized image space (0–1).
     static func normalizedPoint(_ location: CGPoint, imageRect: CGRect) -> CGPoint? {
         guard imageRect.width > 0, imageRect.height > 0 else { return nil }
@@ -114,5 +116,12 @@ enum ScratchToolOverlayGeometry {
         guard location.x >= 0, location.y >= 0,
               location.x <= imageSize.width, location.y <= imageSize.height else { return nil }
         return CGPoint(x: location.x / imageSize.width, y: location.y / imageSize.height)
+    }
+
+    private static func screenPoint(_ normalized: CGPoint, imageRect: CGRect) -> CGPoint {
+        CGPoint(
+            x: imageRect.minX + normalized.x * imageRect.width,
+            y: imageRect.minY + normalized.y * imageRect.height
+        )
     }
 }

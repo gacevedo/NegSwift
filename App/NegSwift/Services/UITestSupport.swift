@@ -32,6 +32,25 @@ enum UITestSupport {
         return URL(fileURLWithPath: path, isDirectory: true)
     }
 
+    /// Normalized scratch points for UI tests (`0.35,0.5|0.65,0.5`).
+    static var scratchSeedPoints: [CGPoint]? {
+        guard let raw = nonEmptyEnvironment("NEGSWIFT_UI_TEST_SCRATCH_SEED_POINTS") else { return nil }
+        return parseScratchSeedPoints(raw)
+    }
+
+    static func parseScratchSeedPoints(_ raw: String) -> [CGPoint]? {
+        var points: [CGPoint] = []
+        for pair in raw.split(separator: "|") {
+            let parts = pair.split(separator: ",")
+            guard parts.count == 2,
+                  let x = Double(parts[0].trimmingCharacters(in: .whitespaces)),
+                  let y = Double(parts[1].trimmingCharacters(in: .whitespaces))
+            else { return nil }
+            points.append(CGPoint(x: x, y: y))
+        }
+        return points.isEmpty ? nil : points
+    }
+
     static func runAutomation(session: EngineSession) async {
         guard isActive else { return }
 

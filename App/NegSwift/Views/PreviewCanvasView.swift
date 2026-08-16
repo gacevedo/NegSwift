@@ -44,6 +44,7 @@ struct PreviewCanvasView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("negSwift.previewCanvas")
     }
 
     @ViewBuilder

@@ -97,6 +97,34 @@ struct EngineClientIntegrationTests {
         await client.stop()
     }
 
+    @Test func healStrokeAppendAndUndoRoundTrip() async throws {
+        let executable = try EngineLocator.executableURL()
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            Issue.record("Dev engine not found at \(executable.path). Run `cd Engine && uv sync`.")
+            return
+        }
+
+        let scan = try Self.makeSampleScanURL()
+        defer { try? FileManager.default.removeItem(at: scan) }
+
+        let client = EngineClient()
+        var config = FrameEditState()
+        let append = try await client.appendHealStroke(
+            path: scan.path,
+            points: [[0.25, 0.5], [0.75, 0.5]],
+            brushSize: 6,
+            config: config
+        )
+        #expect(append.manualHealStrokes.count == 1)
+        #expect(append.strokeIndex == 0)
+
+        config.manualHealStrokes = append.manualHealStrokes
+        let undo = try await client.undoLastHeal(path: scan.path, config: config)
+        #expect(undo.removed != nil)
+        #expect(undo.manualHealStrokes.isEmpty)
+        await client.stop()
+    }
+
     private static func makeSampleScanURL() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("negswift-test-\(UUID().uuidString).tif")

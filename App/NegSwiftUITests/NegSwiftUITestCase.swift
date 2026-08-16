@@ -3,6 +3,7 @@
 //  NegSwiftUITests
 //
 
+import CoreGraphics
 import XCTest
 
 /// Shared launch configuration for functional UI tests.
@@ -22,10 +23,21 @@ class NegSwiftUITestCase: XCTestCase {
 
     func configureLaunchEnvironment() {
         app.launchEnvironment["NEGSWIFT_ENGINE"] = Self.engineExecutablePath
-        app.launchEnvironment["NEGSWIFT_UI_TEST_DEFAULTS_SUITE"] = "uitest.\(UUID().uuidString)"
+        let defaultsSuite = "uitest.\(UUID().uuidString)"
+        app.launchEnvironment["NEGSWIFT_UI_TEST_DEFAULTS_SUITE"] = defaultsSuite
+        storeUITestDefaults(in: defaultsSuite)
     }
 
-    func relaunch(importPath: String? = nil, dropPaths: [String] = [], exportDir: String? = nil) {
+    private func storeUITestDefaults(in suite: String) {
+        UserDefaults(suiteName: suite)?.set(true, forKey: "negSwift.sidebar.scratch")
+    }
+
+    func relaunch(
+        importPath: String? = nil,
+        dropPaths: [String] = [],
+        exportDir: String? = nil,
+        scratchSeedPoints: [CGPoint] = []
+    ) {
         app.terminate()
         configureLaunchEnvironment()
         if let importPath {
@@ -36,6 +48,11 @@ class NegSwiftUITestCase: XCTestCase {
         }
         if let exportDir {
             app.launchEnvironment["NEGSWIFT_UI_TEST_EXPORT_DIR"] = exportDir
+        }
+        if !scratchSeedPoints.isEmpty {
+            app.launchEnvironment["NEGSWIFT_UI_TEST_SCRATCH_SEED_POINTS"] = scratchSeedPoints
+                .map { "\($0.x),\($0.y)" }
+                .joined(separator: "|")
         }
         app.launchArguments.append(UITestLaunch.launchArgument)
         app.launch()
@@ -51,6 +68,57 @@ class NegSwiftUITestCase: XCTestCase {
         let quickExport = app.buttons[AccessibilityID.quickExport]
         XCTAssertTrue(quickExport.waitForExistence(timeout: timeout), "Quick Export control missing")
         try waitUntilEnabled(quickExport, timeout: timeout, message: "Import or preview did not finish")
+    }
+
+    func scratchToolToggle() -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(identifier: AccessibilityID.scratchToolToggle)
+            .firstMatch
+    }
+
+    func setScratchToolActive(_ active: Bool, timeout: TimeInterval = 10) throws {
+        let toggle = scratchToolToggle()
+        XCTAssertTrue(toggle.waitForExistence(timeout: timeout), "Scratch tool toggle missing")
+        let isOn = (toggle.value as? String) == "1" || toggle.value as? Bool == true
+        if isOn != active {
+            toggle.click()
+        }
+        if active {
+            XCTAssertTrue(
+                app.descendants(matching: .any)
+                    .matching(identifier: AccessibilityID.scratchBrushSize)
+                    .firstMatch
+                    .waitForExistence(timeout: timeout),
+                "Scratch tool controls did not appear"
+            )
+        }
+    }
+
+    func previewCanvas(timeout: TimeInterval = 30) throws -> XCUIElement {
+        let canvas = app.descendants(matching: .any)
+            .matching(identifier: AccessibilityID.previewCanvas)
+            .firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: timeout), "Preview canvas missing")
+        return canvas
+    }
+
+    func waitForScratchPointCount(_ count: Int, timeout: TimeInterval = 10) throws {
+        let label = app.staticTexts[AccessibilityID.scratchPointCount]
+        XCTAssertTrue(label.waitForExistence(timeout: timeout), "Scratch point count label missing")
+        let deadline = Date().addingTimeInterval(timeout)
+        let expected = "\(count) point\(count == 1 ? "" : "s")"
+        while Date() < deadline {
+            if label.value as? String == expected || label.label == expected {
+                return
+            }
+            usleep(100_000)
+        }
+        XCTFail("Expected scratch point count \"\(expected)\", got \"\(label.label)\"")
+    }
+
+    func waitForScratchUndoHeal(timeout: TimeInterval = 60) throws {
+        let undo = app.buttons[AccessibilityID.scratchUndoHeal]
+        XCTAssertTrue(undo.waitForExistence(timeout: timeout), "Undo Last Heal did not appear after commit")
     }
 
     func waitForPreviewError(timeout: TimeInterval = 30) throws {
@@ -154,4 +222,11 @@ enum AccessibilityID {
     static let prefsPreviewQuality = "negSwift.prefs.previewQuality"
     static let prefsUseGPU = "negSwift.prefs.useGPU"
     static let prefsDataLocation = "negSwift.prefs.dataLocation"
+    static let previewCanvas = "negSwift.previewCanvas"
+    static let scratchToolToggle = "negSwift.scratchToolToggle"
+    static let scratchBrushSize = "negSwift.scratchBrushSize"
+    static let scratchPointCount = "negSwift.scratchPointCount"
+    static let scratchFinish = "negSwift.scratchFinish"
+    static let scratchClear = "negSwift.scratchClear"
+    static let scratchUndoHeal = "negSwift.scratchUndoHeal"
 }

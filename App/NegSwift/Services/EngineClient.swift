@@ -235,8 +235,14 @@ actor EngineClient {
             if let previous = activeThumbnailJobID {
                 try? await cancel(jobID: previous)
             }
-        } else if let previous = activePreviewJobID {
-            try? await cancel(jobID: previous)
+        } else {
+            if let previous = activePreviewJobID {
+                try? await cancel(jobID: previous)
+            }
+            // Preview must not queue behind an in-flight strip thumbnail render.
+            if let previous = activeThumbnailJobID {
+                try? await cancel(jobID: previous)
+            }
         }
         let jobID = UUID().uuidString
         if isThumbnail {

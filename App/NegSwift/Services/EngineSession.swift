@@ -690,12 +690,13 @@ final class EngineSession {
         isCropOverlayReady = false
         cropPreviewBaseline = nil
         pendingThumbnailRefreshAfterCropClose = false
+        thumbnailGeneration += 1
         selectedFrameID = id
         guard let frame = frames.first(where: { $0.id == id }) else { return }
         if let previousPath, previousPath != frame.path {
             saveDebounce.cancel()
             await persistEdit(for: previousPath)
-            await refreshThumbnail(for: previousPath)
+            Task { await refreshThumbnail(for: previousPath) }
         }
         await ensureEditLoaded(for: frame.path)
         previewDebounce.cancel()
@@ -710,19 +711,13 @@ final class EngineSession {
     }
 
     private func ensureEditLoaded(for path: String) async {
-        _ = await frameEditState(for: path)
-    }
-
-    private func frameEditState(for path: String) async -> FrameEditState {
-        if let cached = frameEdits[path] {
-            return cached
-        }
-        let edit = await fetchFrameEditState(for: path)
+        if frameEdits[path] != nil { return }
+        let edit = await loadConfigOnly(for: path)
         frameEdits[path] = edit
-        return edit
+        scheduleAutodetectIfNeeded(for: path)
     }
 
-    private func fetchFrameEditState(for path: String) async -> FrameEditState {
+    private func loadConfigOnly(for path: String) async -> FrameEditState {
         do {
             let loaded = try await client.loadConfig(path: path)
             let flat = loaded.config.mapValues(\.anyValue)
@@ -733,12 +728,24 @@ final class EngineSession {
             if edit.manualCropRect != nil {
                 edit.autoCropEnabled = false
             }
-            if let detected = await detectProcessMode(path: path, force: false) {
-                edit.processMode = detected
-            }
             return edit
         } catch {
             return defaultEditState()
+        }
+    }
+
+    private func scheduleAutodetectIfNeeded(for path: String) {
+        guard preferences.autodetectProcessMode else { return }
+        Task {
+            guard let detected = await detectProcessMode(path: path, force: false) else { return }
+            guard var edit = frameEdits[path], edit.processMode != detected else { return }
+            edit.processMode = detected
+            frameEdits[path] = edit
+            if path == selectedFramePath {
+                refreshPreviewNow()
+            } else {
+                await refreshThumbnail(for: path)
+            }
         }
     }
 
@@ -899,6 +906,8 @@ final class EngineSession {
             if let data = result.pngData, let image = NSImage(data: data) {
                 updateFrame(at: frameIndex) { $0.thumbnail = image }
             }
+        } catch is CancellationError {
+            return
         } catch {
             // Thumbnail failure is non-fatal; full preview may still work.
         }
@@ -931,8 +940,13 @@ final class EngineSession {
         // cancel it so that job does not pre-empt the next strip thumbnail.
         thumbnailDebounce.cancel()
         thumbnailGeneration += 1
+        let thumbGen = thumbnailGeneration
         for index in frames.indices {
             guard generation == stripGeneration else {
+                resetStuckThumbnailSpinners()
+                return
+            }
+            guard thumbGen == thumbnailGeneration else {
                 resetStuckThumbnailSpinners()
                 return
             }
@@ -943,7 +957,7 @@ final class EngineSession {
             defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
 
             let path = frames[index].path
-            let config = await frameEditState(for: path)
+            let config = pipelineConfig(for: await thumbnailEditState(for: path))
             let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
             do {
                 let result = try await client.render(
@@ -957,13 +971,32 @@ final class EngineSession {
                     resetStuckThumbnailSpinners()
                     return
                 }
+                guard thumbGen == thumbnailGeneration else {
+                    resetStuckThumbnailSpinners()
+                    return
+                }
                 if let data = result.pngData, let image = NSImage(data: data) {
                     updateFrame(at: index) { $0.thumbnail = image }
                 }
+            } catch is CancellationError {
+                resetStuckThumbnailSpinners()
+                return
             } catch {
                 // Thumbnail failure is non-fatal; full preview may still work.
             }
         }
+    }
+
+    /// Sidecar config for strip thumbs — skips process-mode autodetect so bulk loading
+    /// does not block preview IPC on every frame in the folder.
+    private func thumbnailEditState(for path: String) async -> FrameEditState {
+        if let cached = frameEdits[path] {
+            return cached
+        }
+        let edit = await loadConfigOnly(for: path)
+        frameEdits[path] = edit
+        scheduleAutodetectIfNeeded(for: path)
+        return edit
     }
 
     private func clearFilmStrip() {

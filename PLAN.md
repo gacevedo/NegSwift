@@ -24,9 +24,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
 | **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
-| **M13** Scratch Tool | **Planned** | Polyline scratch/hair heal; HUD controls; ⇧S; M13b ⌘Z undo last heal |
+| **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 
-**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **Then:** M13 — [§7 M13](#m13--scratch-tool-planned).
+**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **M13 done** — scratch tool shipped.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -610,7 +610,7 @@ UX:
 
 ---
 
-### M13 — Scratch Tool (planned)
+### M13 — Scratch Tool (done)
 
 Manual scratch and hair repair via a click-polyline on the canvas. NegPy already implements the repair math (`strokes_to_score` on `manual_heal_strokes`); NegSwift adds canvas UX, config round-trip, and engine-side coordinate mapping. No algorithm fork.
 
@@ -620,7 +620,7 @@ Manual scratch and hair repair via a click-polyline on the canvas. NegPy already
 
 | Decision | Choice |
 |----------|--------|
-| **Panel location (v1)** | Compact controls in the **canvas HUD** only (tool toggle + brush size). No sidebar Retouch section until more tools warrant it. |
+| **Panel location (v1)** | **Scratch** sidebar section (toggle, brush size, Finish, undo). Canvas HUD shows zoom only. |
 | **M13b priority** | **⌘Z undo last heal** when scratch tool is active (NegPy context-undo pattern). Revisit delete-stroke / Clear All later. |
 | **Default brush size** | **6** px diameter — match NegPy `manual_dust_size` default (`HEAL_SIZE_REF` = 1600 px long edge). |
 
@@ -692,32 +692,28 @@ Menu / commands: **⇧S** in `NegSwiftApp` + `MainWindowCommandBridge`; Enter fi
 
 **Phase 0 — Config + engine commit (no canvas UI)**
 
-- [ ] `FrameEditState` fields + round-trip tests
-- [ ] `append_heal_stroke` IPC + `docs/ENGINE_PROTOCOL.md` + pytest (mapping on rotated frame)
-- [ ] Render/export apply strokes; memo fingerprint includes heals
-
-**Gate:** `uv run pytest`; hand-authored stroke in sidecar shows repair on `render`.
+- [x] `FrameEditState` fields + round-trip tests
+- [x] `append_heal_stroke` IPC + `docs/ENGINE_PROTOCOL.md` + pytest (mapping on rotated frame)
+- [x] Render/export apply strokes; memo fingerprint includes heals
 
 **Phase 1 — Canvas polyline**
 
-- [ ] `EngineSession.isScratchToolActive`; exclude crop tool
-- [ ] `ScratchToolOverlayView` — click, draw, double-click / Enter finish
-- [ ] Commit via `append_heal_stroke`; debounced preview + save
-- [ ] Esc / Backspace; HUD toggle + brush size (default 6)
-
-**Gate:** Place polyline on scratch; preview updates; `.negpy` round-trips; reopen restores.
+- [x] `EngineSession.isScratchToolActive`; exclude crop tool
+- [x] `ScratchToolOverlayView` — click, draw, double-click / Enter finish
+- [x] Commit via `append_heal_stroke`; debounced preview + save
+- [x] Esc / Backspace; HUD toggle + brush size (default 6)
 
 **Phase 2 — Shortcut + polish**
 
-- [ ] ⇧S menu shortcut
+- [x] ⇧S menu shortcut
 - [ ] Placed-stroke overlay while tool active (optional; match NegPy `_draw_placed_heals`)
 - [ ] Manual checklist M13 complete
 
 **M13b — Undo last heal**
 
-- [ ] `undo_last_heal` engine IPC + protocol test
-- [ ] ⌘Z when scratch tool active → pop last stroke (NegPy `_context_undo` behavior)
-- [ ] Persist + memo invalidation
+- [x] `undo_last_heal` engine IPC + protocol test
+- [x] ⌘Z when scratch tool active → pop last stroke (NegPy `_context_undo` behavior)
+- [x] Persist + memo invalidation
 
 **Deferred (post-M13b):** right-click delete stroke, transport-line tool, Retouch sidebar, Clear All heals.
 

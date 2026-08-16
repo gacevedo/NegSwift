@@ -10,6 +10,7 @@ from typing import Any
 from negswift_engine.detect import detect_process_mode_dict
 from negswift_engine.discover import discover_assets
 from negswift_engine.export import export_asset
+from negswift_engine.heal import append_heal_stroke_dict, undo_last_heal_dict
 from negswift_engine.jobs import JobCancelled
 from negswift_engine.render import (
     DEFAULT_PREVIEW_JPEG_QUALITY,
@@ -159,6 +160,56 @@ def _cmd_render(params: dict[str, Any], cancel: threading.Event | None = None) -
         raise ProtocolError("RENDER_FAILED", str(exc)) from exc
 
 
+def _cmd_append_heal_stroke(params: dict[str, Any]) -> dict[str, Any]:
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        raise ProtocolError("INVALID_REQUEST", "params.path is required")
+    points = params.get("points")
+    if not isinstance(points, list) or not points:
+        raise ProtocolError("INVALID_REQUEST", "params.points must be a non-empty array")
+    parsed_points: list[list[float]] = []
+    for item in points:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise ProtocolError("INVALID_REQUEST", "each point must be [nx, ny]")
+        parsed_points.append([float(item[0]), float(item[1])])
+    brush_size = params.get("brush_size")
+    if brush_size is not None and not isinstance(brush_size, (int, float)):
+        raise ProtocolError("INVALID_REQUEST", "params.brush_size must be a number")
+    config = params.get("config")
+    if config is not None and not isinstance(config, dict):
+        raise ProtocolError("INVALID_REQUEST", "params.config must be an object")
+    try:
+        return append_heal_stroke_dict(
+            path,
+            parsed_points,
+            brush_size=float(brush_size) if brush_size is not None else None,
+            config_overrides=config,
+        )
+    except FileNotFoundError as exc:
+        raise ProtocolError("NOT_FOUND", str(exc)) from exc
+    except ValueError as exc:
+        raise ProtocolError("INVALID_REQUEST", str(exc)) from exc
+    except OSError as exc:
+        raise ProtocolError("LOAD_FAILED", str(exc)) from exc
+    except Exception as exc:
+        raise ProtocolError("RENDER_FAILED", str(exc)) from exc
+
+
+def _cmd_undo_last_heal(params: dict[str, Any]) -> dict[str, Any]:
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        raise ProtocolError("INVALID_REQUEST", "params.path is required")
+    config = params.get("config")
+    if config is not None and not isinstance(config, dict):
+        raise ProtocolError("INVALID_REQUEST", "params.config must be an object")
+    try:
+        return undo_last_heal_dict(path, config_overrides=config)
+    except FileNotFoundError as exc:
+        raise ProtocolError("NOT_FOUND", str(exc)) from exc
+    except OSError as exc:
+        raise ProtocolError("LOAD_FAILED", str(exc)) from exc
+
+
 def _cmd_export(params: dict[str, Any], cancel: threading.Event | None = None) -> dict[str, Any]:
     path = params.get("path")
     if not isinstance(path, str) or not path:
@@ -211,6 +262,8 @@ _HANDLERS: dict[str, Handler] = {
     "detect_process_mode": _cmd_detect_process_mode,
     "render": _cmd_render,
     "export": _cmd_export,
+    "append_heal_stroke": _cmd_append_heal_stroke,
+    "undo_last_heal": _cmd_undo_last_heal,
 }
 
 

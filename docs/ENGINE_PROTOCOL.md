@@ -212,7 +212,7 @@ Full-resolution export.
 **Params:** `{ "job_id": "<id of in-flight request>" }`  
 **Result:** `{ "cancelled": true }`
 
-### `append_heal_stroke` (M13 — planned)
+### `append_heal_stroke` (M13)
 
 Map viewport-normalized polyline points to source space and append one heal stroke. NegPy stores strokes in `manual_heal_strokes`; repair runs on the next `render` / `export`.
 
@@ -242,7 +242,7 @@ Map viewport-normalized polyline points to source space and append one heal stro
 }
 ```
 
-### `undo_last_heal` (M13b — planned)
+### `undo_last_heal` (M13b)
 
 Remove the most recent manual heal (scratch polyline or legacy dust spot). Matches NegPy desktop context undo while a retouch tool is active.
 

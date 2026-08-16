@@ -14,6 +14,7 @@ struct SidebarSection<Content: View>: View {
         DisclosureGroup(isExpanded: $isExpanded) {
             content()
                 .padding(.top, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
             Text(title)
                 .font(.subheadline.weight(.semibold))

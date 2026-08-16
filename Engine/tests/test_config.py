@@ -195,6 +195,28 @@ def test_save_geometry_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
     WorkspaceConfig.from_flat_dict(loaded)
 
 
+def test_save_heal_strokes_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    stroke = [[[0.2, 0.3], [0.7, 0.8]], 6.0, 0.0, 0.0]
+    overrides = {
+        "manual_heal_strokes": [stroke],
+        "manual_dust_size": 6,
+    }
+    save_msg = ndjson_request(
+        "save_config",
+        {"path": str(frame), "config": overrides},
+        req_id="heal-save",
+    )
+    assert save_msg["ok"] is True
+
+    loaded = ndjson_request("load_config", {"path": str(frame)}, req_id="heal-load")["result"]["config"]
+    assert loaded["manual_dust_size"] == 6
+    assert len(loaded["manual_heal_strokes"]) == 1
+    assert loaded["manual_heal_strokes"][0][0] == [[0.2, 0.3], [0.7, 0.8]]
+    WorkspaceConfig.from_flat_dict(loaded)
+
+
 def test_auto_density_uses_crop_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
     frame = tmp_path / "frame.tif"
     shutil.copy(sample_tiff, frame)

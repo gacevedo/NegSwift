@@ -83,9 +83,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M10 | PyInstaller / bundle — **Done** |
 | M11 | Polish — **Done** |
 | **M12** | **In progress** — Performance; Phase 4 JPEG transport + Phase 5 preview memo done |
-| **M13** | **Planned** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
+| **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 
-**Current status (2026-08-16):** M0–M11 done; **M12 Phase 4 complete** (JPEG preview IPC); **M12 Phase 5 complete** (Swift preview render memo). **Next:** M12 manual benchmarks on real scan; release smoke — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) and [PLAN.md](PLAN.md) §7 M12. **Then M13** — [PLAN.md](PLAN.md) §7 M13.
+**Current status (2026-08-16):** M0–M11 done; **M12 Phase 4 complete** (JPEG preview IPC); **M12 Phase 5 complete** (Swift preview render memo); **M13 complete** (scratch tool + undo). **Next:** M12 manual benchmarks on real scan; release smoke — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) and [PLAN.md](PLAN.md) §7 M12.
 
 ## Architecture rules
 

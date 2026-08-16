@@ -18,6 +18,7 @@ struct ContentView: View {
     @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
     @AppStorage("negSwift.sidebar.color") private var colorExpanded = false
     @AppStorage("negSwift.sidebar.crop") private var cropExpanded = false
+    @AppStorage("negSwift.sidebar.scratch") private var scratchExpanded = false
     @State private var isImportDropTargeted = false
 
     var body: some View {
@@ -85,6 +86,8 @@ struct ContentView: View {
 
                         GeometryPanelView(session: engineSession, isExpanded: $cropExpanded)
 
+                        ScratchPanelView(session: engineSession, isExpanded: $scratchExpanded)
+
                         ControlsPanelView(
                             session: engineSession,
                             toneExpanded: $toneExpanded,
@@ -93,6 +96,7 @@ struct ContentView: View {
                     }
                     .padding()
                 }
+                .scrollIndicators(.hidden)
 
                 Divider()
 
@@ -165,6 +169,8 @@ struct ContentView: View {
         .onChange(of: engineSession.engineReady) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.isExporting) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.isCropToolActive) { _, _ in syncCommandBridgeState() }
+        .onChange(of: engineSession.isScratchToolActive) { _, _ in syncCommandBridgeState() }
+        .onChange(of: engineSession.scratchHealRevision) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.previewImage) { _, _ in syncCommandBridgeState() }
         .onChange(of: showExportSheet) { _, _ in syncCommandBridgeState() }
         .onChange(of: showEngineSheet) { _, _ in syncCommandBridgeState() }
@@ -188,6 +194,17 @@ struct ContentView: View {
                 engineSession.setCropToolActive(!engineSession.isCropToolActive)
             }
         }
+        commandBridge.toggleScratchTool = {
+            Task { @MainActor in
+                await Task.yield()
+                engineSession.setScratchToolActive(!engineSession.isScratchToolActive)
+            }
+        }
+        commandBridge.undoLastHeal = {
+            Task {
+                await engineSession.undoLastHeal()
+            }
+        }
         syncCommandBridgeState()
     }
 
@@ -201,6 +218,13 @@ struct ContentView: View {
             && !modalOpen
         commandBridge.canToggleCropTool = engineSession.engineReady
             && engineSession.selectedFrameID != nil
+            && !modalOpen
+        commandBridge.canToggleScratchTool = engineSession.engineReady
+            && engineSession.selectedFrameID != nil
+            && engineSession.previewImage != nil
+            && !modalOpen
+        commandBridge.canUndoLastHeal = engineSession.isScratchToolActive
+            && engineSession.currentEdit.hasHealStrokes
             && !modalOpen
     }
 

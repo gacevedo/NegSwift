@@ -1,0 +1,22 @@
+//
+//  ScratchCursor.swift
+//  NegSwift
+//
+
+import AppKit
+
+enum ScratchCursor {
+    private static var isCrosshair = false
+
+    static func setCrosshair(_ enabled: Bool) {
+        guard enabled != isCrosshair else { return }
+        isCrosshair = enabled
+        (enabled ? NSCursor.crosshair : NSCursor.arrow).set()
+    }
+
+    static func reset() {
+        guard isCrosshair else { return }
+        isCrosshair = false
+        NSCursor.arrow.set()
+    }
+}

@@ -56,9 +56,8 @@ struct PreviewCanvasView: View {
                 .contentShape(Rectangle())
                 .gesture(fitDoubleClickGesture())
 
-            if session.isCropToolActive, session.isCropOverlayReady {
-                cropOverlay
-            }
+            toolOverlays
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: size.width, height: size.height)
     }
@@ -76,14 +75,23 @@ struct PreviewCanvasView: View {
                         zoomToFit()
                     }
 
-                if session.isCropToolActive, session.isCropOverlayReady {
-                    cropOverlay
-                        .frame(width: pixelSize.width, height: pixelSize.height)
-                }
+                toolOverlays
+                    .frame(width: pixelSize.width, height: pixelSize.height)
             }
             .frame(width: pixelSize.width, height: pixelSize.height)
         }
+        .scrollDisabled(session.isScratchToolActive)
         .scrollPosition($scrollPosition)
+    }
+
+    @ViewBuilder
+    private var toolOverlays: some View {
+        if session.isCropToolActive, session.isCropOverlayReady {
+            cropOverlay
+        }
+        if session.isScratchToolActive {
+            scratchOverlay
+        }
     }
 
     private func fitDoubleClickGesture() -> some Gesture {
@@ -94,13 +102,13 @@ struct PreviewCanvasView: View {
     }
 
     private func zoomToOneToOne(at location: CGPoint) {
-        guard !session.isCropToolActive else { return }
+        guard !session.isCropToolActive, !session.isScratchToolActive else { return }
         pendingOneToOneClick = location
         zoomMode = .oneToOne
     }
 
     private func zoomToFit() {
-        guard !session.isCropToolActive else { return }
+        guard !session.isCropToolActive, !session.isScratchToolActive else { return }
         pendingOneToOneClick = nil
         zoomMode = .fit
     }
@@ -125,6 +133,22 @@ struct PreviewCanvasView: View {
             aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio),
             imagePixelSize: session.previewPixelSize ?? image.size,
             onClickOutside: { session.setCropToolActive(false) }
+        )
+    }
+
+    private var scratchOverlay: some View {
+        ScratchToolOverlayView(
+            imagePixelSize: session.previewPixelSize ?? image.size,
+            inProgressPoints: session.scratchInProgressPoints,
+            onAddPoint: { session.appendScratchInProgressPoint($0) },
+            onCommit: { points in
+                session.scratchInProgressPoints = []
+                Task {
+                    await session.commitScratchStroke(points: points)
+                }
+            },
+            onBackspace: { session.removeLastScratchInProgressPoint() },
+            onEscape: { session.handleScratchEscape() }
         )
     }
 

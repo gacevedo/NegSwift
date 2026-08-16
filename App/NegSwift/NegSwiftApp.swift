@@ -76,6 +76,18 @@ struct NegSwiftApp: App {
                 }
                 .keyboardShortcut("c", modifiers: .shift)
                 .disabled(!commandBridge.canToggleCropTool)
+
+                Button("Toggle Scratch Tool") {
+                    commandBridge.performToggleScratchTool()
+                }
+                .keyboardShortcut("s", modifiers: .shift)
+                .disabled(!commandBridge.canToggleScratchTool)
+
+                Button("Undo Last Heal") {
+                    commandBridge.performUndoLastHeal()
+                }
+                .keyboardShortcut("z", modifiers: .command)
+                .disabled(!commandBridge.canUndoLastHeal)
             }
         }
         Settings {

@@ -29,6 +29,10 @@ final class EngineSession {
     private(set) var frameEdits: [String: FrameEditState] = [:]
     private(set) var isCropToolActive = false
     private(set) var isCropOverlayReady = false
+    private(set) var isScratchToolActive = false
+    private(set) var scratchHealRevision = 0
+    var scratchInProgressPoints: [CGPoint] = []
+    private(set) var scratchInteractionRevision = 0
     private(set) var previewPixelSize: CGSize?
     /// When set, the canvas shows a loading overlay with this message (e.g. during reset).
     private(set) var previewLoadingMessage: String?
@@ -245,6 +249,8 @@ final class EngineSession {
         thumbnailDebounce.cancel()
         isCropToolActive = false
         isCropOverlayReady = false
+        isScratchToolActive = false
+        scratchInProgressPoints = []
         cropPreviewBaseline = nil
         pendingThumbnailRefreshAfterCropClose = false
         pendingAutoCropSeed = false
@@ -322,6 +328,11 @@ final class EngineSession {
     func setCropToolActive(_ active: Bool) {
         guard isCropToolActive != active else { return }
         if active {
+            if isScratchToolActive {
+                isScratchToolActive = false
+                scratchInProgressPoints = []
+                ScratchCursor.reset()
+            }
             let edit = currentEdit
             pendingAutoCropSeed = edit.manualCropRect == nil && edit.autoCropEnabled
             if !pendingAutoCropSeed {
@@ -341,6 +352,125 @@ final class EngineSession {
             thumbnailDebounce.cancel()
         }
         refreshPreviewNow()
+    }
+
+    func setScratchToolActive(_ active: Bool) {
+        guard isScratchToolActive != active else { return }
+        if active {
+            if isCropToolActive {
+                setCropToolActive(false)
+            }
+            isScratchToolActive = true
+        } else {
+            isScratchToolActive = false
+            scratchInProgressPoints = []
+            ScratchCursor.reset()
+        }
+    }
+
+    func appendScratchInProgressPoint(_ point: CGPoint) {
+        scratchInProgressPoints.append(point)
+        scratchInteractionRevision += 1
+    }
+
+    func removeLastScratchInProgressPoint() {
+        guard !scratchInProgressPoints.isEmpty else { return }
+        scratchInProgressPoints.removeLast()
+        scratchInteractionRevision += 1
+    }
+
+    func clearScratchInProgressPoints() {
+        guard !scratchInProgressPoints.isEmpty else { return }
+        scratchInProgressPoints = []
+        scratchInteractionRevision += 1
+    }
+
+    func finishScratchInProgress() async {
+        let points = scratchInProgressPoints
+        scratchInProgressPoints = []
+        guard !points.isEmpty else { return }
+        await commitScratchStroke(points: points)
+    }
+
+    func handleScratchEscape() {
+        if !scratchInProgressPoints.isEmpty {
+            clearScratchInProgressPoints()
+        } else {
+            setScratchToolActive(false)
+        }
+    }
+
+    func setManualDustSize(_ value: Int) {
+        let clamped = min(max(value, Int(EditControlRanges.manualDustSize.lowerBound)), Int(EditControlRanges.manualDustSize.upperBound))
+        updateEdit(refreshPreview: false) { $0.manualDustSize = clamped }
+    }
+
+    func commitScratchStroke(points: [CGPoint]) async {
+        guard isScratchToolActive,
+              let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path }),
+              !points.isEmpty
+        else { return }
+
+        let wirePoints = points.map { [Double($0.x), Double($0.y)] }
+        let config = pipelineConfig(for: currentEdit)
+
+        let gotAccess = beginFileAccess(for: frame.url)
+        defer {
+            if gotAccess {
+                endFileAccess(for: frame.url)
+            }
+        }
+
+        do {
+            let result = try await client.appendHealStroke(
+                path: path,
+                points: wirePoints,
+                brushSize: config.manualDustSize,
+                config: config
+            )
+            previewMemo.invalidate(path: path)
+            var edit = frameEdits[path] ?? defaultEditState()
+            edit.manualHealStrokes = result.manualHealStrokes
+            frameEdits[path] = edit
+            dirtyPaths.insert(path)
+            scratchHealRevision += 1
+            scheduleDebouncedSave(for: path)
+            scheduleDebouncedPreview(for: frame)
+        } catch {
+            previewError = "Could not apply heal stroke: \(error.localizedDescription)"
+        }
+    }
+
+    func undoLastHeal() async {
+        guard isScratchToolActive,
+              currentEdit.hasHealStrokes,
+              let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else { return }
+
+        let config = pipelineConfig(for: currentEdit)
+        let gotAccess = beginFileAccess(for: frame.url)
+        defer {
+            if gotAccess {
+                endFileAccess(for: frame.url)
+            }
+        }
+
+        do {
+            let result = try await client.undoLastHeal(path: path, config: config)
+            guard result.removed != nil else { return }
+            previewMemo.invalidate(path: path)
+            var edit = frameEdits[path] ?? defaultEditState()
+            edit.manualHealStrokes = result.manualHealStrokes
+            frameEdits[path] = edit
+            dirtyPaths.insert(path)
+            scratchHealRevision += 1
+            scheduleDebouncedSave(for: path)
+            scheduleDebouncedPreview(for: frame)
+        } catch {
+            previewError = "Could not undo heal: \(error.localizedDescription)"
+        }
     }
 
     func setFineRotation(_ value: Double) {
@@ -832,6 +962,8 @@ final class EngineSession {
         let previousPath = selectedFramePath
         isCropToolActive = false
         isCropOverlayReady = false
+        isScratchToolActive = false
+        scratchInProgressPoints = []
         cropPreviewBaseline = nil
         pendingThumbnailRefreshAfterCropClose = false
         pendingAutoCropSeed = false
@@ -1311,6 +1443,8 @@ final class EngineSession {
         thumbnailReloadPasses = 0
         isCropToolActive = false
         isCropOverlayReady = false
+        isScratchToolActive = false
+        scratchInProgressPoints = []
         cropPreviewBaseline = nil
         pendingThumbnailRefreshAfterCropClose = false
         pendingAutoCropSeed = false

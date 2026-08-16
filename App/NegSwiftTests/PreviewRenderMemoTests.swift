@@ -63,4 +63,14 @@ struct PreviewRenderMemoTests {
     let b = PreviewMemoFingerprint.make(pipelineConfig: config, settings: cpu, cropPreviewFull: false)
     #expect(a != b)
   }
+
+  @Test func fingerprintChangesWhenHealStrokesChange() {
+    let settings = PreviewRenderSettings(longEdgePx: 1600, preferGPU: true)
+    let base = FrameEditState()
+    var healed = FrameEditState()
+    healed.manualHealStrokes = [HealStroke(points: [HealStrokePoint(x: 0.1, y: 0.2)], size: 6)]
+    let first = PreviewMemoFingerprint.make(pipelineConfig: base, settings: settings, cropPreviewFull: false)
+    let second = PreviewMemoFingerprint.make(pipelineConfig: healed, settings: settings, cropPreviewFull: false)
+    #expect(first != second)
+  }
 }

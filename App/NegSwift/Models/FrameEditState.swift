@@ -56,8 +56,13 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var fineRotation: Double = 0
     var autocropRatio: String = "3:2"
     var manualCropRect: NormalizedRect?
+    /// NegPy ``manual_heal_strokes`` — scratch/hair polylines in source-normalized space.
+    var manualHealStrokes: [HealStroke] = []
+    /// NegPy ``manual_dust_size`` — heal brush diameter at HEAL_SIZE_REF scale.
+    var manualDustSize: Int = EditControlDefaults.manualDustSize
 
     var hasCrop: Bool { manualCropRect != nil }
+    var hasHealStrokes: Bool { !manualHealStrokes.isEmpty }
 
     enum CodingKeys: String, CodingKey {
         case processMode = "process_mode"
@@ -79,6 +84,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         case fineRotation = "fine_rotation"
         case autocropRatio = "autocrop_ratio"
         case manualCropRect = "manual_crop_rect"
+        case manualHealStrokes = "manual_heal_strokes"
+        case manualDustSize = "manual_dust_size"
     }
 
     init() {}
@@ -102,7 +109,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
         rotation: Int = 0,
         fineRotation: Double = 0,
         autocropRatio: String = "3:2",
-        manualCropRect: NormalizedRect? = nil
+        manualCropRect: NormalizedRect? = nil,
+        manualHealStrokes: [HealStroke] = [],
+        manualDustSize: Int = EditControlDefaults.manualDustSize
     ) {
         self.processMode = processMode
         self.density = density
@@ -123,6 +132,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         self.fineRotation = fineRotation
         self.autocropRatio = autocropRatio
         self.manualCropRect = manualCropRect
+        self.manualHealStrokes = manualHealStrokes
+        self.manualDustSize = manualDustSize
     }
 
     init(from decoder: Decoder) throws {
@@ -152,6 +163,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
         } else {
             manualCropRect = nil
         }
+        manualHealStrokes = try container.decodeIfPresent([HealStroke].self, forKey: .manualHealStrokes) ?? []
+        manualDustSize = try container.decodeIfPresent(Int.self, forKey: .manualDustSize)
+            ?? EditControlDefaults.manualDustSize
     }
 
     func encode(to encoder: Encoder) throws {
@@ -177,6 +191,12 @@ struct FrameEditState: Equatable, Codable, Sendable {
         if let manualCropRect {
             try container.encode(manualCropRect.arrayValue(), forKey: .manualCropRect)
         }
+        if !manualHealStrokes.isEmpty {
+            try container.encode(manualHealStrokes, forKey: .manualHealStrokes)
+        }
+        if manualDustSize != EditControlDefaults.manualDustSize {
+            try container.encode(manualDustSize, forKey: .manualDustSize)
+        }
     }
 
     static func fromFlatConfig(_ config: [String: Any]) -> FrameEditState {
@@ -199,7 +219,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
             rotation: int(config["rotation"], default: 0),
             fineRotation: double(config["fine_rotation"], default: 0),
             autocropRatio: string(config["autocrop_ratio"], default: "3:2"),
-            manualCropRect: NormalizedRect.fromFlatValue(config["manual_crop_rect"])
+            manualCropRect: NormalizedRect.fromFlatValue(config["manual_crop_rect"]),
+            manualHealStrokes: HealStroke.fromFlatValue(config["manual_heal_strokes"]),
+            manualDustSize: int(config["manual_dust_size"], default: EditControlDefaults.manualDustSize)
         )
     }
 
@@ -236,6 +258,7 @@ enum EditControlRanges {
     static let dustThreshold = 0.01 ... 1.0
     static let dustSize = 3.0 ... 8.0
     static let fineRotation = -45.0 ... 45.0
+    static let manualDustSize = 2.0 ... 16.0
 }
 
 enum EditControlDefaults {
@@ -247,4 +270,5 @@ enum EditControlDefaults {
     static let dustThreshold = 0.66
     static let dustSize = 4
     static let fineRotation = 0.0
+    static let manualDustSize = 6
 }

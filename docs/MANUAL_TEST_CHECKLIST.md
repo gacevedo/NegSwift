@@ -195,9 +195,9 @@ Test scan path:
 
 ---
 
-## M13 — Scratch Tool (planned)
+## M13 — Scratch Tool
 
-HUD-only controls for v1 (toggle + brush size in canvas HUD; no Retouch sidebar until more tools ship). Default brush size **6** (NegPy `manual_dust_size`). See [PLAN.md](../PLAN.md) §7 M13.
+Sidebar **Scratch** section (toggle, brush size, Finish, undo). Canvas HUD shows zoom only. Default brush size **6** (NegPy `manual_dust_size`). See [PLAN.md](../PLAN.md) §7 M13.
 
 **Phase 0 — Engine + config**
 
@@ -210,7 +210,7 @@ HUD-only controls for v1 (toggle + brush size in canvas HUD; no Retouch sidebar 
 - [ ] ⇧S toggles scratch tool; mutual exclusion with crop tool
 - [ ] Click points along scratch/hair; double-click or Enter commits
 - [ ] Backspace removes last in-progress point; Esc clears points then exits tool
-- [ ] HUD shows tool state, brush size (2–16), and hint text
+- [ ] Sidebar Scratch section shows tool toggle, brush size (2–16), Finish, and hint text
 - [ ] Preview double-click zoom disabled while tool active
 - [ ] Quit/reopen — strokes restored from `.negpy`
 - [ ] Same sidecar opens in NegPy desktop with strokes visible

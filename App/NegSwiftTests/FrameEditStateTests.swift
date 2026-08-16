@@ -42,6 +42,18 @@ struct FrameEditStateTests {
         #expect(FrameEditState.fromFlatConfig(["process_mode": "B&W"]).processMode == .bw)
     }
 
+    @Test func fromFlatConfigMapsHealFields() {
+        let stroke: [Any] = [[[0.2, 0.3], [0.7, 0.8]], 6.0, 0.0, 0.0]
+        let state = FrameEditState.fromFlatConfig([
+            "manual_heal_strokes": [stroke],
+            "manual_dust_size": 8,
+        ])
+        #expect(state.manualHealStrokes.count == 1)
+        #expect(state.manualHealStrokes[0].points.count == 2)
+        #expect(state.manualHealStrokes[0].size == 6)
+        #expect(state.manualDustSize == 8)
+    }
+
     @Test func jsonRoundTripUsesFlatKeys() throws {
         let original = FrameEditState(
             processMode: .c41,

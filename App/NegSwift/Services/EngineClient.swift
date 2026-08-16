@@ -169,6 +169,26 @@ struct DiscoverResult: Codable, Sendable {
     let assets: [DiscoverAsset]
 }
 
+struct AppendHealStrokeResult: Codable, Sendable {
+    let manualHealStrokes: [HealStroke]
+    let strokeIndex: Int
+
+    enum CodingKeys: String, CodingKey {
+        case manualHealStrokes = "manual_heal_strokes"
+        case strokeIndex = "stroke_index"
+    }
+}
+
+struct UndoLastHealResult: Codable, Sendable {
+    let manualHealStrokes: [HealStroke]
+    let removed: String?
+
+    enum CodingKeys: String, CodingKey {
+        case manualHealStrokes = "manual_heal_strokes"
+        case removed
+    }
+}
+
 struct OpenResult: Codable, Sendable {
     let path: String
     let hash: String
@@ -349,6 +369,30 @@ actor EngineClient {
         try await call(method: "reset_config", params: LoadConfigParams(path: path))
     }
 
+    func appendHealStroke(
+        path: String,
+        points: [[Double]],
+        brushSize: Int,
+        config: FrameEditState
+    ) async throws -> AppendHealStrokeResult {
+        try await call(
+            method: "append_heal_stroke",
+            params: AppendHealStrokeParams(
+                path: path,
+                points: points,
+                brushSize: brushSize,
+                config: config
+            )
+        )
+    }
+
+    func undoLastHeal(path: String, config: FrameEditState) async throws -> UndoLastHealResult {
+        try await call(
+            method: "undo_last_heal",
+            params: UndoLastHealParams(path: path, config: config)
+        )
+    }
+
     func discover(paths: [String]) async throws -> DiscoverResult {
         try await call(method: "discover", params: DiscoverParams(paths: paths))
     }
@@ -467,6 +511,25 @@ actor EngineClient {
     }
 
     private struct SaveConfigParams: Encodable {
+        let path: String
+        let config: FrameEditState
+    }
+
+    private struct AppendHealStrokeParams: Encodable {
+        let path: String
+        let points: [[Double]]
+        let brushSize: Int
+        let config: FrameEditState
+
+        enum CodingKeys: String, CodingKey {
+            case path
+            case points
+            case brushSize = "brush_size"
+            case config
+        }
+    }
+
+    private struct UndoLastHealParams: Encodable {
         let path: String
         let config: FrameEditState
     }

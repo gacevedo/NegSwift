@@ -84,8 +84,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M11 | Polish — **Done** |
 | **M12** | **In progress** — Performance; Phase 4 JPEG transport + Phase 5 preview memo done |
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
+| **M14** | **In progress** — Batch export Phase 1 (Export All + orchestration) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 
-**Current status (2026-08-16):** M0–M11 done; **M12 Phase 4 complete** (JPEG preview IPC); **M12 Phase 5 complete** (Swift preview render memo); **M13 complete** (scratch tool + undo). **Next:** M12 manual benchmarks on real scan; release smoke — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) and [PLAN.md](PLAN.md) §7 M12.
+**Current status (2026-08-16):** M0–M11 done; **M12 Phase 4 complete** (JPEG preview IPC); **M12 Phase 5 complete** (Swift preview render memo); **M13 complete** (scratch tool + undo). **M14 Phase 1** — Export All + batch orchestration shipped in app. **Next:** M14 Phase 2–3 (sheet scope picker, film strip multi-select); M12 manual benchmarks — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 
@@ -145,7 +146,7 @@ When adding a protocol method: update `ENGINE_PROTOCOL.md`, engine dispatcher, S
 
 ## Lite UI scope (v1)
 
-**In scope:** folder import, film strip, canvas preview, process mode, auto density/grade, density/grade/saturation, WB CMY, crop/rotation, JPEG/TIFF export, sidecar persist, **scratch tool (M13)** — polyline along scratch/hair into `manual_heal_strokes`.
+**In scope:** folder import, film strip, canvas preview, process mode, auto density/grade, density/grade/saturation, WB CMY, crop/rotation, JPEG/TIFF export, **batch export (M14)** — all or multi-selected frames, sidecar persist, **scratch tool (M13)** — polyline along scratch/hair into `manual_heal_strokes`.
 
 **Out of scope (defer to full NegPy):** scanner/camera, dodge/burn, heal brush (paint), transport-line scratch tracer, lab/toning/finish panels, history/work prints, metadata gear library, soft proof, contact sheets, export presets/templates.
 
@@ -167,6 +168,7 @@ NegSwift/
 ├── Packaging/             # PyInstaller scripts (M10)
 ├── Tests/                 # Swift XCTest
 └── docs/
+    ├── BATCH_EXPORT.md
     ├── ENGINE_PROTOCOL.md
     └── MANUAL_TEST_CHECKLIST.md
 ```
@@ -239,7 +241,8 @@ NegSwift engine should stay thin as upstream adds headless APIs.
 
 | Doc | Purpose |
 |-----|---------|
-| [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M12 |
+| [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M14 |
+| [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) | M14 batch export design |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | M12 benchmarks and baseline methodology (Phase 0) |
 | [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md) | NDJSON API |
 | [docs/MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) | Manual smoke per milestone |

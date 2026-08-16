@@ -62,6 +62,11 @@ struct NegSwiftApp: App {
                 }
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(!commandBridge.canOpenExport)
+
+                Button("Export All…") {
+                    commandBridge.performOpenExportAll()
+                }
+                .disabled(!commandBridge.canOpenExportAll)
             }
 
             CommandMenu("View") {

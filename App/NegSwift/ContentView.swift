@@ -10,6 +10,7 @@ struct ContentView: View {
     @Binding var showAbout: Bool
     @Bindable var commandBridge: MainWindowCommandBridge
     @State private var showExportSheet = false
+    @State private var showExportAllSheet = false
     @State private var showEngineSheet = false
     @State private var showResetSheet = false
     @State private var previewZoomMode: PreviewZoomMode = .fit
@@ -148,6 +149,9 @@ struct ContentView: View {
         .sheet(isPresented: $showExportSheet) {
             ExportSheetView(session: engineSession)
         }
+        .sheet(isPresented: $showExportAllSheet) {
+            ExportSheetView(session: engineSession, initialScope: .all)
+        }
         .sheet(isPresented: $showEngineSheet) {
             EngineSheetView(session: engineSession)
         }
@@ -167,12 +171,14 @@ struct ContentView: View {
             syncCommandBridgeState()
         }
         .onChange(of: engineSession.engineReady) { _, _ in syncCommandBridgeState() }
+        .onChange(of: engineSession.frames.count) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.isExporting) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.isCropToolActive) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.isScratchToolActive) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.scratchHealRevision) { _, _ in syncCommandBridgeState() }
         .onChange(of: engineSession.previewImage) { _, _ in syncCommandBridgeState() }
         .onChange(of: showExportSheet) { _, _ in syncCommandBridgeState() }
+        .onChange(of: showExportAllSheet) { _, _ in syncCommandBridgeState() }
         .onChange(of: showEngineSheet) { _, _ in syncCommandBridgeState() }
         .onChange(of: showAbout) { _, _ in syncCommandBridgeState() }
         .onChange(of: showResetSheet) { _, _ in syncCommandBridgeState() }
@@ -184,6 +190,9 @@ struct ContentView: View {
         }
         commandBridge.openExport = {
             showExportSheet = true
+        }
+        commandBridge.openExportAll = {
+            showExportAllSheet = true
         }
         commandBridge.toggleCanvasZoom = {
             previewZoomMode.toggle()
@@ -209,11 +218,12 @@ struct ContentView: View {
     }
 
     private func syncCommandBridgeState() {
-        let modalOpen = showExportSheet || showEngineSheet || showAbout || showResetSheet
+        let modalOpen = showExportSheet || showExportAllSheet || showEngineSheet || showAbout || showResetSheet
         commandBridge.canOpenImport = engineSession.engineReady
         commandBridge.canOpenExport = engineSession.engineReady
-            && engineSession.selectedFrameID != nil
+            && !engineSession.frames.isEmpty
             && !engineSession.isExporting
+        commandBridge.canOpenExportAll = commandBridge.canOpenExport
         commandBridge.canToggleCanvasZoom = engineSession.previewImage != nil
             && !modalOpen
         commandBridge.canToggleCropTool = engineSession.engineReady
@@ -278,8 +288,11 @@ struct ContentView: View {
             }
         }
         .overlay {
-            if engineSession.isExporting, let settings = engineSession.activeExportSettings {
-                ExportProgressView(statusText: settings.progressStatusText)
+            if engineSession.isExporting {
+                ExportProgressView(
+                    statusText: engineSession.exportProgressStatusText,
+                    onCancel: { engineSession.cancelExport() }
+                )
             }
         }
         .overlay(alignment: .bottom) {

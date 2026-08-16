@@ -4,7 +4,7 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M11 complete.** **M12 Phase 4** (JPEG preview transport) + **Phase 5** (preview memo) done — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **Next:** M12 manual benchmarks on real scan; release smoke.
+**M0–M11 complete.** **M12 Phase 4** (JPEG preview transport) + **Phase 5** (preview memo) done — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **M13** scratch tool done. **Next:** M12 manual benchmarks; **M14** batch export — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md).
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 
@@ -25,7 +25,7 @@ NegSwift/
 ├── App/                 # SwiftUI macOS app (Xcode)
 ├── Engine/              # Thin Python daemon + CLI (imports negpy)
 ├── Packaging/           # PyInstaller bundle scripts + frozen engine output
-└── docs/                # Manual test checklists, protocol spec
+└── docs/                # Protocol spec, performance baselines, batch export plan, manual checklist
 ```
 
 ## Development

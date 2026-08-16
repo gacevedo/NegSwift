@@ -229,6 +229,39 @@ Sidebar **Scratch** section (toggle, brush size, Finish, undo). Canvas HUD shows
 
 ---
 
+## M14 — Batch export (planned)
+
+See [docs/BATCH_EXPORT.md](BATCH_EXPORT.md) and [PLAN.md](../PLAN.md) §7 M14.
+
+**Phase 1 — Batch orchestration**
+
+- [x] Export All… (File menu) exports every frame in the film strip
+- [x] Each frame uses its own sidecar edits (crop, density, heals) — not the preview frame only
+- [x] Progress overlay shows "N of M" and current filename; Cancel stops after current frame
+- [x] Confirmation dialog when exporting 2+ frames
+- [x] Frame switching disabled during batch export
+
+**Phase 2 — Export sheet scope**
+
+- [ ] Export… sheet: scope picker (This Frame / Selected / All) when strip has 2+ frames
+- [ ] Summary line shows frame count and format
+- [ ] ⌘E default scope: selected (2+) or current (1)
+
+**Phase 3 — Film strip multi-select**
+
+- [ ] ⌘-click toggles frame in selection; shift-click range-selects
+- [ ] Primary vs secondary selection visible in strip
+- [ ] Export Selected… (⌘⇧E) exports multi-selected frames in strip order
+
+**Regression**
+
+- [ ] Single-frame Export… and Quick Export unchanged
+- [ ] Export All with 5+ mixed edits — all outputs correct dimensions and crop
+- [ ] Cancel mid-batch — no corrupt partial file; completed frames remain on disk
+- [ ] One output compared with NegPy desktop at same settings
+
+---
+
 ## UI automation (NegSwiftUITests)
 
 Run from `App/` (requires `cd Engine && uv sync` first):
@@ -251,3 +284,4 @@ Quick pass before release tags:
 1. Open 3 different formats (TIFF, RAW if available, JPEG scan)
 2. Adjust density + export
 3. Open in NegPy desktop — sidecar still valid
+4. (After M14) Export All on a folder of 3+ scans — correct file count and per-frame crops

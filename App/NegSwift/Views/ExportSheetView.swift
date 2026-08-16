@@ -7,21 +7,28 @@ import SwiftUI
 
 struct ExportSheetView: View {
     @Bindable var session: EngineSession
+    let initialScope: ExportScope
     @Environment(\.dismiss) private var dismiss
 
     @State private var settings = ExportSettings()
     @State private var destinationURL: URL?
+    @State private var scope: ExportScope
+    @State private var confirmBatchExport = false
+
+    init(session: EngineSession, initialScope: ExportScope = .current) {
+        self.session = session
+        self.initialScope = initialScope
+        _scope = State(initialValue: initialScope)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Export")
                 .font(.title2)
 
-            if let frameName = session.selectedFrameName {
-                Text(frameName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(scopeSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Picker("Format", selection: formatSelection) {
                 ForEach(ExportFileFormat.allCases) { format in
@@ -67,11 +74,12 @@ struct ExportSheetView: View {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
-                Button("Export") {
-                    Task { await runExport() }
+                Button(exportButtonTitle) {
+                    beginExport()
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canExport)
+                .accessibilityIdentifier(scope == .all ? "negSwift.exportAllSheet" : "negSwift.exportSheet")
             }
         }
         .padding(20)
@@ -82,10 +90,51 @@ struct ExportSheetView: View {
                     ?? defaultDestinationURL()
             }
         }
+        .confirmationDialog(
+            "Export \(exportTargetCount) frames?",
+            isPresented: $confirmBatchExport,
+            titleVisibility: .visible
+        ) {
+            Button("Export") {
+                Task { await runExport() }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
     private static let jpegQualitySectionHeight: CGFloat = 52
     private static let sheetHeight: CGFloat = 340
+
+    private var exportTargetCount: Int {
+        session.frames(for: scope).count
+    }
+
+    private var exportButtonTitle: String {
+        switch scope {
+        case .all where exportTargetCount > 1:
+            "Export All"
+        case .current, .selected, .all:
+            "Export"
+        }
+    }
+
+    private var scopeSummary: String {
+        let targets = session.frames(for: scope)
+        switch scope {
+        case .current:
+            return session.selectedFrameName ?? "No frame selected"
+        case .all:
+            if targets.count == 1 {
+                return targets[0].name
+            }
+            return "\(targets.count) frames in film strip"
+        case .selected:
+            if targets.count == 1 {
+                return targets[0].name
+            }
+            return "\(targets.count) selected frames"
+        }
+    }
 
     /// Defer format changes so NSSegmentedControl finishes layout before the sheet updates.
     private var formatSelection: Binding<ExportFileFormat> {
@@ -123,7 +172,7 @@ struct ExportSheetView: View {
     }
 
     private var canExport: Bool {
-        session.selectedFrameID != nil && destinationURL != nil && !session.isExporting
+        !session.frames(for: scope).isEmpty && destinationURL != nil && !session.isExporting
     }
 
     private var destinationLabel: String {
@@ -132,13 +181,28 @@ struct ExportSheetView: View {
     }
 
     private func defaultDestinationURL() -> URL? {
-        guard let path = session.selectedFramePath else { return nil }
-        return URL(fileURLWithPath: path).deletingLastPathComponent()
+        if let path = session.selectedFramePath {
+            return URL(fileURLWithPath: path).deletingLastPathComponent()
+        }
+        if let path = session.frames.first?.path {
+            return URL(fileURLWithPath: path).deletingLastPathComponent()
+        }
+        return nil
+    }
+
+    private func beginExport() {
+        guard destinationURL != nil else { return }
+        if exportTargetCount > 1 {
+            confirmBatchExport = true
+            return
+        }
+        Task { await runExport() }
     }
 
     private func runExport() async {
         guard let destinationURL else { return }
         let exportSettings = settings
+        let exportScope = scope
         session.clearExportError()
         dismiss()
         let gotAccess = destinationURL.startAccessingSecurityScopedResource()
@@ -148,7 +212,8 @@ struct ExportSheetView: View {
             }
         }
         do {
-            _ = try await session.exportCurrentFrame(
+            _ = try await session.exportBatch(
+                scope: exportScope,
                 to: destinationURL,
                 settings: exportSettings
             )
@@ -163,4 +228,8 @@ struct ExportSheetView: View {
 
 #Preview {
     ExportSheetView(session: .preview)
+}
+
+#Preview("Export All") {
+    ExportSheetView(session: .preview, initialScope: .all)
 }

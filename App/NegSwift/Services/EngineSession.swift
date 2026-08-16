@@ -67,9 +67,10 @@ final class EngineSession {
     private(set) var isExporting = false
     private(set) var isRestartingEngine = false
     private(set) var activeExportSettings: ExportSettings?
+    private(set) var batchExportProgress: BatchExportProgress?
     private(set) var exportError: String?
 
-    private var exportTask: Task<ExportResult, Error>?
+    private var exportTask: Task<[ExportResult], Error>?
     private var previewMemo = PreviewRenderMemo()
 
     var engineReady: Bool {
@@ -133,6 +134,18 @@ final class EngineSession {
         exportError = message
     }
 
+    var exportProgressStatusText: String {
+        batchExportProgress?.statusText ?? activeExportSettings?.progressStatusText ?? "Exporting…"
+    }
+
+    func frames(for scope: ExportScope) -> [ScanFrame] {
+        frames.resolvingExportScope(scope, selectedFrameID: selectedFrameID)
+    }
+
+    func cancelExport() {
+        exportTask?.cancel()
+    }
+
     func quickExport() async {
         guard let destination = UITestSupport.exportDestinationURL ?? RecentPathsStore.quickExportDestinationURL() else {
             exportError = "No export folder available. Use Export… to choose a destination."
@@ -156,48 +169,84 @@ final class EngineSession {
     }
 
     func exportCurrentFrame(to destination: URL, settings: ExportSettings) async throws -> ExportResult {
+        let results = try await exportBatch(scope: .current, to: destination, settings: settings)
+        guard let result = results.first else {
+            throw EngineClientError.notRunning
+        }
+        return result
+    }
+
+    @discardableResult
+    func exportBatch(
+        scope: ExportScope,
+        to destination: URL,
+        settings: ExportSettings
+    ) async throws -> [ExportResult] {
         guard engineReady else {
             throw EngineClientError.notRunning
         }
-        guard let path = selectedFramePath,
-              let frame = frames.first(where: { $0.path == path })
-        else {
+        let targets = frames(for: scope)
+        guard !targets.isEmpty else {
             throw EngineClientError.notRunning
         }
 
         exportTask?.cancel()
         await flushPendingSaves()
 
-        let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
-        let task = Task { () throws -> ExportResult in
-            try Task.checkCancellation()
-            let gotAccess = beginFileAccess(for: frame.url)
-            defer {
-                if gotAccess {
-                    endFileAccess(for: frame.url)
+        let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
+        let destPath = destination.path
+        let task = Task { @MainActor () throws -> [ExportResult] in
+            var results: [ExportResult] = []
+            let total = targets.count
+            for (index, frame) in targets.enumerated() {
+                try Task.checkCancellation()
+                batchExportProgress = BatchExportProgress(
+                    scope: scope,
+                    settings: settings,
+                    completed: index,
+                    total: total,
+                    currentName: frame.name
+                )
+                await ensureEditLoaded(for: frame.path)
+                let path = frame.path
+                let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
+                let gotAccess = beginFileAccess(for: frame.url)
+                defer {
+                    if gotAccess {
+                        endFileAccess(for: frame.url)
+                    }
                 }
+                let result = try await client.export(
+                    path: path,
+                    destDir: destPath,
+                    config: config,
+                    export: settings,
+                    preferGPU: preferGPU
+                )
+                previewMemo.invalidate(path: path)
+                results.append(result)
             }
-            return try await client.export(
-                path: path,
-                destDir: destination.path,
-                config: config,
-                export: settings,
-                preferGPU: PreviewRenderSettings(preferences: preferences).preferGPU
-            )
+            return results
         }
         exportTask = task
         isExporting = true
         activeExportSettings = settings
         exportError = nil
+        batchExportProgress = BatchExportProgress(
+            scope: scope,
+            settings: settings,
+            completed: 0,
+            total: targets.count,
+            currentName: targets[0].name
+        )
         defer {
             isExporting = false
             activeExportSettings = nil
+            batchExportProgress = nil
             exportTask = nil
         }
         do {
-            let result = try await task.value
-            previewMemo.invalidate(path: path)
-            return result
+            return try await task.value
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -968,6 +1017,7 @@ final class EngineSession {
     }
 
     func selectFrame(_ id: UUID) async {
+        guard !isExporting else { return }
         let selectStart = CFAbsoluteTimeGetCurrent()
         let previousPath = selectedFramePath
         isCropToolActive = false

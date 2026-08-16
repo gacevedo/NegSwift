@@ -11,6 +11,7 @@ import Observation
 final class MainWindowCommandBridge {
     var canOpenImport = false
     var canOpenExport = false
+    var canOpenExportAll = false
     var canToggleCanvasZoom = false
     var canToggleCropTool = false
     var canToggleScratchTool = false
@@ -18,6 +19,7 @@ final class MainWindowCommandBridge {
 
     var openImport: (() -> Void)?
     var openExport: (() -> Void)?
+    var openExportAll: (() -> Void)?
     var toggleCanvasZoom: (() -> Void)?
     var toggleCropTool: (() -> Void)?
     var toggleScratchTool: (() -> Void)?
@@ -29,6 +31,10 @@ final class MainWindowCommandBridge {
 
     func performOpenExport() {
         openExport?()
+    }
+
+    func performOpenExportAll() {
+        openExportAll?()
     }
 
     func performToggleCanvasZoom() {

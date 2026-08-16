@@ -21,10 +21,16 @@ struct PreferencesView: View {
 
                 Toggle("Use GPU for preview and export", isOn: $preferences.preferGPU)
                     .accessibilityIdentifier("negSwift.prefs.useGPU")
+
+                Toggle("Auto-detect C-41 / B&W on new scans", isOn: $preferences.autodetectProcessMode)
+                    .accessibilityIdentifier("negSwift.prefs.autodetectProcessMode")
             } header: {
                 Text("Rendering")
             } footer: {
-                Text("Lower preview quality renders faster. GPU falls back to CPU when unavailable.")
+                Text(
+                    "Lower preview quality renders faster. GPU falls back to CPU when unavailable. "
+                        + "Auto-detect runs only on scans without a saved .negpy sidecar."
+                )
             }
 
             Section {

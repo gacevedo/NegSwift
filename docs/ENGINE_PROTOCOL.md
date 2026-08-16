@@ -94,6 +94,38 @@ List supported scan files in folder(s). One directory level — matches NegPy de
 **Result:** `{ "config": { ... flat WorkspaceConfig dict ... } }`  
 Missing sidecar → engine defaults (`DEFAULT_WORKSPACE_CONFIG.to_dict()`).
 
+### `detect_process_mode`
+
+Classify a scan as **Color Negative (C-41)** or **B&W Negative** using NegPy heuristics on the linear buffer. Skipped when a ``.negpy`` sidecar already exists unless `force` is true. E-6 / transparency results map to **Color Negative** in the lite UI.
+
+**Params:**
+
+```json
+{
+  "path": "/absolute/path/to/scan.tif",
+  "force": false
+}
+```
+
+**Result (detected):**
+
+```json
+{
+  "skipped": false,
+  "detected_mode": "Color Negative",
+  "process_mode": "Color Negative"
+}
+```
+
+**Result (skipped):**
+
+```json
+{
+  "skipped": true,
+  "reason": "has_sidecar"
+}
+```
+
 ### `save_config`
 
 **Params:** `{ "path": "...", "config": { ... } }`  

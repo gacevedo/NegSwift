@@ -136,6 +136,7 @@ Test scan path:
 - [x] Drop multiple folders shows “one folder at a time” error
 - [x] Dashed accent overlay while dragging over the window (engine ready)
 - [x] Process mode picker (C-41 / B&W)
+- [x] Auto-detect C-41 / B&W on new scans (no sidecar); wand button re-runs detect on current frame
 - [x] Preferences (⌘,) — preview quality, GPU toggle, NegPy data folder (shared `edits.db` with desktop NegPy)
 - [x] Keyboard: Space toggle fit, ⇧C crop tool, ⌘O import, ⌘E export; double-click preview toggles fit / 1:1
 - [x] Crop overlay hides during 90° rotation until preview catches up (no wrong-aspect flash)

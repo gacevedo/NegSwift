@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
+from negswift_engine.detect import detect_process_mode_dict
 from negswift_engine.discover import discover_assets
 from negswift_engine.export import export_asset
 from negswift_engine.render import (
@@ -96,6 +97,21 @@ def _cmd_reset_config(params: dict[str, Any]) -> dict[str, Any]:
         raise ProtocolError("RESET_FAILED", str(exc)) from exc
 
 
+def _cmd_detect_process_mode(params: dict[str, Any]) -> dict[str, Any]:
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        raise ProtocolError("INVALID_REQUEST", "params.path is required")
+    force = params.get("force", False)
+    if not isinstance(force, bool):
+        raise ProtocolError("INVALID_REQUEST", "params.force must be a boolean")
+    try:
+        return detect_process_mode_dict(path, force=force)
+    except FileNotFoundError as exc:
+        raise ProtocolError("NOT_FOUND", str(exc)) from exc
+    except OSError as exc:
+        raise ProtocolError("LOAD_FAILED", str(exc)) from exc
+
+
 def _cmd_render(params: dict[str, Any]) -> dict[str, Any]:
     path = params.get("path")
     if not isinstance(path, str) or not path:
@@ -174,6 +190,7 @@ _HANDLERS: dict[str, Handler] = {
     "load_config": _cmd_load_config,
     "save_config": _cmd_save_config,
     "reset_config": _cmd_reset_config,
+    "detect_process_mode": _cmd_detect_process_mode,
     "render": _cmd_render,
     "export": _cmd_export,
 }

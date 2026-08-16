@@ -55,6 +55,7 @@ enum AppPreferencesStorage {
     private enum Key {
         static let previewQuality = "negSwift.preferences.previewQuality"
         static let preferGPU = "negSwift.preferences.preferGPU"
+        static let autodetectProcessMode = "negSwift.preferences.autodetectProcessMode"
         static let userDataLocation = "negSwift.preferences.userDataLocation"
         static let customUserDataPath = "negSwift.preferences.customUserDataPath"
     }
@@ -139,6 +140,17 @@ enum AppPreferencesStorage {
         defaults.set(value, forKey: Key.preferGPU)
     }
 
+    static func autodetectProcessMode() -> Bool {
+        if defaults.object(forKey: Key.autodetectProcessMode) == nil {
+            return true
+        }
+        return defaults.bool(forKey: Key.autodetectProcessMode)
+    }
+
+    static func setAutodetectProcessMode(_ value: Bool) {
+        defaults.set(value, forKey: Key.autodetectProcessMode)
+    }
+
     static func userDataLocation() -> NegPyUserDataLocation {
         guard let raw = defaults.string(forKey: Key.userDataLocation),
               let location = NegPyUserDataLocation(rawValue: raw)
@@ -220,6 +232,13 @@ final class AppPreferences {
         }
     }
 
+    var autodetectProcessMode: Bool {
+        didSet {
+            guard autodetectProcessMode != oldValue else { return }
+            AppPreferencesStorage.setAutodetectProcessMode(autodetectProcessMode)
+        }
+    }
+
     var userDataLocation: NegPyUserDataLocation {
         didSet {
             guard userDataLocation != oldValue else { return }
@@ -243,6 +262,7 @@ final class AppPreferences {
     init() {
         previewQuality = AppPreferencesStorage.previewQuality()
         preferGPU = AppPreferencesStorage.preferGPU()
+        autodetectProcessMode = AppPreferencesStorage.autodetectProcessMode()
         userDataLocation = AppPreferencesStorage.userDataLocation()
         customUserDataPath = AppPreferencesStorage.customUserDataPath()
     }

@@ -25,6 +25,20 @@ struct LoadConfigResult: Codable, Sendable {
     let config: [String: JSONValue]
 }
 
+struct DetectProcessModeResult: Codable, Sendable {
+    let skipped: Bool
+    let reason: String?
+    let detectedMode: String?
+    let processMode: String?
+
+    enum CodingKeys: String, CodingKey {
+        case skipped
+        case reason
+        case detectedMode = "detected_mode"
+        case processMode = "process_mode"
+    }
+}
+
 /// Loose JSON value for flat WorkspaceConfig payloads from the engine.
 enum JSONValue: Codable, Sendable {
     case string(String)
@@ -261,6 +275,13 @@ actor EngineClient {
         try await call(method: "load_config", params: LoadConfigParams(path: path))
     }
 
+    func detectProcessMode(path: String, force: Bool = false) async throws -> DetectProcessModeResult {
+        try await call(
+            method: "detect_process_mode",
+            params: DetectProcessModeParams(path: path, force: force)
+        )
+    }
+
     func saveConfig(path: String, config: FrameEditState) async throws -> SaveConfigResult {
         try await call(method: "save_config", params: SaveConfigParams(path: path, config: config))
     }
@@ -375,6 +396,11 @@ actor EngineClient {
 
     private struct LoadConfigParams: Encodable {
         let path: String
+    }
+
+    private struct DetectProcessModeParams: Encodable {
+        let path: String
+        let force: Bool
     }
 
     private struct SaveConfigParams: Encodable {

@@ -171,6 +171,15 @@ final class EngineSession {
     }
 
     func setProcessMode(_ value: ProcessMode) { updateEdit { $0.processMode = value } }
+
+    func autodetectProcessModeForSelectedFrame() async {
+        guard let path = selectedFramePath else { return }
+        guard let detected = await detectProcessMode(path: path, force: true) else { return }
+        updateEdit { $0.processMode = detected }
+        thumbnailGeneration += 1
+        await refreshThumbnail(for: path, generation: thumbnailGeneration)
+    }
+
     func setDensity(_ value: Double) { updateEdit { $0.density = value } }
     func setGrade(_ value: Double) { updateEdit { $0.grade = value } }
     func setSaturation(_ value: Double) { updateEdit { $0.saturation = value } }
@@ -210,6 +219,12 @@ final class EngineSession {
         } catch {
             previewError = "Could not reset edits: \(error.localizedDescription)"
             return
+        }
+
+        if preferences.autodetectProcessMode,
+           let detected = await detectProcessMode(path: path, force: false)
+        {
+            frameEdits[path]?.processMode = detected
         }
 
         if let index = frames.firstIndex(where: { $0.path == path }) {
@@ -634,13 +649,50 @@ final class EngineSession {
     }
 
     private func ensureEditLoaded(for path: String) async {
-        guard frameEdits[path] == nil else { return }
+        _ = await frameEditState(for: path)
+    }
+
+    private func frameEditState(for path: String) async -> FrameEditState {
+        if let cached = frameEdits[path] {
+            return cached
+        }
+        let edit = await fetchFrameEditState(for: path)
+        frameEdits[path] = edit
+        return edit
+    }
+
+    private func fetchFrameEditState(for path: String) async -> FrameEditState {
         do {
             let loaded = try await client.loadConfig(path: path)
-            let flat = loaded.config.mapValues(\.anyValue)
-            frameEdits[path] = FrameEditState.fromFlatConfig(flat)
+            var edit = FrameEditState.fromFlatConfig(loaded.config.mapValues(\.anyValue))
+            if let detected = await detectProcessMode(path: path, force: false) {
+                edit.processMode = detected
+            }
+            return edit
         } catch {
-            frameEdits[path] = FrameEditState()
+            return FrameEditState()
+        }
+    }
+
+    private func detectProcessMode(path: String, force: Bool) async -> ProcessMode? {
+        guard preferences.autodetectProcessMode || force else { return nil }
+        guard engineReady,
+              let frame = frames.first(where: { $0.path == path })
+        else { return nil }
+
+        let gotAccess = beginFileAccess(for: frame.url)
+        defer {
+            if gotAccess {
+                endFileAccess(for: frame.url)
+            }
+        }
+
+        do {
+            let result = try await client.detectProcessMode(path: path, force: force)
+            guard !result.skipped, let mode = result.processMode else { return nil }
+            return ProcessMode.fromFlatValue(mode)
+        } catch {
+            return nil
         }
     }
 
@@ -813,7 +865,7 @@ final class EngineSession {
             defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
 
             let path = frames[index].path
-            let config = frameEdits[path]
+            let config = await frameEditState(for: path)
             let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
             do {
                 let result = try await client.render(

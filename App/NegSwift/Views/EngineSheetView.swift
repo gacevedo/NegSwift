@@ -33,7 +33,7 @@ struct EngineSheetView: View {
             .controlSize(.small)
         }
         .padding(20)
-        .frame(width: 248)
+        .frame(width: 520)
     }
 
     private var showsRestartAction: Bool {

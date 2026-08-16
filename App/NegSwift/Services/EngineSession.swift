@@ -954,7 +954,8 @@ final class EngineSession {
                 longEdgePx: FilmStripLayout.thumbnailLongEdge,
                 preferGPU: preferGPU,
                 config: config,
-                cropPreviewFull: false
+                cropPreviewFull: false,
+                stripThumbnail: true
             )
             if let generation, generation != thumbnailGeneration { return }
             guard stripGen == stripGeneration else { return }
@@ -1117,7 +1118,8 @@ final class EngineSession {
                 longEdgePx: FilmStripLayout.thumbnailLongEdge,
                 preferGPU: preferGPU,
                 config: config,
-                cropPreviewFull: false
+                cropPreviewFull: false,
+                stripThumbnail: true
             )
             guard generation == stripGeneration, thumbGen == thumbnailGeneration else { return }
             guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }

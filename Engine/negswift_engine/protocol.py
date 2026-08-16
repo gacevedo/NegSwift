@@ -10,6 +10,7 @@ from typing import Any
 from negswift_engine.detect import detect_process_mode_dict
 from negswift_engine.discover import discover_assets
 from negswift_engine.export import export_asset
+from negswift_engine.jobs import JobCancelled
 from negswift_engine.render import (
     load_config_dict,
     open_asset,
@@ -138,6 +139,8 @@ def _cmd_render(params: dict[str, Any], cancel: threading.Event | None = None) -
             crop_preview_full=crop_preview_full,
             cancel=cancel,
         )
+    except JobCancelled as exc:
+        raise ProtocolError("CANCELLED", "Job cancelled") from exc
     except FileNotFoundError as exc:
         raise ProtocolError("NOT_FOUND", str(exc)) from exc
     except OSError as exc:
@@ -175,6 +178,8 @@ def _cmd_export(params: dict[str, Any], cancel: threading.Event | None = None) -
             overwrite=overwrite,
             cancel=cancel,
         )
+    except JobCancelled as exc:
+        raise ProtocolError("CANCELLED", "Job cancelled") from exc
     except FileNotFoundError as exc:
         raise ProtocolError("NOT_FOUND", str(exc)) from exc
     except OSError as exc:

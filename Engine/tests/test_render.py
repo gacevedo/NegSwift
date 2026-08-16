@@ -153,3 +153,20 @@ def test_concurrent_frame_switch_renders(sample_tiff: Path, tmp_path: Path) -> N
         assert msg["ok"] is True, msg
         png = base64.standard_b64decode(msg["result"]["png_base64"])
         assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_render_job_cancelled_maps_to_cancelled_code(monkeypatch, sample_tiff: Path) -> None:
+    """JobCancelled from cooperative cancel must not become RENDER_FAILED."""
+    from negswift_engine.jobs import JobCancelled
+    from negswift_engine.protocol import ProtocolError, _cmd_render
+
+    def raise_cancelled(*_args, **_kwargs) -> dict:
+        raise JobCancelled()
+
+    monkeypatch.setattr("negswift_engine.protocol.render_preview_base64", raise_cancelled)
+
+    try:
+        _cmd_render({"path": str(sample_tiff), "prefer_gpu": False})
+        raise AssertionError("expected ProtocolError")
+    except ProtocolError as exc:
+        assert exc.code == "CANCELLED"

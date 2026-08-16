@@ -216,7 +216,7 @@ actor EngineClient {
     private var stdout: FileHandle?
     private var pending: [String: CheckedContinuation<Data, Error>] = [:]
     private var activePreviewJobID: String?
-    private var activeThumbnailJobID: String?
+    private var activeStripThumbnailJobIDs: Set<String> = []
     private var activeExportJobID: String?
 
     func start() async throws {
@@ -236,6 +236,8 @@ actor EngineClient {
         stdoutAssembler.reset()
         pending.values.forEach { $0.resume(throwing: CancellationError()) }
         pending.removeAll()
+        activePreviewJobID = nil
+        activeStripThumbnailJobIDs.removeAll()
         processOwner.stop()
         stdin = nil
         stdout = nil
@@ -258,33 +260,27 @@ actor EngineClient {
         longEdgePx: Int? = nil,
         preferGPU: Bool = true,
         config: FrameEditState? = nil,
-        cropPreviewFull: Bool = false
+        cropPreviewFull: Bool = false,
+        stripThumbnail: Bool = false
     ) async throws -> RenderResult {
-        let isThumbnail = longEdgePx != nil && !cropPreviewFull
-        if isThumbnail {
-            if let previous = activeThumbnailJobID {
-                try? await cancel(jobID: previous)
-            }
-        } else {
+        if !stripThumbnail {
             if let previous = activePreviewJobID {
                 try? await cancel(jobID: previous)
             }
-            // Preview must not queue behind an in-flight strip thumbnail render.
-            if let previous = activeThumbnailJobID {
-                try? await cancel(jobID: previous)
+            for thumbID in activeStripThumbnailJobIDs {
+                try? await cancel(jobID: thumbID)
             }
+            activeStripThumbnailJobIDs.removeAll()
         }
         let jobID = UUID().uuidString
-        if isThumbnail {
-            activeThumbnailJobID = jobID
+        if stripThumbnail {
+            activeStripThumbnailJobIDs.insert(jobID)
         } else {
             activePreviewJobID = jobID
         }
         defer {
-            if isThumbnail {
-                if activeThumbnailJobID == jobID {
-                    activeThumbnailJobID = nil
-                }
+            if stripThumbnail {
+                activeStripThumbnailJobIDs.remove(jobID)
             } else if activePreviewJobID == jobID {
                 activePreviewJobID = nil
             }

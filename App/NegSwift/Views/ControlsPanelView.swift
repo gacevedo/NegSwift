@@ -26,9 +26,9 @@ struct ControlsPanelView: View {
 
             SidebarSection(title: "Color", isExpanded: $colorExpanded) {
                 VStack(alignment: .leading, spacing: 8) {
-                    sliderRow("Cyan", value: wbCyanBinding, range: EditControlRanges.whiteBalance, defaultValue: EditControlDefaults.whiteBalance, format: "%.2f")
-                    sliderRow("Magenta", value: wbMagentaBinding, range: EditControlRanges.whiteBalance, defaultValue: EditControlDefaults.whiteBalance, format: "%.2f")
-                    sliderRow("Yellow", value: wbYellowBinding, range: EditControlRanges.whiteBalance, defaultValue: EditControlDefaults.whiteBalance, format: "%.2f")
+                    filtrationSliderRow("Cyan", axis: .cyan, value: wbCyanBinding)
+                    filtrationSliderRow("Magenta", axis: .magenta, value: wbMagentaBinding)
+                    filtrationSliderRow("Yellow", axis: .yellow, value: wbYellowBinding)
                 }
             }
         }
@@ -66,6 +66,29 @@ struct ControlsPanelView: View {
             "Auto Density meters inside your crop. Raise Analysis Buffer to inset further from the crop edge."
         } else {
             "Crop to the film area so Auto Density ignores scanner borders, or raise Analysis Buffer on full-frame scans."
+        }
+    }
+
+    private func filtrationSliderRow(
+        _ title: String,
+        axis: FiltrationAxis,
+        value: Binding<Double>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.caption)
+                Spacer()
+                Text(String(format: "%.2f", value.wrappedValue))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            FiltrationSlider(
+                value: value,
+                axis: axis,
+                range: EditControlRanges.whiteBalance,
+                defaultValue: EditControlDefaults.whiteBalance
+            )
         }
     }
 

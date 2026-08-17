@@ -31,7 +31,7 @@ NegSwift/
 ## Development
 
 ```bash
-git clone --recurse-submodules <NegSwift repo URL>
+git clone --recurse-submodules https://github.com/gacevedo/NegSwift.git
 cd NegSwift
 make sync
 make test

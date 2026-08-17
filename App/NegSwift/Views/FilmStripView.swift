@@ -8,7 +8,8 @@ import SwiftUI
 struct FilmStripView: View {
     let frames: [ScanFrame]
     let selectedID: UUID?
-    let onSelect: (UUID) -> Void
+    let selectedIDs: Set<UUID>
+    let onSelect: (UUID, FilmStripSelectionModifiers) -> Void
 
     var body: some View {
         Group {
@@ -23,8 +24,11 @@ struct FilmStripView: View {
                         ForEach(frames) { frame in
                             FilmStripCell(
                                 frame: frame,
-                                isSelected: frame.id == selectedID,
-                                onSelect: { onSelect(frame.id) }
+                                isPrimary: frame.id == selectedID,
+                                isSecondarySelected: selectedIDs.contains(frame.id) && frame.id != selectedID,
+                                onSelect: {
+                                    onSelect(frame.id, FilmStripSelectionModifiers.fromCurrentEvent())
+                                }
                             )
                         }
                     }
@@ -36,7 +40,8 @@ struct FilmStripView: View {
 
 private struct FilmStripCell: View {
     let frame: ScanFrame
-    let isSelected: Bool
+    let isPrimary: Bool
+    let isSecondarySelected: Bool
     let onSelect: () -> Void
 
     var body: some View {
@@ -69,9 +74,25 @@ private struct FilmStripCell: View {
             }
             .padding(6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Color.accentColor.opacity(0.18) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+            .background(cellBackground, in: RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                if isSecondarySelected {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(Color.accentColor.opacity(0.55), lineWidth: 2)
+                }
+            }
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
+    }
+
+    private var cellBackground: Color {
+        if isPrimary {
+            return Color.accentColor.opacity(0.18)
+        }
+        if isSecondarySelected {
+            return Color.accentColor.opacity(0.08)
+        }
+        return .clear
     }
 }

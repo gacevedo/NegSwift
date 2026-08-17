@@ -86,6 +86,27 @@ struct ExportScopeTests {
     #expect(session.defaultExportScope == .current)
   }
 
+  @Test @MainActor func defaultExportScopeUsesSelectedWhenMultiSelect() {
+    let session = EngineSession.preview
+    session.setFilmStripSelectionForTests(
+      primary: session.frames[0].id,
+      ids: Set(session.frames.map(\.id))
+    )
+    #expect(session.exportSelectionCount == 2)
+    #expect(session.defaultExportScope == .selected)
+    #expect(session.hasMultiExportSelection)
+  }
+
+  @Test @MainActor func exportSelectedFrameIDsReflectsFilmStripSelection() {
+    let session = EngineSession.preview
+    session.setFilmStripSelectionForTests(
+      primary: session.frames[0].id,
+      ids: [session.frames[0].id, session.frames[1].id]
+    )
+    #expect(session.exportSelectedFrameIDs.count == 2)
+    #expect(session.frames(for: .selected).map(\.name) == ["a.tif", "b.tif"])
+  }
+
   @Test @MainActor func engineSessionFramesForAllScope() {
     let session = EngineSession.preview
     #expect(session.frames(for: .all).map(\.name) == ["a.tif", "b.tif"])

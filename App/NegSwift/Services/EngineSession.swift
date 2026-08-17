@@ -26,6 +26,8 @@ final class EngineSession {
     private(set) var currentPath: String?
     private(set) var frames: [ScanFrame] = []
     private(set) var selectedFrameID: UUID?
+    private(set) var selectedFrameIDs: Set<UUID> = []
+    private var selectionAnchorID: UUID?
     private(set) var frameEdits: [String: FrameEditState] = [:]
     private(set) var isCropToolActive = false
     private(set) var isCropOverlayReady = false
@@ -146,14 +148,16 @@ final class EngineSession {
         )
     }
 
-    /// Frames included in a `.selected` export. Until film-strip multi-select ships, this is the primary frame only.
     var exportSelectedFrameIDs: Set<UUID> {
-        guard let id = selectedFrameID else { return [] }
-        return [id]
+        selectedFrameIDs
     }
 
     var exportSelectionCount: Int {
         frames(for: .selected).count
+    }
+
+    var hasMultiExportSelection: Bool {
+        selectedFrameIDs.count >= 2
     }
 
     var defaultExportScope: ExportScope {
@@ -858,6 +862,8 @@ final class EngineSession {
 
         let savedFrames = frames
         let savedSelected = selectedFrameID
+        let savedSelectedIDs = selectedFrameIDs
+        let savedSelectionAnchor = selectionAnchorID
         let savedEdits = frameEdits
         let savedFolder = scopedFolderURL
         let savedFiles = scopedFileURLs
@@ -881,6 +887,8 @@ final class EngineSession {
         } else {
             frames = savedFrames
             selectedFrameID = savedSelected
+            selectedFrameIDs = savedSelectedIDs
+            selectionAnchorID = savedSelectionAnchor
             frameEdits = savedEdits
             scopedFolderURL = savedFolder
             scopedFileURLs = savedFiles
@@ -1035,10 +1043,113 @@ final class EngineSession {
         }
     }
 
-    func selectFrame(_ id: UUID) async {
+    func selectFrame(_ id: UUID, modifiers: FilmStripSelectionModifiers = .plain) async {
         guard !isExporting else { return }
-        let selectStart = CFAbsoluteTimeGetCurrent()
+        guard frames.contains(where: { $0.id == id }) else { return }
+
+        if modifiers == .plain, id == selectedFrameID, selectedFrameIDs == [id] {
+            return
+        }
+
         let previousPath = selectedFramePath
+        let primaryChanged = applyFilmStripSelection(id: id, modifiers: modifiers)
+        guard let primaryID = selectedFrameID else {
+            if primaryChanged {
+                clearPreviewForEmptySelection()
+            }
+            return
+        }
+        guard primaryChanged else { return }
+
+        await activatePrimaryFrame(
+            primaryID,
+            previousPath: previousPath,
+            selectStart: CFAbsoluteTimeGetCurrent()
+        )
+    }
+
+    private func applyFilmStripSelection(id: UUID, modifiers: FilmStripSelectionModifiers) -> Bool {
+        if modifiers.shift {
+            let anchor = selectionAnchorID ?? selectedFrameID ?? id
+            let rangeIDs = frameIDsInRange(from: anchor, to: id)
+            selectedFrameIDs = rangeIDs
+            let primaryID = frames.first(where: { rangeIDs.contains($0.id) })?.id
+            let changed = primaryID != selectedFrameID
+            selectedFrameID = primaryID
+            return changed
+        }
+
+        if modifiers.command {
+            if selectedFrameIDs.contains(id) {
+                selectedFrameIDs.remove(id)
+                if selectedFrameID == id {
+                    selectedFrameID = promotePrimarySelection(excluding: id)
+                    return true
+                }
+                return false
+            }
+            if selectedFrameIDs.isEmpty, let primary = selectedFrameID {
+                selectedFrameIDs = [primary]
+            }
+            selectedFrameIDs.insert(id)
+            return false
+        }
+
+        selectionAnchorID = id
+        selectedFrameIDs = [id]
+        let changed = selectedFrameID != id
+        selectedFrameID = id
+        return changed
+    }
+
+    private func frameIDsInRange(from anchorID: UUID, to endID: UUID) -> Set<UUID> {
+        guard let startIndex = frames.firstIndex(where: { $0.id == anchorID }),
+              let endIndex = frames.firstIndex(where: { $0.id == endID })
+        else {
+            return [endID]
+        }
+        let lower = min(startIndex, endIndex)
+        let upper = max(startIndex, endIndex)
+        return Set(frames[lower ... upper].map(\.id))
+    }
+
+    private func promotePrimarySelection(excluding excludedID: UUID) -> UUID? {
+        let remaining = selectedFrameIDs
+        guard !remaining.isEmpty else { return nil }
+        let indices = frames.enumerated()
+            .filter { remaining.contains($0.element.id) }
+            .map(\.offset)
+            .sorted()
+        guard !indices.isEmpty else { return nil }
+        if let excludedIndex = frames.firstIndex(where: { $0.id == excludedID }) {
+            let nearest = indices.min { lhs, rhs in
+                abs(lhs - excludedIndex) < abs(rhs - excludedIndex)
+            }!
+            return frames[nearest].id
+        }
+        return frames[indices[0]].id
+    }
+
+    private func clearPreviewForEmptySelection() {
+        isCropToolActive = false
+        isCropOverlayReady = false
+        isScratchToolActive = false
+        scratchInProgressPoints = []
+        cropPreviewBaseline = nil
+        pendingThumbnailRefreshAfterCropClose = false
+        pendingAutoCropSeed = false
+        previewImage = nil
+        previewPixelSize = nil
+        currentPath = nil
+        previewError = nil
+        isRenderingPreview = false
+    }
+
+    private func activatePrimaryFrame(
+        _ id: UUID,
+        previousPath: String?,
+        selectStart: CFAbsoluteTime
+    ) async {
         isCropToolActive = false
         isCropOverlayReady = false
         isScratchToolActive = false
@@ -1047,7 +1158,6 @@ final class EngineSession {
         pendingThumbnailRefreshAfterCropClose = false
         pendingAutoCropSeed = false
         thumbnailGeneration += 1
-        selectedFrameID = id
         guard let frame = frames.first(where: { $0.id == id }) else { return }
         if let previousPath, previousPath != frame.path {
             saveDebounce.cancel()
@@ -1515,6 +1625,8 @@ final class EngineSession {
         stopFileAccess()
         frames = []
         selectedFrameID = nil
+        selectedFrameIDs = []
+        selectionAnchorID = nil
         frameEdits = [:]
         dirtyPaths = []
         pathsWithStoredProcessMode = []
@@ -1656,6 +1768,11 @@ final class EngineSession {
         self.frames = frames
     }
 
+    func setFilmStripSelectionForTests(primary: UUID?, ids: Set<UUID>) {
+        selectedFrameID = primary
+        selectedFrameIDs = ids
+    }
+
     func setPreviewImageForTests(_ image: NSImage?) {
         previewImage = image
     }
@@ -1725,6 +1842,7 @@ final class EngineSession {
             ScanFrame(id: UUID(), url: URL(fileURLWithPath: "/preview/b.tif"), path: "/preview/b.tif", name: "b.tif"),
         ]
         session.selectedFrameID = session.frames.first?.id
+        session.selectedFrameIDs = Set(session.frames.prefix(1).map(\.id))
         session.frameEdits["/preview/a.tif"] = FrameEditState()
         return session
     }

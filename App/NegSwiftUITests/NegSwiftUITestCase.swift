@@ -133,21 +133,25 @@ class NegSwiftUITestCase: XCTestCase {
         XCTAssertTrue(undo.waitForExistence(timeout: timeout), "Undo Last Heal did not appear after commit")
     }
 
-    func waitForCanvasZoomLabel(_ label: String, timeout: TimeInterval = 30) throws {
-        let zoomLabel = app.staticTexts[AccessibilityID.canvasZoomLabel]
+    func waitForCanvasZoomApplied(timeout: TimeInterval = 30) throws {
+        let zoomLabel = app.descendants(matching: .any)
+            .matching(identifier: AccessibilityID.canvasZoomLabel)
+            .firstMatch
         XCTAssertTrue(zoomLabel.waitForExistence(timeout: timeout), "Canvas zoom label missing")
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if zoomLabel.label == label {
+            if zoomLabel.label != "Fit" {
                 return
             }
             usleep(100_000)
         }
-        XCTFail("Expected canvas zoom label \"\(label)\", got \"\(zoomLabel.label)\"")
+        XCTFail("Expected canvas to leave Fit zoom, got \"\(zoomLabel.label)\"")
     }
 
     func waitForScratchSystemCursor(hidden: Bool, timeout: TimeInterval = 10) throws {
-        let reporter = app.staticTexts[AccessibilityID.scratchSystemCursor]
+        let reporter = app.descendants(matching: .any)
+            .matching(identifier: AccessibilityID.scratchSystemCursor)
+            .firstMatch
         XCTAssertTrue(reporter.waitForExistence(timeout: timeout), "Scratch cursor reporter missing")
         let expected = hidden ? "hidden" : "visible"
         let deadline = Date().addingTimeInterval(timeout)

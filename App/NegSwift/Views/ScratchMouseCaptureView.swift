@@ -100,10 +100,9 @@ final class ScratchCaptureNSView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
-        let trackingRect = activeInteractionRect
-        guard trackingRect.width > 0, trackingRect.height > 0 else { return }
+        guard imageRect.width > 0, imageRect.height > 0 else { return }
         let area = NSTrackingArea(
-            rect: trackingRect,
+            rect: imageRect,
             options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .enabledDuringMouseDrag, .inVisibleRect],
             owner: self,
             userInfo: nil
@@ -112,13 +111,13 @@ final class ScratchCaptureNSView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard activeInteractionRect.contains(point) else { return nil }
+        guard imageRect.contains(point) else { return nil }
         return super.hitTest(point)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        guard isMouseOverInteractionArea() else { return }
+        guard isMouseOverImageForCursor() else { return }
         let point = currentMouseLocation()
         let radius = ScratchToolOverlayGeometry.brushScreenRadius(
             brushSize: CGFloat(brushSize),
@@ -192,7 +191,7 @@ final class ScratchCaptureNSView: NSView {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.window?.isKeyWindow == true else { return event }
-            guard self.shouldHoldKeyboardFocus || self.isMouseOverInteractionArea() else { return event }
+            guard self.shouldHoldKeyboardFocus || self.isMouseOverImageForCursor() else { return event }
             return self.handleScratchKey(event) ? nil : event
         }
     }
@@ -247,11 +246,14 @@ final class ScratchCaptureNSView: NSView {
         return convert(window.mouseLocationOutsideOfEventStream, from: nil)
     }
 
-    private func isMouseOverInteractionArea() -> Bool {
-        activeInteractionRect.contains(currentMouseLocation())
+    private func isMouseOverImageForCursor() -> Bool {
+        let point = currentMouseLocation()
+        guard imageRect.contains(point) else { return false }
+        return cursorClipRect.contains(point)
     }
 
-    private var activeInteractionRect: CGRect {
+    /// Clip rect for cursor hiding when window mouse coords extend beyond the visible viewport.
+    private var cursorClipRect: CGRect {
         guard !interactionRect.isNull, interactionRect.width > 0, interactionRect.height > 0 else {
             return imageRect
         }
@@ -259,8 +261,8 @@ final class ScratchCaptureNSView: NSView {
     }
 
     private func syncCursor() {
-        let overInteractionArea = isMouseOverInteractionArea()
-        if overInteractionArea {
+        let hideCursor = isMouseOverImageForCursor()
+        if hideCursor {
             guard !isBrushCursorHidden else { return }
             isBrushCursorHidden = true
             NSCursor.hide()
@@ -270,7 +272,7 @@ final class ScratchCaptureNSView: NSView {
             NSCursor.unhide()
             NSCursor.arrow.set()
         }
-        ScratchCursorUITestReporter.setSystemCursorHidden(isBrushCursorHidden)
+        UITestSupport.reportScratchSystemCursorHidden(isBrushCursorHidden)
     }
 
     private func restoreCursor() {
@@ -278,6 +280,6 @@ final class ScratchCaptureNSView: NSView {
         isBrushCursorHidden = false
         NSCursor.unhide()
         NSCursor.arrow.set()
-        ScratchCursorUITestReporter.setSystemCursorHidden(false)
+        UITestSupport.reportScratchSystemCursorHidden(false)
     }
 }

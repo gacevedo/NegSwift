@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import CoreGraphics
 
 /// Launch hooks for UI automation (`-UITesting` + `NEGSWIFT_UI_TEST_*` env vars).
 enum UITestSupport {
@@ -49,6 +50,27 @@ enum UITestSupport {
     /// Zoom preview to maximum display scale (400%) once the canvas has a viewport size.
     static var canvasZoomToMaxDisplayScale: Bool {
         ProcessInfo.processInfo.environment["NEGSWIFT_UI_TEST_CANVAS_ZOOM_MAX"] == "1"
+    }
+
+    static let scratchSystemCursorVisibilityChanged = Notification.Name("negSwift.scratchSystemCursorVisibilityChanged")
+    static let canvasZoomLabelChanged = Notification.Name("negSwift.canvasZoomLabelChanged")
+
+    static func reportScratchSystemCursorHidden(_ hidden: Bool) {
+        guard isActive else { return }
+        NotificationCenter.default.post(
+            name: scratchSystemCursorVisibilityChanged,
+            object: nil,
+            userInfo: ["hidden": hidden]
+        )
+    }
+
+    static func reportCanvasZoomLabel(_ label: String) {
+        guard isActive else { return }
+        NotificationCenter.default.post(
+            name: canvasZoomLabelChanged,
+            object: nil,
+            userInfo: ["label": label]
+        )
     }
 
     static func parseScratchSeedPoints(_ raw: String) -> [CGPoint]? {

@@ -14,7 +14,6 @@ struct PreviewCanvasView: View {
 
     @State private var interaction = CanvasInteractionState()
     @State private var viewportSize = CGSize.zero
-    @State private var appliedUITestMaxZoom = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -39,10 +38,11 @@ struct PreviewCanvasView: View {
                 contentOrigin: contentOrigin,
                 pixelSize: pixelSize
             )
-            .overlay {
-                if UITestSupport.isActive {
-                    ScratchCursorUITestReporterView()
-                }
+            .onAppear {
+                publishCanvasZoomLabel(viewportSize: size, pixelSize: pixelSize)
+            }
+            .onChange(of: zoom.magnification) { _, _ in
+                publishCanvasZoomLabel(viewportSize: size, pixelSize: pixelSize)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -110,6 +110,7 @@ struct PreviewCanvasView: View {
         }
         .onChange(of: pixelSize) { _, _ in
             syncContentOffset(pixelSize: pixelSize, viewportSize: viewportSize)
+            applyUITestMaxZoomIfNeeded(viewportSize: viewportSize, pixelSize: pixelSize)
         }
         .onChange(of: zoomToggleNonce) { _, _ in
             performMenuToggle(viewportSize: viewportSize, pixelSize: pixelSize)
@@ -333,8 +334,9 @@ struct PreviewCanvasView: View {
     }
 
     private func canvasHUD(viewportSize: CGSize, pixelSize: CGSize) -> some View {
-        HStack(spacing: 8) {
-            Text(zoom.label(imageSize: pixelSize, viewport: viewportSize))
+        let zoomLabel = zoom.label(imageSize: pixelSize, viewport: viewportSize)
+        return HStack(spacing: 8) {
+            Text(zoomLabel)
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
             if let pixelSize = session.previewPixelSize {
@@ -347,7 +349,6 @@ struct PreviewCanvasView: View {
         .padding(.vertical, 4)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
         .padding(10)
-        .accessibilityIdentifier("negSwift.canvasZoomLabel")
     }
 
     private var displayedPixelSize: CGSize {
@@ -364,20 +365,28 @@ struct PreviewCanvasView: View {
     private func applyUITestMaxZoomIfNeeded(viewportSize: CGSize, pixelSize: CGSize) {
         guard UITestSupport.isActive,
               UITestSupport.canvasZoomToMaxDisplayScale,
-              !appliedUITestMaxZoom,
+              zoom.isAtFit(),
               viewportSize.width > 0,
               viewportSize.height > 0,
               pixelSize.width > 0,
               pixelSize.height > 0
         else { return }
-
-        appliedUITestMaxZoom = true
-        zoom.magnification = zoom.maxMagnification(imageSize: pixelSize, viewport: viewportSize)
+        let fit = zoom.fitScale(imageSize: pixelSize, viewport: viewportSize)
+        let maxDisplayMagnification = fit > 0 ? PreviewCanvasZoom.maxDisplayScale / fit : 1.0
+        // Tiny fixtures already exceed 400% at fit; use 4× fit so content overflows for pan/cursor tests.
+        zoom.magnification = max(4.0, maxDisplayMagnification)
         interaction.contentOffset = PreviewCanvasGeometry.anchoredContentOffset(
             anchorInViewport: CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2),
             viewportSize: viewportSize,
             pixelSize: pixelSize,
             magnification: zoom.magnification
+        )
+        publishCanvasZoomLabel(viewportSize: viewportSize, pixelSize: pixelSize)
+    }
+
+    private func publishCanvasZoomLabel(viewportSize: CGSize, pixelSize: CGSize) {
+        UITestSupport.reportCanvasZoomLabel(
+            zoom.label(imageSize: pixelSize, viewport: viewportSize)
         )
     }
 }

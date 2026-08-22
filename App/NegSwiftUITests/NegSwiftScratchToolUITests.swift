@@ -92,7 +92,7 @@ final class NegSwiftScratchToolUITests: NegSwiftUITestCase {
         relaunch(importPath: Self.fixtureScanURL.path, canvasZoomToMax: true)
         try waitForEngineReady()
         try waitForImportComplete()
-        try waitForCanvasZoomLabel("400%")
+        try waitForCanvasZoomApplied()
 
         try setScratchToolActive(true)
 

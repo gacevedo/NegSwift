@@ -16,7 +16,7 @@ enum ScratchCursor {
 
     static func reset() {
         NSCursor.unhide()
-        ScratchCursorUITestReporter.setSystemCursorHidden(false)
+        UITestSupport.reportScratchSystemCursorHidden(false)
         guard isCrosshair else { return }
         isCrosshair = false
         NSCursor.arrow.set()

@@ -62,6 +62,8 @@
   "highlight_yellow": 0.0,
   "shadow_density": 0.0,
   "highlight_density": 0.0,
+  "contrast_mask": 0.0,
+  "mask_spacer": 4.0,
   "shadow_grade": 0.0,
   "highlight_grade": 0.0,
   "shadow_grade_trim_red": 0.0,
@@ -129,12 +131,15 @@
   "fine_rotation": 0,
   "flip_horizontal": false,
   "flip_vertical": false,
-  "auto_crop_enabled": true,
+  "converge_v": 0.0,
+  "converge_h": 0.0,
   "autocrop_offset": 1,
   "autocrop_ratio": "Free",
   "autocrop_mode": "image",
   "autocrop_rebate_trim": 1.0,
-  "manual_crop_rect": null,
+  "crop_rect": null,
+  "crop_from_auto": true,
+  "crop_detect_key": "",
   "saturation": 1,
   "skin_protection": 0.5,
   "clahe_strength": 0.0,
@@ -162,6 +167,40 @@
         [
           0.5957446694374084,
           0.4516128897666931
+        ]
+      ],
+      6,
+      0,
+      0
+    ],
+    [
+      [
+        [
+          0.3404255211353302,
+          0.4516128897666931
+        ],
+        [
+          0.5957446694374084,
+          0.4516128897666931
+        ]
+      ],
+      6,
+      0,
+      0
+    ],
+    [
+      [
+        [
+          0.3404255211353302,
+          0.4516128897666931
+        ],
+        [
+          0.5957446694374084,
+          0.4516128897666931
+        ],
+        [
+          0.4680851101875305,
+          0.4193548262119293
         ]
       ],
       6,
@@ -221,7 +260,6 @@
   "border_color": "#ffffff",
   "border_bottom_weight": 1.0,
   "border_match_paper": false,
-  "gear_preset_id": "",
   "camera_id": "",
   "lens_id": "",
   "film_stock_id": "",
@@ -237,10 +275,21 @@
   "film": "",
   "format": "",
   "format_other": "",
+  "process_id": "",
+  "scanning_id": "",
   "developer": "",
+  "process_dilution": "",
   "push_pull": 0,
+  "process_time_seconds": null,
+  "process_temperature_c": null,
   "scanning": "",
   "sync_to_batch": false,
+  "capture_date": "",
+  "gps_latitude": null,
+  "gps_longitude": null,
+  "location_city": "",
+  "location_state": "",
+  "location_country": "",
   "capture_roll": "",
   "capture_frame": null,
   "protect_original_metadata": false,

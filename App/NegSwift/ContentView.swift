@@ -165,6 +165,10 @@ struct ContentView: View {
             wireCommandBridge()
         }
         .onChange(of: engineSession.selectedFrameID) { _, _ in
+            guard !(UITestSupport.isActive && UITestSupport.canvasZoomToMaxDisplayScale) else {
+                syncCommandBridgeState()
+                return
+            }
             previewZoom = .fit
             syncCommandBridgeState()
         }
@@ -180,6 +184,14 @@ struct ContentView: View {
         .onChange(of: showEngineSheet) { _, _ in syncCommandBridgeState() }
         .onChange(of: showAbout) { _, _ in syncCommandBridgeState() }
         .onChange(of: showResetSheet) { _, _ in syncCommandBridgeState() }
+        .overlay {
+            if UITestSupport.isActive {
+                ZStack {
+                    CanvasZoomUITestReporterView()
+                    ScratchCursorUITestReporterView()
+                }
+            }
+        }
     }
 
     private func wireCommandBridge() {

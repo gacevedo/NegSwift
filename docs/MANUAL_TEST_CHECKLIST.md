@@ -229,13 +229,13 @@ Sidebar **Scratch** section (toggle, brush size, Finish, undo). Canvas HUD shows
 
 ---
 
-## M14 — Batch export (planned)
+## M14 — Batch export
 
 See [docs/BATCH_EXPORT.md](BATCH_EXPORT.md) and [PLAN.md](../PLAN.md) §7 M14.
 
 **Phase 1 — Batch orchestration**
 
-- [x] Export All… (File menu) exports every frame in the film strip
+- [x] Export… sheet **All** scope exports every frame in the film strip
 - [x] Each frame uses its own sidecar edits (crop, density, heals) — not the preview frame only
 - [x] Progress overlay shows "N of M" and current filename; Cancel stops after current frame
 - [x] Confirmation dialog when exporting 2+ frames
@@ -243,18 +243,19 @@ See [docs/BATCH_EXPORT.md](BATCH_EXPORT.md) and [PLAN.md](../PLAN.md) §7 M14.
 
 **Phase 2 — Export sheet scope**
 
-- [x] Export… sheet: scope picker (This Frame / All) when strip has 2+ frames
+- [x] Export… sheet: scope picker (This Frame / Selected / All) when strip has 2+ frames
 - [x] Summary line shows frame count and format
-- [x] ⌘E default scope: current frame (selected when multi-select ships)
-- [ ] "Selected" segment when 2+ frames are multi-selected (Phase 3)
+- [x] ⌘E default scope: current frame, or selected when 2+ strip items are selected
+- [x] **Selected** scope when 2+ frames are multi-selected (⌘/shift-click in strip)
 
-**Phase 3 — Film strip multi-select**
+**Phase 3 — Separate menus** — not planned (Export… sheet is the single batch entry point)
 
-- [ ] ⌘-click toggles frame in selection; shift-click range-selects
-- [ ] Primary vs secondary selection visible in strip
-- [ ] Export Selected… (⌘⇧E) exports multi-selected frames in strip order
+**Phase 4 — Automated tests**
 
-**Regression**
+- [x] `EngineSessionBatchExportTests` — all/selected scope, per-path configs, cancel, `isExporting` guard
+- [x] `testBatchExportAllWritesMultipleJPEGs` UI test (folder import + batch export hook)
+
+**Regression (manual)**
 
 - [ ] Single-frame Export… and Quick Export unchanged
 - [ ] Export All with 5+ mixed edits — all outputs correct dimensions and crop

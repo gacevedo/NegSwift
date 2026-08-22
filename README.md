@@ -4,7 +4,7 @@ macOS-native **lite** shell for [NegPy](https://github.com/marcinz606/NegPy) —
 
 ## Status
 
-**M0–M11 complete.** **M12 Phase 4** (JPEG preview transport) + **Phase 5** (preview memo) done — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **M13** scratch tool done. **Next:** M12 manual benchmarks; **M14** batch export — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md).
+**M0–M14 feature complete** (batch export via Export… sheet). **M12** manual benchmarks remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Agents: read **[AGENTS.md](AGENTS.md)** first.
 

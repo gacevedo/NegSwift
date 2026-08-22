@@ -6,7 +6,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 ---
 
-## Plan status (last updated: 2026-08-16)
+## Plan status (last updated: 2026-08-21)
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
@@ -25,9 +25,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
 | **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
-| **M14** Batch export | **In progress** | Phase 1 done — Export All + batch orchestration; see [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
+| **M14** Batch export | **Done** | Phases 1–2 shipped; Phase 3 deferred; Phase 4 tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 
-**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **M13 done.** **Next feature:** M14 batch export — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md).
+**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -744,7 +744,7 @@ Export all frames in the film strip, or a multi-selected subset, with the same f
 
 Full design: **[docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md)**.
 
-**Phase 1 complete** — Export All menu, batch orchestration, progress/cancel, confirmation for 2+ frames.
+**Phases 1–2 complete** — batch orchestration, progress/cancel, confirmation; Export… sheet scope picker (This Frame / Selected / All).
 
 #### Goals
 
@@ -775,25 +775,22 @@ NegPy reference: `request_batch_export`, `request_export_selected` in `negpy/des
 - [x] `EngineSession.exportBatch(scope:to:settings:)` — flush saves, per-frame config, sequential `client.export`
 - [x] `BatchExportProgress` + updated `ExportProgressView` (N of M, cancel)
 - [x] Block `selectFrame` while `isExporting`
-- [x] File menu **Export All…**; sheet scope defaults to `.all`
 
 **Phase 2 — Export sheet scope**
 
-- [x] Scope picker in `ExportSheetView` (This Frame / All; Selected when multi-select ships)
+- [x] Scope picker in `ExportSheetView` (This Frame / Selected / All)
 - [x] Batch summary line with frame count and format
-- [x] ⌘E opens sheet with smart default scope (current until multi-select)
+- [x] ⌘E opens sheet with smart default scope (`.selected` when 2+ strip items selected, else `.current`)
 
-**Phase 3 — Film strip multi-select**
+**Phase 3 — Separate menus / shortcuts** — **Deferred (not planned)**
 
-- [ ] `selectedFrameIDs: Set<UUID>` + click semantics (plain, ⌘, shift)
-- [ ] Primary vs secondary selection styling in `FilmStripView`
-- [ ] File menu **Export Selected…** (⌘⇧E); enabled when 2+ selected
+Export… and Quick Export already open the sheet with the right scope options. No separate File menu items (Export All…, Export Selected…) or ⌘⇧E shortcut.
 
 **Phase 4 — Tests and docs**
 
-- [ ] Swift unit tests (mock `EngineClient`) — scope, per-path configs, cancel
-- [ ] UI test: Export All → N files in `NEGSWIFT_UI_TEST_EXPORT_DIR`
-- [ ] Manual checklist M14 complete
+- [x] Swift unit tests (mocked export handler) — scope, per-path configs, cancel
+- [x] UI test: batch Export All → N files in `NEGSWIFT_UI_TEST_EXPORT_DIR`
+- [ ] Manual checklist M14 regression (mixed edits, cancel, NegPy parity)
 
 #### Testing
 
@@ -928,8 +925,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 1. **M12 manual:** Navigate A→B→A on real scan ≥ 20 MP; record `frame_switch_revisit_ms` and JPEG transport baselines.
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
-3. **M14 Phase 1:** `exportBatch` + Export All menu — see [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md).
-4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
+3. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 
 ---
 

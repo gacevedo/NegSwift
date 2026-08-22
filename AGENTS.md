@@ -84,9 +84,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M11 | Polish — **Done** |
 | **M12** | **In progress** — Performance; Phase 4 JPEG transport + Phase 5 preview memo done |
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
-| **M14** | **In progress** — Batch export Phase 1 (Export All + orchestration) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
+| **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 
-**Current status (2026-08-16):** M0–M11 done; **M12 Phase 4 complete** (JPEG preview IPC); **M12 Phase 5 complete** (Swift preview render memo); **M13 complete** (scratch tool + undo). **M14 Phase 1** — Export All + batch orchestration shipped in app. **Next:** M14 Phase 2–3 (sheet scope picker, film strip multi-select); M12 manual benchmarks — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-08-21):** M0–M14 feature complete (M14 Phase 3 menus deferred). **M12** code phases done — manual benchmarks remain. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

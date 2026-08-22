@@ -19,7 +19,7 @@ struct GeometryPanelView: View {
                 if session.isCropToolActive {
                     Picker("Ratio", selection: aspectRatioBinding) {
                         ForEach(CropAspectRatio.allCases) { ratio in
-                            Text(ratio.rawValue).tag(ratio)
+                            Text(ratio.pickerLabel).tag(ratio)
                         }
                     }
                     .pickerStyle(.menu)

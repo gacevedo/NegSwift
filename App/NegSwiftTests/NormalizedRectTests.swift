@@ -61,4 +61,40 @@ struct NormalizedRectTests {
         let rect = NormalizedRect(x1: 0.05, y1: 0.4, x2: 0.95, y2: 0.55)
         #expect(rect.closestFilmAspectRatioLabel(imageAspect: 1.0) == "Free")
     }
+
+    @Test func canonicalMapsInstagramPortraitAndLandscapeRatios() {
+        #expect(CropAspectRatio.canonical("4:5") == .r4x5)
+        #expect(CropAspectRatio.canonical("9:16") == .r9x16)
+        #expect(CropAspectRatio.canonical("5:4") == .r5x4)
+        #expect(CropAspectRatio.canonical("16:9") == .r16x9)
+        #expect(CropAspectRatio.canonical("1.91:1") == .r191x100)
+        #expect(CropAspectRatio.canonical("100:191") == .r191x100)
+    }
+
+    @Test func centeredInstagramPortraitRatiosAreTallerThanWide() {
+        let imageAspect = 1.5
+        let portraitFeed = NormalizedRect.centered(ratioLabel: "4:5", imageAspect: imageAspect)
+        #expect(portraitFeed.height > portraitFeed.width)
+        let pixelAspect = (portraitFeed.width / portraitFeed.height) * imageAspect
+        #expect(abs(pixelAspect - 4.0 / 5.0) < 1e-6)
+
+        let stories = NormalizedRect.centered(ratioLabel: "9:16", imageAspect: imageAspect)
+        #expect(stories.height > stories.width)
+    }
+
+    @Test func centeredPrintRatioStaysLandscapeOnWideScan() {
+        let imageAspect = 1.5
+        let rect = NormalizedRect.centered(ratioLabel: "5:4", imageAspect: imageAspect)
+        let pixelAspect = (rect.width / rect.height) * imageAspect
+        #expect(abs(pixelAspect - 5.0 / 4.0) < 1e-6)
+    }
+
+    @Test func instagramRatiosShowPickerHints() {
+        #expect(CropAspectRatio.r1x1.pickerLabel == "1:1 · Instagram")
+        #expect(CropAspectRatio.r4x5.pickerLabel == "4:5 · Instagram")
+        #expect(CropAspectRatio.r9x16.pickerLabel == "9:16 · Instagram")
+        #expect(CropAspectRatio.r191x100.pickerLabel == "1.91:1 · Instagram")
+        #expect(CropAspectRatio.r5x4.pickerLabel == "5:4")
+        #expect(CropAspectRatio.r3x2.pickerLabel == "3:2")
+    }
 }

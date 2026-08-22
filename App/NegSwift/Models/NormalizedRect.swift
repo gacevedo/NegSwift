@@ -121,14 +121,28 @@ enum CropAspectRatio: String, CaseIterable, Identifiable {
     case r3x2 = "3:2"
     case r4x3 = "4:3"
     case r5x4 = "5:4"
+    case r4x5 = "4:5"
     case r6x7 = "6:7"
     case r7x5 = "7:5"
     case r65x24 = "65:24"
     case r16x9 = "16:9"
+    case r9x16 = "9:16"
+    case r191x100 = "1.91:1"
     case r16x10 = "16:10"
     case r85x11 = "8.5:11"
 
     var id: String { rawValue }
+
+    /// Menu label for the crop ratio picker (Instagram ratios use feed/story naming).
+    var pickerLabel: String {
+        switch self {
+        case .r1x1: "1:1 · Instagram"
+        case .r4x5: "4:5 · Instagram"
+        case .r9x16: "9:16 · Instagram"
+        case .r191x100: "1.91:1 · Instagram"
+        default: rawValue
+        }
+    }
 
     var widthOverHeight: Double? {
         switch self {
@@ -137,10 +151,13 @@ enum CropAspectRatio: String, CaseIterable, Identifiable {
         case .r3x2: 3.0 / 2.0
         case .r4x3: 4.0 / 3.0
         case .r5x4: 5.0 / 4.0
+        case .r4x5: 4.0 / 5.0
         case .r6x7: 6.0 / 7.0
         case .r7x5: 7.0 / 5.0
         case .r65x24: 65.0 / 24.0
         case .r16x9: 16.0 / 9.0
+        case .r9x16: 9.0 / 16.0
+        case .r191x100: 1.91
         case .r16x10: 16.0 / 10.0
         case .r85x11: 8.5 / 11.0
         }
@@ -152,8 +169,9 @@ enum CropAspectRatio: String, CaseIterable, Identifiable {
 
     static func canonical(_ label: String) -> CropAspectRatio {
         let portraitMap: [String: CropAspectRatio] = [
-            "2:3": .r3x2, "3:4": .r4x3, "4:5": .r5x4, "7:6": .r6x7,
-            "5:7": .r7x5, "24:65": .r65x24, "9:16": .r16x9, "10:16": .r16x10, "11:8.5": .r85x11,
+            "2:3": .r3x2, "3:4": .r4x3, "7:6": .r6x7,
+            "5:7": .r7x5, "24:65": .r65x24, "100:191": .r191x100,
+            "10:16": .r16x10, "11:8.5": .r85x11,
         ]
         if let mapped = portraitMap[label] { return mapped }
         return parse(label) ?? .r3x2

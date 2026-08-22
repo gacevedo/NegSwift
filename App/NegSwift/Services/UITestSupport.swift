@@ -17,6 +17,14 @@ enum UITestSupport {
         nonEmptyEnvironment("NEGSWIFT_UI_TEST_IMPORT")
     }
 
+    static var importDirectoryPath: String? {
+        nonEmptyEnvironment("NEGSWIFT_UI_TEST_IMPORT_DIR")
+    }
+
+    static var batchExportAllAfterImport: Bool {
+        ProcessInfo.processInfo.environment["NEGSWIFT_UI_TEST_BATCH_EXPORT_ALL"] == "1"
+    }
+
     static var droppedURLPaths: [String]? {
         guard let raw = nonEmptyEnvironment("NEGSWIFT_UI_TEST_DROP_PATHS") else { return nil }
         let paths = raw.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -57,12 +65,37 @@ enum UITestSupport {
         if let paths = droppedURLPaths {
             let urls = paths.map { URL(fileURLWithPath: $0) }
             await session.importDroppedURLs(urls)
+            await runBatchExportIfRequested(session: session)
+            return
+        }
+
+        if let directory = importDirectoryPath {
+            await session.importFolder(at: URL(fileURLWithPath: directory))
+            await runBatchExportIfRequested(session: session)
             return
         }
 
         if let path = importPath {
             await session.importFileFromPicker(URL(fileURLWithPath: path))
+            await runBatchExportIfRequested(session: session)
         }
+    }
+
+    private static func runBatchExportIfRequested(session: EngineSession) async {
+        guard batchExportAllAfterImport,
+              let destination = exportDestinationURL
+        else { return }
+        let gotAccess = destination.startAccessingSecurityScopedResource()
+        defer {
+            if gotAccess {
+                destination.stopAccessingSecurityScopedResource()
+            }
+        }
+        _ = try? await session.exportBatch(
+            scope: .all,
+            to: destination,
+            settings: .quickExport
+        )
     }
 
     private static func nonEmptyEnvironment(_ key: String) -> String? {

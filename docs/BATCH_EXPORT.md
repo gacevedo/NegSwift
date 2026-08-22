@@ -2,9 +2,9 @@
 
 Export all frames in the film strip, or a multi-selected subset, using the same format and destination as single-frame export today.
 
-**Status:** Phase 1 in progress (batch orchestration + Export All).  
+**Status:** Phases 1–2 complete; Phase 3 (separate menus) deferred; Phase 4 automated tests complete.  
 **Milestone:** M14 in [PLAN.md](../PLAN.md).  
-**Manual smoke:** [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) § M14.
+**Manual smoke:** [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) § M14 (regression rows remain).
 
 ---
 
@@ -128,7 +128,7 @@ func frames(for scope: ExportScope) -> [ScanFrame] {
 | 1 selected | `.current` |
 | 2+ selected | `.selected` |
 
-"Export All…" opens the same sheet with scope preset to `.all`.
+Choose scope in the Export… sheet — no separate batch menu items.
 
 ---
 
@@ -140,7 +140,7 @@ Extend the existing sheet — do not add a second dialog.
 
 - **Scope row** (segmented or picker), only when `frames.count > 1`:
   - "This Frame" / "Selected (N)" / "All (N)"
-  - Disable "Selected" when `selectedFrameIDs.count < 2`
+  - "Selected" appears when 2+ strip items are selected (⌘/shift-click)
 - **Summary line:** e.g. "Exporting 12 frames as JPEG to ~/Exports" instead of a single filename.
 - **Optional collapsible list** of frame names when N > 3.
 - Reuse format, JPEG quality, and destination picker.
@@ -150,11 +150,9 @@ Extend the existing sheet — do not add a second dialog.
 | Control | Scope |
 |---------|-------|
 | **Quick Export** | Current frame only (fast path, no sheet) |
-| **Export…** (⌘E) | Sheet with smart default scope |
-| **Export All…** (new, File menu) | Sheet with `.all` |
-| **Export Selected…** (new, File menu) | Sheet with `.selected`; enabled when 2+ selected |
+| **Export…** (⌘E) | Sheet with smart default scope (`.selected` when 2+ selected, else `.current`) |
 
-Enable export actions when `frames.count > 0` (not only when a single frame is selected).
+User picks **All** or **Selected** in the sheet. Separate File menu entries for Export All / Export Selected are **not planned** — the sheet is the single entry point for batch export.
 
 ### Progress overlay (`ExportProgressView`)
 
@@ -219,18 +217,17 @@ Add `exportBatch(scope:to:settings:)` (or refactor `exportCurrentFrame` to call 
 | Unsaved edits on non-active frames | `flushPendingSaves` + per-frame `frameEdits` |
 | Frame with no thumbnail yet | Export still works |
 | Single frame in "Export All" | Same as current export; no confirmation |
-| Empty selection + "Export Selected" | Menu disabled |
+| Empty selection + "Selected" scope | Scope segment hidden until 2+ frames selected |
 | Security-scoped source files | Reuse `beginFileAccess` / `endFileAccess` per frame |
 
 ---
 
 ## 6. Implementation order
 
-1. **Batch engine path** — `exportBatch` + progress; wire "Export All" (testable without multi-select).
-2. **Sheet scope UI** — scope picker + summary text.
-3. **Multi-select** — film strip gestures + visual states.
-4. **Menus + shortcuts** — Export All, Export Selected (⌘⇧E).
-5. **Tests + manual checklist** — unit tests, UI test hook, M14 smoke rows.
+1. ~~**Batch engine path**~~ — `exportBatch` + progress ✅
+2. ~~**Sheet scope UI**~~ — scope picker + summary text ✅
+3. ~~**Menus + shortcuts**~~ — deferred; Export… sheet covers All / Selected / This Frame ✅
+4. **Tests + manual checklist** — unit tests, UI test hook, M14 smoke rows ✅ (automated); manual regression optional
 
 ---
 
@@ -244,8 +241,7 @@ Add `exportBatch(scope:to:settings:)` (or refactor `exportCurrentFrame` to call 
 | `ExportProgressView.swift` | Batch progress + cancel button |
 | `ExportSettings.swift` | `batchProgressStatusText(completed:total:name:)` |
 | `ContentView.swift` | Wire selection modifiers, enable rules |
-| `NegSwiftApp.swift` | Export All / Export Selected menu items |
-| `MainWindowCommandBridge.swift` | Optional `openExportAll` |
+| `NegSwiftApp.swift` | Export… (⌘E) only — no separate batch menu items |
 | `Tests/` | Batch export unit tests |
 | `docs/MANUAL_TEST_CHECKLIST.md` | M14 smoke rows |
 
@@ -268,8 +264,8 @@ Add `exportBatch(scope:to:settings:)` (or refactor `exportCurrentFrame` to call 
 
 ### UI tests
 
-- Import folder with 3+ scans.
-- Export All → verify N output files in temp dir (`NEGSWIFT_UI_TEST_EXPORT_DIR`).
+- Import folder with 3 scans (`NEGSWIFT_UI_TEST_IMPORT_DIR` + `NEGSWIFT_UI_TEST_BATCH_EXPORT_ALL`).
+- Export All → verify 3 output files in temp dir (`NEGSWIFT_UI_TEST_EXPORT_DIR`) — `testBatchExportAllWritesMultipleJPEGs`.
 
 ### Manual
 

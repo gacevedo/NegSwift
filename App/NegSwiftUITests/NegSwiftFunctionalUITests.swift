@@ -27,6 +27,19 @@ final class NegSwiftFunctionalUITests: NegSwiftUITestCase {
         try waitForExportFile(in: exportDir, extension: "jpg", timeout: 120)
     }
 
+    func testBatchExportAllWritesMultipleJPEGs() throws {
+        let scanFolder = try Self.makeTemporaryScanFolder(fileCount: 3)
+        let exportDir = try Self.makeTemporaryExportDirectory()
+        relaunch(
+            importDirectory: scanFolder.path,
+            exportDir: exportDir.path,
+            batchExportAll: true
+        )
+        try waitForEngineReady()
+        try waitForImportComplete()
+        try waitForExportFileCount(in: exportDir, count: 3, extension: "jpg", timeout: 180)
+    }
+
     func testExportSheetOpens() throws {
         relaunch(importPath: Self.fixtureScanURL.path)
         try waitForEngineReady()
@@ -84,15 +97,25 @@ final class NegSwiftFunctionalUITests: NegSwiftUITestCase {
         extension ext: String,
         timeout: TimeInterval
     ) throws {
+        try waitForExportFileCount(in: directory, count: 1, extension: ext, timeout: timeout)
+    }
+
+    private func waitForExportFileCount(
+        in directory: URL,
+        count: Int,
+        extension ext: String,
+        timeout: TimeInterval
+    ) throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil),
-               files.contains(where: { $0.pathExtension.lowercased() == ext })
-            {
-                return
+            if let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
+                let matches = files.filter { $0.pathExtension.lowercased() == ext }
+                if matches.count >= count {
+                    return
+                }
             }
             usleep(500_000)
         }
-        XCTFail("No .\(ext) export appeared in \(directory.path)")
+        XCTFail("Expected \(count) .\(ext) export(s) in \(directory.path)")
     }
 }

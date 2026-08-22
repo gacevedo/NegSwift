@@ -75,6 +75,11 @@ final class EngineSession {
     private var exportTask: Task<[ExportResult], Error>?
     private var previewMemo = PreviewRenderMemo()
 
+    #if DEBUG
+    private var exportTestRecords: [EngineExportCallRecord] = []
+    private var exportTestHandler: (@Sendable (EngineExportCallRecord) async throws -> ExportResult)?
+    #endif
+
     var engineReady: Bool {
         if case .ready = state { return true }
         return false
@@ -239,13 +244,34 @@ final class EngineSession {
                         endFileAccess(for: frame.url)
                     }
                 }
-                let result = try await client.export(
+                let result: ExportResult
+                #if DEBUG
+                if let exportTestHandler {
+                    let record = EngineExportCallRecord(
+                        path: path,
+                        config: config,
+                        settings: settings
+                    )
+                    exportTestRecords.append(record)
+                    result = try await exportTestHandler(record)
+                } else {
+                    result = try await client.export(
+                        path: path,
+                        destDir: destPath,
+                        config: config,
+                        export: settings,
+                        preferGPU: preferGPU
+                    )
+                }
+                #else
+                result = try await client.export(
                     path: path,
                     destDir: destPath,
                     config: config,
                     export: settings,
                     preferGPU: preferGPU
                 )
+                #endif
                 previewMemo.invalidate(path: path)
                 results.append(result)
             }
@@ -1800,6 +1826,26 @@ final class EngineSession {
         selectedFrameIDs = ids
     }
 
+    func setFrameEditForTests(path: String, edit: FrameEditState) {
+        frameEdits[path] = edit
+    }
+
+    func setExportTestHandlerForTests(
+        _ handler: @escaping @Sendable (EngineExportCallRecord) async throws -> ExportResult
+    ) {
+        exportTestRecords = []
+        exportTestHandler = handler
+    }
+
+    func clearExportTestHandlerForTests() {
+        exportTestHandler = nil
+        exportTestRecords = []
+    }
+
+    var exportTestRecordsForTests: [EngineExportCallRecord] {
+        exportTestRecords
+    }
+
     func setPreviewImageForTests(_ image: NSImage?) {
         previewImage = image
     }
@@ -1874,3 +1920,12 @@ final class EngineSession {
         return session
     }
 }
+
+#if DEBUG
+/// Recorded arguments for a mocked batch export call (unit tests only).
+struct EngineExportCallRecord: Sendable {
+    let path: String
+    let config: FrameEditState
+    let settings: ExportSettings
+}
+#endif

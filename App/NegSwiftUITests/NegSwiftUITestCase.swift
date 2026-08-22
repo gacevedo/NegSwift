@@ -34,8 +34,10 @@ class NegSwiftUITestCase: XCTestCase {
 
     func relaunch(
         importPath: String? = nil,
+        importDirectory: String? = nil,
         dropPaths: [String] = [],
         exportDir: String? = nil,
+        batchExportAll: Bool = false,
         scratchSeedPoints: [CGPoint] = []
     ) {
         app.terminate()
@@ -43,11 +45,17 @@ class NegSwiftUITestCase: XCTestCase {
         if let importPath {
             app.launchEnvironment["NEGSWIFT_UI_TEST_IMPORT"] = importPath
         }
+        if let importDirectory {
+            app.launchEnvironment["NEGSWIFT_UI_TEST_IMPORT_DIR"] = importDirectory
+        }
         if !dropPaths.isEmpty {
             app.launchEnvironment["NEGSWIFT_UI_TEST_DROP_PATHS"] = dropPaths.joined(separator: ",")
         }
         if let exportDir {
             app.launchEnvironment["NEGSWIFT_UI_TEST_EXPORT_DIR"] = exportDir
+        }
+        if batchExportAll {
+            app.launchEnvironment["NEGSWIFT_UI_TEST_BATCH_EXPORT_ALL"] = "1"
         }
         if !scratchSeedPoints.isEmpty {
             app.launchEnvironment["NEGSWIFT_UI_TEST_SCRATCH_SEED_POINTS"] = scratchSeedPoints
@@ -176,6 +184,15 @@ class NegSwiftUITestCase: XCTestCase {
             return bundled
         }
         preconditionFailure("Fixtures/sample.tif missing — expected at \(repoFixture.path)")
+    }
+
+    static func makeTemporaryScanFolder(fileCount: Int) throws -> URL {
+        let folder = try makeTemporaryFolder(name: "scans")
+        for index in 0 ..< fileCount {
+            let destination = folder.appendingPathComponent("scan_\(index).tif")
+            try FileManager.default.copyItem(at: fixtureScanURL, to: destination)
+        }
+        return folder
     }
 
     static func makeTemporaryExportDirectory() throws -> URL {

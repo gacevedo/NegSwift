@@ -20,7 +20,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M7** Persist | **Done** | `save_config`, debounced `.negpy` sidecars |
 | **M8** Crop | **Done** | Crop overlay, rotation, aspect ratio, fine rotation |
 | **M9** Export | **Done** | Engine `export`, Swift export sheet |
-| **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.51.0, CI, `uv.lock` |
+| **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.53.0, CI, `uv.lock` |
 | **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
 | **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
@@ -464,7 +464,7 @@ Switch from an ad-hoc sibling checkout to a **pinned git submodule**. This miles
 **Deliverables**
 
 - [x] `Vendor/NegPy` submodule → `https://github.com/marcinz606/NegPy.git`
-- [x] Submodule SHA pinned to NegPy **0.51.0** (validated by engine tests)
+- [x] Submodule SHA pinned to NegPy **0.53.0** (validated by engine tests)
 - [x] `Engine/pyproject.toml` → `negpy = { path = "../Vendor/NegPy", editable = true }`
 - [x] `uv lock` refreshed; `uv sync` works from a clean `--recurse-submodules` clone
 - [x] CI: `git submodule update --init --recursive` before engine tests (`.github/workflows/ci.yml`)

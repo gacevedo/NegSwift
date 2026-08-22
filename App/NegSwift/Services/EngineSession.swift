@@ -1257,7 +1257,7 @@ final class EngineSession {
             let loaded = try await client.loadConfig(path: path)
             let flat = loaded.config.mapValues(\.anyValue)
             var edit = FrameEditState.fromFlatConfig(flat)
-            if flat["auto_crop_enabled"] == nil {
+            if flat["crop_from_auto"] == nil, flat["auto_crop_enabled"] == nil {
                 edit.autoCropEnabled = preferences.autoCropEnabled
             }
             if flat["dust_remove"] == nil {

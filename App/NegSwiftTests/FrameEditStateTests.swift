@@ -41,6 +41,21 @@ struct FrameEditStateTests {
         #expect(state.flipVertical == true)
     }
 
+    @Test func fromFlatConfigMapsNegPyCropKeys() {
+        let armed = FrameEditState.fromFlatConfig([
+            "crop_from_auto": true,
+        ])
+        #expect(armed.autoCropEnabled == true)
+        #expect(armed.manualCropRect == nil)
+
+        let resolved = FrameEditState.fromFlatConfig([
+            "crop_from_auto": true,
+            "crop_rect": [0.1, 0.15, 0.9, 0.85],
+        ])
+        #expect(resolved.autoCropEnabled == false)
+        #expect(resolved.manualCropRect?.x1 == 0.1)
+    }
+
     @Test func fromFlatConfigAcceptsLegacyProcessModeKeys() {
         #expect(FrameEditState.fromFlatConfig(["process_mode": "C41"]).processMode == .c41)
         #expect(FrameEditState.fromFlatConfig(["process_mode": "B&W"]).processMode == .bw)

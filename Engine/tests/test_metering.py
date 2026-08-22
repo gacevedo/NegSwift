@@ -29,6 +29,7 @@ def test_crop_metering_off_sets_full_frame_analysis_rect() -> None:
     }
     out = negpy_flat_for_pipeline(flat)
     assert out["analysis_rect"] == FULL_FRAME_ANALYSIS_RECT
+    assert out["crop_from_auto"] is False
     assert out["manual_crop_rect"] == [0.1, 0.1, 0.9, 0.9]
 
 

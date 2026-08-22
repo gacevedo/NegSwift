@@ -56,7 +56,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var fineRotation: Double = 0
     var flipHorizontal: Bool = false
     var flipVertical: Bool = false
-    var autocropRatio: String = "3:2"
+    var autocropRatio: String = "Free"
     var manualCropRect: NormalizedRect?
     /// NegPy ``manual_heal_strokes`` — scratch/hair polylines in source-normalized space.
     var manualHealStrokes: [HealStroke] = []
@@ -114,7 +114,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
         fineRotation: Double = 0,
         flipHorizontal: Bool = false,
         flipVertical: Bool = false,
-        autocropRatio: String = "3:2",
+        autocropRatio: String = "Free",
         manualCropRect: NormalizedRect? = nil,
         manualHealStrokes: [HealStroke] = [],
         manualDustSize: Int = EditControlDefaults.manualDustSize
@@ -167,7 +167,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
         fineRotation = try container.decodeIfPresent(Double.self, forKey: .fineRotation) ?? 0
         flipHorizontal = try container.decodeIfPresent(Bool.self, forKey: .flipHorizontal) ?? false
         flipVertical = try container.decodeIfPresent(Bool.self, forKey: .flipVertical) ?? false
-        autocropRatio = try container.decodeIfPresent(String.self, forKey: .autocropRatio) ?? "3:2"
+        autocropRatio = try container.decodeIfPresent(String.self, forKey: .autocropRatio) ?? "Free"
         if let parts = try container.decodeIfPresent([Double].self, forKey: .manualCropRect), parts.count == 4 {
             manualCropRect = NormalizedRect(x1: parts[0], y1: parts[1], x2: parts[2], y2: parts[3])
         } else {
@@ -212,7 +212,17 @@ struct FrameEditState: Equatable, Codable, Sendable {
     }
 
     static func fromFlatConfig(_ config: [String: Any]) -> FrameEditState {
-        FrameEditState(
+        let cropRect = NormalizedRect.fromFlatValue(config["crop_rect"])
+            ?? NormalizedRect.fromFlatValue(config["manual_crop_rect"])
+        let cropFromAuto = bool(config["crop_from_auto"], default: false)
+        let legacyAutoCrop = bool(config["auto_crop_enabled"], default: false)
+        let autoCrop: Bool
+        if config["crop_from_auto"] != nil || config["auto_crop_enabled"] != nil {
+            autoCrop = cropRect == nil && (cropFromAuto || legacyAutoCrop)
+        } else {
+            autoCrop = cropRect == nil
+        }
+        return FrameEditState(
             processMode: ProcessMode.fromFlatValue(config["process_mode"]),
             density: double(config["density"], default: 1.0),
             grade: double(config["grade"], default: 100.0),
@@ -224,7 +234,7 @@ struct FrameEditState: Equatable, Codable, Sendable {
             autoNormalizeContrast: bool(config["auto_normalize_contrast"], default: true),
             analysisBuffer: double(config["analysis_buffer"], default: EditControlDefaults.analysisBuffer),
             autoDensityUsesCrop: bool(config["auto_density_uses_crop"], default: true),
-            autoCropEnabled: bool(config["auto_crop_enabled"], default: true),
+            autoCropEnabled: autoCrop,
             dustRemove: bool(config["dust_remove"], default: false),
             dustThreshold: double(config["dust_threshold"], default: EditControlDefaults.dustThreshold),
             dustSize: int(config["dust_size"], default: EditControlDefaults.dustSize),
@@ -232,8 +242,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
             fineRotation: double(config["fine_rotation"], default: 0),
             flipHorizontal: bool(config["flip_horizontal"], default: false),
             flipVertical: bool(config["flip_vertical"], default: false),
-            autocropRatio: string(config["autocrop_ratio"], default: "3:2"),
-            manualCropRect: NormalizedRect.fromFlatValue(config["manual_crop_rect"]),
+            autocropRatio: string(config["autocrop_ratio"], default: "Free"),
+            manualCropRect: cropRect,
             manualHealStrokes: HealStroke.fromFlatValue(config["manual_heal_strokes"]),
             manualDustSize: int(config["manual_dust_size"], default: EditControlDefaults.manualDustSize)
         )

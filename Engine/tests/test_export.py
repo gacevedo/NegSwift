@@ -74,7 +74,7 @@ def test_export_applies_crop(sample_tiff, tmp_path: Path) -> None:
             "path": str(sample_tiff),
             "dest_dir": str(dest / "crop"),
             "prefer_gpu": False,
-            "config": {"manual_crop_rect": [0.25, 0.25, 0.75, 0.75]},
+            "config": {"crop_rect": [0.25, 0.25, 0.75, 0.75], "crop_from_auto": False},
             "export": {"export_fmt": "JPEG", "export_color_space": "sRGB"},
         },
         req_id="export-crop",

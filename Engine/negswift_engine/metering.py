@@ -53,17 +53,21 @@ def _inset_normalized_rect(rect: tuple[float, ...], buffer: float) -> tuple[floa
 
 
 def crop_metering_analysis_rect(flat: dict[str, Any]) -> tuple[float, float, float, float] | None:
-    rect = _as_rect(flat.get("manual_crop_rect"))
+    rect = _as_rect(flat.get("crop_rect")) or _as_rect(flat.get("manual_crop_rect"))
     if rect is None:
         return None
     buffer = float(flat.get("analysis_buffer", 0.05))
     return _inset_normalized_rect(rect, buffer)
 
 
+def _has_manual_crop_rect(flat: dict[str, Any]) -> bool:
+    return _as_rect(flat.get("crop_rect")) is not None or _as_rect(flat.get("manual_crop_rect")) is not None
+
+
 def negpy_flat_for_save(flat: dict[str, Any]) -> dict[str, Any]:
     """Strip NegSwift-only keys; never persist wire-only ``analysis_rect`` overrides."""
     out = {key: value for key, value in flat.items() if key not in NEGSWIFT_SIDECAR_KEYS}
-    if out.get("manual_crop_rect") is not None:
+    if _has_manual_crop_rect(out):
         out = dict(out)
         out.pop("analysis_rect", None)
     return out
@@ -72,10 +76,12 @@ def negpy_flat_for_save(flat: dict[str, Any]) -> dict[str, Any]:
 def negpy_flat_for_pipeline(flat: dict[str, Any]) -> dict[str, Any]:
     """Map NegSwift metering prefs onto NegPy ``WorkspaceConfig`` flat keys for render/export."""
     out = negpy_flat_for_save(flat)
-    crop_rect = out.get("manual_crop_rect")
-    if crop_rect is None:
+    if not _has_manual_crop_rect(out):
         return out
     out = dict(out)
+    # A drawn rect is manual unless the caller explicitly armed auto crop with no rect yet.
+    out["crop_from_auto"] = False
+    out.pop("auto_crop_enabled", None)
     if default_auto_density_uses_crop(flat):
         meter_rect = crop_metering_analysis_rect(flat)
         if meter_rect is not None:

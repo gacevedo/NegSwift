@@ -38,7 +38,7 @@ def test_load_config_defaults(sample_tiff: Path) -> None:
     assert config["saturation"] == 1.0
     assert config["analysis_buffer"] == 0.05
     assert config["auto_density_uses_crop"] is True
-    assert config["auto_crop_enabled"] is True
+    assert config["crop_from_auto"] is True
     assert config["dust_remove"] is False
     assert config["dust_threshold"] == 0.66
     assert config["dust_size"] == 4
@@ -180,7 +180,8 @@ def test_save_geometry_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
         "rotation": 1,
         "fine_rotation": -2.5,
         "autocrop_ratio": "3:2",
-        "manual_crop_rect": [0.1, 0.15, 0.9, 0.85],
+        "crop_rect": [0.1, 0.15, 0.9, 0.85],
+        "crop_from_auto": False,
     }
     save_msg = ndjson_request("save_config", {"path": str(frame), "config": overrides}, req_id="geo-save")
     assert save_msg["ok"] is True
@@ -190,7 +191,7 @@ def test_save_geometry_round_trip(sample_tiff: Path, tmp_path: Path) -> None:
     assert loaded["rotation"] == 1
     assert loaded["fine_rotation"] == -2.5
     assert loaded["autocrop_ratio"] == "3:2"
-    assert loaded["manual_crop_rect"] == [0.1, 0.15, 0.9, 0.85]
+    assert loaded["crop_rect"] == [0.1, 0.15, 0.9, 0.85]
 
     WorkspaceConfig.from_flat_dict(loaded)
 
@@ -221,7 +222,8 @@ def test_auto_density_uses_crop_round_trip(sample_tiff: Path, tmp_path: Path) ->
     frame = tmp_path / "frame.tif"
     shutil.copy(sample_tiff, frame)
     overrides = {
-        "manual_crop_rect": [0.2, 0.2, 0.8, 0.8],
+        "crop_rect": [0.2, 0.2, 0.8, 0.8],
+        "crop_from_auto": False,
         "auto_density_uses_crop": False,
     }
     save_msg = ndjson_request(
@@ -232,7 +234,7 @@ def test_auto_density_uses_crop_round_trip(sample_tiff: Path, tmp_path: Path) ->
     assert save_msg["ok"] is True
 
     loaded = ndjson_request("load_config", {"path": str(frame)}, req_id="meter-load")["result"]["config"]
-    assert loaded["manual_crop_rect"] == [0.2, 0.2, 0.8, 0.8]
+    assert loaded["crop_rect"] == [0.2, 0.2, 0.8, 0.8]
     assert loaded["auto_density_uses_crop"] is False
     assert loaded.get("analysis_rect") in (None, [])
 
@@ -253,7 +255,7 @@ def test_reset_config_removes_sidecar(sample_tiff: Path, tmp_path: Path) -> None
 
     loaded = ndjson_request("load_config", {"path": str(frame)}, req_id="post-reset-load")["result"]["config"]
     assert loaded["density"] == 1.0
-    assert loaded.get("manual_crop_rect") in (None, [])
+    assert loaded.get("crop_rect") in (None, [])
 
 
 def test_reset_config_without_sidecar(sample_tiff: Path, tmp_path: Path) -> None:
@@ -273,7 +275,7 @@ def test_render_thumbnail_long_edge_honors_crop(sample_tiff: Path) -> None:
     }
     cropped = ndjson_request(
         "render",
-        {**base, "config": {"manual_crop_rect": [0.25, 0.25, 0.75, 0.75]}},
+        {**base, "config": {"crop_rect": [0.25, 0.25, 0.75, 0.75], "crop_from_auto": False}},
         req_id="thumb-crop",
     )
     full = ndjson_request("render", {**base, "config": {}}, req_id="thumb-full")

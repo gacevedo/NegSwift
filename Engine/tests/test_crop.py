@@ -10,7 +10,7 @@ import pytest
 from ndjson_helpers import ndjson_request
 from PIL import Image
 
-_CROP_CONFIG = {"manual_crop_rect": [0.25, 0.25, 0.75, 0.75]}
+_CROP_CONFIG = {"crop_rect": [0.25, 0.25, 0.75, 0.75], "crop_from_auto": False}
 
 
 def _render_rgb(path: str, *, crop_preview_full: bool, config: dict | None = None) -> np.ndarray:
@@ -68,7 +68,7 @@ def test_crop_preview_full_reports_detected_crop_rect(tmp_path) -> None:
         "path": str(path),
         "prefer_gpu": False,
         "crop_preview_full": True,
-        "config": {"auto_crop_enabled": True},
+        "config": {"crop_from_auto": True},
     }
     msg = ndjson_request("render", params, req_id="crop-detect")
     assert msg["ok"] is True
@@ -89,7 +89,7 @@ def test_crop_preview_full_omits_detected_crop_rect_when_disabled(sample_tiff) -
         "path": str(sample_tiff),
         "prefer_gpu": False,
         "crop_preview_full": False,
-        "config": {"auto_crop_enabled": True},
+        "config": {"crop_from_auto": True},
     }
     msg = ndjson_request("render", params, req_id="crop-no-detect")
     assert msg["ok"] is True

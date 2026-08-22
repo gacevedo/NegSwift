@@ -6,7 +6,7 @@ readme = "README.md"
 license = "GPL-3.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "negpy==0.51.0",
+    "negpy==0.53.0",
 ]
 
 [project.scripts]

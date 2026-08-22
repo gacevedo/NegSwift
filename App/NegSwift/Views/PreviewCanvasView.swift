@@ -32,61 +32,82 @@ struct PreviewCanvasView: View {
                     viewportSize: size
                 )
 
-            ZStack(alignment: .topLeading) {
-                canvasContent(contentSize: contentSize)
-                    .frame(width: contentSize.width, height: contentSize.height, alignment: .topLeading)
-                    .offset(x: contentOrigin.x, y: contentOrigin.y)
-
-                if session.isLoadingCropPreview {
-                    ZStack {
-                        Color.black.opacity(0.25)
-                        ProgressView("Preparing crop view…")
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
-                }
-            }
-            .frame(width: size.width, height: size.height, alignment: .topLeading)
-            .clipped()
-            .contentShape(Rectangle())
-            .gesture(canvasDoubleClickGesture())
-            .gesture(panGesture(contentSize: contentSize, viewportSize: size))
-            .overlay(alignment: .bottomLeading) {
-                canvasHUD(viewportSize: size, pixelSize: pixelSize)
-            }
-            .background {
-                CanvasZoomGestureView(
-                    isZoomEnabled: zoomGesturesEnabled,
-                    isScrollPanEnabled: canScrollPan(contentSize: contentSize, viewportSize: size),
-                    onZoomBy: { factor, anchor in
-                        applyZoomFactor(factor, anchorInViewport: anchor, viewportSize: size, pixelSize: pixelSize)
-                    },
-                    onScrollPanBy: { delta in
-                        applyScrollPan(delta, contentSize: contentSize, viewportSize: size)
-                    }
-                )
-            }
-            .onAppear {
-                viewportSize = size
-                syncContentOffset(pixelSize: pixelSize, viewportSize: size)
-            }
-            .onChange(of: size) { _, newValue in
-                viewportSize = newValue
-                syncContentOffset(pixelSize: pixelSize, viewportSize: newValue)
-            }
-            .onChange(of: session.selectedFrameID) { _, _ in
-                syncContentOffset(pixelSize: pixelSize, viewportSize: size)
-            }
-            .onChange(of: pixelSize) { _, _ in
-                syncContentOffset(pixelSize: pixelSize, viewportSize: size)
-            }
-            .onChange(of: zoomToggleNonce) { _, _ in
-                performMenuToggle(viewportSize: size, pixelSize: pixelSize)
-            }
+            canvasViewport(
+                contentSize: contentSize,
+                viewportSize: size,
+                contentOrigin: contentOrigin,
+                pixelSize: pixelSize
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("negSwift.previewCanvas")
+    }
+
+    @ViewBuilder
+    private func canvasViewport(
+        contentSize: CGSize,
+        viewportSize: CGSize,
+        contentOrigin: CGPoint,
+        pixelSize: CGSize
+    ) -> some View {
+        let stack = ZStack(alignment: .topLeading) {
+            canvasContent(contentSize: contentSize)
+                .frame(width: contentSize.width, height: contentSize.height, alignment: .topLeading)
+                .offset(x: contentOrigin.x, y: contentOrigin.y)
+
+            if session.isLoadingCropPreview {
+                ZStack {
+                    Color.black.opacity(0.25)
+                    ProgressView("Preparing crop view…")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+        .frame(width: viewportSize.width, height: viewportSize.height, alignment: .topLeading)
+        .clipped()
+        .overlay(alignment: .bottomLeading) {
+            canvasHUD(viewportSize: viewportSize, pixelSize: pixelSize)
+        }
+        .background {
+            CanvasZoomGestureView(
+                isZoomEnabled: zoomGesturesEnabled,
+                isScrollPanEnabled: canScrollPan(contentSize: contentSize, viewportSize: viewportSize),
+                onZoomBy: { factor, anchor in
+                    applyZoomFactor(factor, anchorInViewport: anchor, viewportSize: viewportSize, pixelSize: pixelSize)
+                },
+                onScrollPanBy: { delta in
+                    applyScrollPan(delta, contentSize: contentSize, viewportSize: viewportSize)
+                }
+            )
+        }
+        .onAppear {
+            self.viewportSize = viewportSize
+            syncContentOffset(pixelSize: pixelSize, viewportSize: viewportSize)
+        }
+        .onChange(of: viewportSize) { _, newValue in
+            self.viewportSize = newValue
+            syncContentOffset(pixelSize: pixelSize, viewportSize: newValue)
+        }
+        .onChange(of: session.selectedFrameID) { _, _ in
+            syncContentOffset(pixelSize: pixelSize, viewportSize: viewportSize)
+        }
+        .onChange(of: pixelSize) { _, _ in
+            syncContentOffset(pixelSize: pixelSize, viewportSize: viewportSize)
+        }
+        .onChange(of: zoomToggleNonce) { _, _ in
+            performMenuToggle(viewportSize: viewportSize, pixelSize: pixelSize)
+        }
+
+        if zoomGesturesEnabled {
+            stack
+                .contentShape(Rectangle())
+                .gesture(canvasDoubleClickGesture())
+                .gesture(panGesture(contentSize: contentSize, viewportSize: viewportSize))
+        } else {
+            stack
+        }
     }
 
     @ViewBuilder
@@ -151,7 +172,8 @@ struct PreviewCanvasView: View {
     }
 
     private func canScrollPan(contentSize: CGSize, viewportSize: CGSize) -> Bool {
-        PreviewCanvasGeometry.contentOverflows(contentSize: contentSize, viewportSize: viewportSize)
+        zoomGesturesEnabled
+            && PreviewCanvasGeometry.contentOverflows(contentSize: contentSize, viewportSize: viewportSize)
     }
 
     private var zoomGesturesEnabled: Bool {

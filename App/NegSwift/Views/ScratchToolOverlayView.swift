@@ -7,6 +7,7 @@ import SwiftUI
 
 struct ScratchToolOverlayView: View {
     let imagePixelSize: CGSize
+    let brushSize: Int
     let inProgressPoints: [CGPoint]
     var onAddPoint: (CGPoint) -> Void
     var onCommit: ([CGPoint]) -> Void
@@ -27,6 +28,7 @@ struct ScratchToolOverlayView: View {
                 ScratchMouseCaptureView(
                     imagePixelSize: imagePixelSize,
                     imageRect: imageRect,
+                    brushSize: brushSize,
                     onAddPoint: onAddPoint,
                     onFinish: { finish(imageRect: imageRect) },
                     onBackspace: onBackspace,
@@ -54,20 +56,30 @@ struct ScratchToolOverlayView: View {
     @ViewBuilder
     private func polylineLayer(imageRect: CGRect) -> some View {
         let screenPoints = inProgressPoints.map { screenPoint($0, imageRect: imageRect) }
+        let bandWidth = ScratchToolOverlayGeometry.scratchBandWidth(
+            brushSize: CGFloat(brushSize),
+            imageRect: imageRect
+        )
+        let pointDiameter = ScratchToolOverlayGeometry.pointMarkerDiameter(
+            brushSize: CGFloat(brushSize),
+            imageRect: imageRect
+        )
+        let strokeStyle = StrokeStyle(lineWidth: bandWidth, lineCap: .round, lineJoin: .round)
         ZStack {
             if screenPoints.count >= 2 {
-                Path { path in
+                let path = Path { path in
                     path.move(to: screenPoints[0])
                     for point in screenPoints.dropFirst() {
                         path.addLine(to: point)
                     }
                 }
-                .stroke(Color.accentColor, lineWidth: 2)
+                path.stroke(Color.accentColor.opacity(0.35), style: strokeStyle)
+                path.stroke(Color.white, lineWidth: 1)
             }
             ForEach(Array(screenPoints.enumerated()), id: \.offset) { _, point in
                 Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 6, height: 6)
+                    .fill(Color.white.opacity(0.7))
+                    .frame(width: pointDiameter, height: pointDiameter)
                     .position(point)
             }
         }
@@ -82,6 +94,23 @@ struct ScratchToolOverlayView: View {
 }
 
 enum ScratchToolOverlayGeometry {
+    /// NegPy `HEAL_SIZE_REF` — brush diameter is defined at this reference dimension.
+    static let healSizeRef: CGFloat = 1600
+
+    static func brushScreenRadius(brushSize: CGFloat, imageRect: CGRect) -> CGFloat {
+        guard imageRect.width > 0, imageRect.height > 0 else { return 0 }
+        let maxDim = max(imageRect.width, imageRect.height)
+        return (brushSize / (2 * healSizeRef)) * maxDim
+    }
+
+    static func scratchBandWidth(brushSize: CGFloat, imageRect: CGRect) -> CGFloat {
+        max(1.5, 2 * brushScreenRadius(brushSize: brushSize, imageRect: imageRect))
+    }
+
+    static func pointMarkerDiameter(brushSize: CGFloat, imageRect: CGRect) -> CGFloat {
+        max(6, 2 * brushScreenRadius(brushSize: brushSize, imageRect: imageRect))
+    }
+
     static func dedupeNormalizedPoints(
         _ points: [CGPoint],
         imageRect: CGRect,

@@ -302,6 +302,7 @@ struct PreviewCanvasView: View {
     private var scratchOverlay: some View {
         ScratchToolOverlayView(
             imagePixelSize: session.previewPixelSize ?? image.size,
+            brushSize: session.currentEdit.manualDustSize,
             inProgressPoints: session.scratchInProgressPoints,
             onAddPoint: { session.appendScratchInProgressPoint($0) },
             onCommit: { points in

@@ -15,6 +15,7 @@ enum ScratchCursor {
     }
 
     static func reset() {
+        NSCursor.unhide()
         guard isCrosshair else { return }
         isCrosshair = false
         NSCursor.arrow.set()

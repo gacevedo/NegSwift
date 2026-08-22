@@ -51,4 +51,19 @@ struct ScratchToolOverlayTests {
         let deduped = ScratchToolOverlayGeometry.dedupeNormalizedPoints(points, imageRect: imageRect)
         #expect(deduped == points)
     }
+
+    @Test func brushScreenRadiusMatchesNegPyFormula() {
+        let imageRect = CGRect(x: 0, y: 0, width: 160, height: 100)
+        let radius = ScratchToolOverlayGeometry.brushScreenRadius(brushSize: 12, imageRect: imageRect)
+        let expected = 12 / (2 * ScratchToolOverlayGeometry.healSizeRef) * 160
+        #expect(abs(radius - expected) < 1e-6)
+    }
+
+    @Test func scratchBandWidthScalesWithBrushSize() {
+        let imageRect = CGRect(x: 0, y: 0, width: 200, height: 100)
+        let small = ScratchToolOverlayGeometry.scratchBandWidth(brushSize: 2, imageRect: imageRect)
+        let large = ScratchToolOverlayGeometry.scratchBandWidth(brushSize: 16, imageRect: imageRect)
+        #expect(large > small)
+        #expect(small >= 1.5)
+    }
 }

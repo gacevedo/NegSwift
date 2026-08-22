@@ -10,6 +10,7 @@ import SwiftUI
 struct ScratchMouseCaptureView: NSViewRepresentable {
     let imagePixelSize: CGSize
     let imageRect: CGRect
+    let brushSize: Int
     var onAddPoint: (CGPoint) -> Void
     var onFinish: () -> Void
     var onBackspace: () -> Void
@@ -33,7 +34,9 @@ struct ScratchMouseCaptureView: NSViewRepresentable {
 
         nsView.imagePixelSize = imagePixelSize
         nsView.imageRect = imageRect
+        nsView.brushSize = brushSize
         nsView.coordinator = context.coordinator
+        nsView.updateTrackingAreas()
         nsView.refreshAfterSwiftUIUpdate()
     }
 
@@ -48,11 +51,14 @@ struct ScratchMouseCaptureView: NSViewRepresentable {
 final class ScratchCaptureNSView: NSView {
     var imagePixelSize: CGSize = .zero
     var imageRect: CGRect = .zero
+    var brushSize = EditControlDefaults.manualDustSize
     weak var coordinator: ScratchMouseCaptureView.Coordinator?
 
     private var mouseDownLocation: NSPoint?
     private var shouldHoldKeyboardFocus = false
     private var keyMonitor: Any?
+    private var mouseMonitor: Any?
+    private var isBrushCursorHidden = false
 
     private let clickDragThreshold: CGFloat = 5
 
@@ -60,17 +66,23 @@ final class ScratchCaptureNSView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override var isOpaque: Bool { false }
+
     deinit {
-        removeKeyMonitor()
+        removeMonitors()
+        restoreCursor()
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        window?.acceptsMouseMovedEvents = true
-        if window != nil {
+        if let window {
+            window.acceptsMouseMovedEvents = true
             installKeyMonitorIfNeeded()
+            installMouseMonitorIfNeeded()
+            syncCursor()
         } else {
-            removeKeyMonitor()
+            removeMonitors()
+            restoreCursor()
         }
     }
 
@@ -78,35 +90,67 @@ final class ScratchCaptureNSView: NSView {
         if shouldHoldKeyboardFocus {
             window?.makeFirstResponder(self)
         }
+        needsDisplay = true
         syncCursor()
     }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
+        guard imageRect.width > 0, imageRect.height > 0 else { return }
         let area = NSTrackingArea(
-            rect: bounds,
-            options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .enabledDuringMouseDrag, .cursorUpdate, .inVisibleRect],
+            rect: imageRect,
+            options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .enabledDuringMouseDrag, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
         addTrackingArea(area)
     }
 
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        discardCursorRects()
-        guard imageRect.width > 0, imageRect.height > 0 else { return }
-        addCursorRect(imageRect, cursor: .crosshair)
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard imageRect.contains(point) else { return nil }
+        return super.hitTest(point)
     }
 
-    override func cursorUpdate(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        if imageRect.contains(point) {
-            NSCursor.crosshair.set()
-        } else {
-            super.cursorUpdate(with: event)
-        }
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard isMouseOverImage() else { return }
+        let point = currentMouseLocation()
+        let radius = ScratchToolOverlayGeometry.brushScreenRadius(
+            brushSize: CGFloat(brushSize),
+            imageRect: imageRect
+        )
+        guard radius > 0 else { return }
+
+        let brushRect = CGRect(
+            x: point.x - radius,
+            y: point.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        )
+        let fill = NSColor.controlAccentColor.withAlphaComponent(60 / 255)
+        fill.setFill()
+        NSBezierPath(ovalIn: brushRect).fill()
+
+        NSColor.white.setStroke()
+        let outline = NSBezierPath(ovalIn: brushRect)
+        outline.lineWidth = 1
+        outline.stroke()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        needsDisplay = true
+        syncCursor()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        needsDisplay = true
+        syncCursor()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        needsDisplay = true
+        restoreCursor()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -149,6 +193,27 @@ final class ScratchCaptureNSView: NSView {
         }
     }
 
+    private func installMouseMonitorIfNeeded() {
+        guard mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+            guard let self, self.window === event.window else { return event }
+            self.syncCursor()
+            return event
+        }
+    }
+
+    private func removeMonitors() {
+        removeKeyMonitor()
+        removeMouseMonitor()
+    }
+
+    private func removeMouseMonitor() {
+        if let mouseMonitor {
+            NSEvent.removeMonitor(mouseMonitor)
+            self.mouseMonitor = nil
+        }
+    }
+
     private func removeKeyMonitor() {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
@@ -173,16 +238,33 @@ final class ScratchCaptureNSView: NSView {
         }
     }
 
+    private func currentMouseLocation() -> NSPoint {
+        guard let window else { return .zero }
+        return convert(window.mouseLocationOutsideOfEventStream, from: nil)
+    }
+
     private func isMouseOverImage() -> Bool {
-        guard let window else { return false }
-        let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-        return imageRect.contains(point)
+        imageRect.contains(currentMouseLocation())
     }
 
     private func syncCursor() {
-        window?.invalidateCursorRects(for: self)
-        if isMouseOverImage() {
-            NSCursor.crosshair.set()
+        let overImage = isMouseOverImage()
+        if overImage {
+            guard !isBrushCursorHidden else { return }
+            isBrushCursorHidden = true
+            NSCursor.hide()
+        } else {
+            guard isBrushCursorHidden else { return }
+            isBrushCursorHidden = false
+            NSCursor.unhide()
+            NSCursor.arrow.set()
         }
+    }
+
+    private func restoreCursor() {
+        guard isBrushCursorHidden else { return }
+        isBrushCursorHidden = false
+        NSCursor.unhide()
+        NSCursor.arrow.set()
     }
 }

@@ -44,42 +44,56 @@ struct GeometryPanelView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 8) {
-                    Button {
+                HStack(spacing: 4) {
+                    geometryIconButton(
+                        title: "Rotate 90° counter-clockwise",
+                        systemImage: "rotate.left"
+                    ) {
                         session.rotateCounterClockwise()
-                    } label: {
-                        Label("90° CCW", systemImage: "rotate.left")
                     }
-                    .controlSize(.small)
 
-                    Button {
+                    geometryIconButton(
+                        title: "Rotate 90° clockwise",
+                        systemImage: "rotate.right"
+                    ) {
                         session.rotateClockwise()
-                    } label: {
-                        Label("90° CW", systemImage: "rotate.right")
                     }
-                    .controlSize(.small)
 
-                    Button {
+                    geometryIconButton(
+                        title: "Flip horizontal",
+                        systemImage: "arrowtriangle.left.and.line.vertical.and.arrowtriangle.right"
+                    ) {
                         session.toggleFlipHorizontal()
-                    } label: {
-                        Label("Flip H", systemImage: "arrow.left.and.right")
                     }
-                    .controlSize(.small)
-                    .help("Flip image horizontally")
 
-                    Button {
+                    geometryIconButton(
+                        title: "Flip vertical",
+                        systemImage: "arrowtriangle.left.and.line.vertical.and.arrowtriangle.right",
+                        rotationDegrees: 90
+                    ) {
                         session.toggleFlipVertical()
-                    } label: {
-                        Label("Flip V", systemImage: "arrow.up.and.down")
                     }
-                    .controlSize(.small)
-                    .help("Flip image vertically")
                 }
 
                 fineRotationRow
             }
         }
         .disabled(session.selectedFrameID == nil)
+    }
+
+    private func geometryIconButton(
+        title: String,
+        systemImage: String,
+        rotationDegrees: Double = 0,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .labelStyle(.iconOnly)
+                .rotationEffect(.degrees(rotationDegrees))
+        }
+        .controlSize(.small)
+        .help(title)
     }
 
     private var fineRotationRow: some View {

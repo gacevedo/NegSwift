@@ -91,8 +91,16 @@ List supported scan files in folder(s). One directory level — matches NegPy de
 ### `load_config`
 
 **Params:** `{ "path": "..." }`  
-**Result:** `{ "config": { ... flat WorkspaceConfig dict ... } }`  
-Missing sidecar → engine defaults (`DEFAULT_WORKSPACE_CONFIG.to_dict()`).
+**Result:**
+
+```json
+{
+  "config": { "... flat WorkspaceConfig dict ..." },
+  "has_sidecar": false
+}
+```
+
+Missing sidecar → `config` is engine defaults (`DEFAULT_WORKSPACE_CONFIG.to_dict()`); `has_sidecar` is false. When a ``.negpy`` sidecar exists, `has_sidecar` is true and `config` is the sidecar payload (merged with NegSwift defaults for missing keys).
 
 ### `detect_process_mode`
 

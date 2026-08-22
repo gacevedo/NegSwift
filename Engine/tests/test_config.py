@@ -29,7 +29,9 @@ def test_open_reports_sidecar_without_negpy_deserialization_warning(sample_tiff:
 def test_load_config_defaults(sample_tiff: Path) -> None:
     msg = ndjson_request("load_config", {"path": str(sample_tiff)}, req_id="load-1")
     assert msg["ok"] is True
-    config = msg["result"]["config"]
+    result = msg["result"]
+    assert result["has_sidecar"] is False
+    config = result["config"]
     assert config["process_mode"] == "Color Negative"
     assert config["density"] == 1.0
     assert config["grade"] == 100.0
@@ -42,6 +44,20 @@ def test_load_config_defaults(sample_tiff: Path) -> None:
     assert config["dust_remove"] is False
     assert config["dust_threshold"] == 0.66
     assert config["dust_size"] == 4
+
+
+def test_load_config_reports_sidecar(sample_tiff: Path, tmp_path: Path) -> None:
+    from negswift_engine.sidecar_io import write_raw_sidecar
+
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    write_raw_sidecar(str(frame), {"process_mode": "B&W Negative"})
+
+    msg = ndjson_request("load_config", {"path": str(frame)}, req_id="load-sidecar")
+    assert msg["ok"] is True
+    result = msg["result"]
+    assert result["has_sidecar"] is True
+    assert result["config"]["process_mode"] == "B&W Negative"
 
 
 def test_render_with_optical_dust_removal(sample_tiff: Path) -> None:

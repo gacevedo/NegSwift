@@ -173,7 +173,7 @@ Test scan path:
 - [x] Preview preempts in-flight strip thumbnails; frame switch does not await previous-frame thumb
 - [x] Parallel strip thumbs (`TaskGroup`, concurrency 3); selected/near-visible frames first
 - [x] `open` prefetch on import / `selectFrame`; overlap `load_config` with prefetch
-- [x] Skip `detect_process_mode` when sidecar already has `process_mode`
+- [x] Skip `detect_process_mode` when a ``.negpy`` sidecar exists (`load_config.has_sidecar`)
 - [ ] Import folder 20+ frames — strip thumbs fill progressively; selected preview appears quickly (manual M5)
 - [ ] Frame switch baseline improved vs Phase 0
 

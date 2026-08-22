@@ -23,6 +23,12 @@ struct ResetConfigResult: Codable, Sendable {
 
 struct LoadConfigResult: Codable, Sendable {
     let config: [String: JSONValue]
+    let hasSidecar: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case config
+        case hasSidecar = "has_sidecar"
+    }
 }
 
 struct DetectProcessModeResult: Codable, Sendable {

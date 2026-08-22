@@ -107,12 +107,13 @@ def _base_flat_dict(path: str) -> dict[str, Any]:
 
 
 def load_config_dict(path: str) -> dict[str, Any]:
+    has_sidecar = read_raw_sidecar(path) is not None
     flat = _base_flat_dict(path)
     if "auto_density_uses_crop" not in flat:
         flat["auto_density_uses_crop"] = True
     if "crop_from_auto" not in flat and "auto_crop_enabled" not in flat:
         flat["crop_from_auto"] = True
-    return flat
+    return {"config": flat, "has_sidecar": has_sidecar}
 
 
 def resolve_config(path: str, overrides: dict[str, Any] | None = None) -> WorkspaceConfig:

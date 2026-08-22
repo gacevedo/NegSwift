@@ -60,7 +60,7 @@ final class EngineSession {
     private var stripGeneration = 0
     private var previewGeneration = 0
     private var thumbnailGeneration = 0
-    private var pathsWithStoredProcessMode: Set<String> = []
+    private var pathsWithSidecar: Set<String> = []
     private var isThumbnailLoadRunning = false
     private var thumbnailReloadPending = false
     private var thumbnailReloadPasses = 0
@@ -364,7 +364,7 @@ final class EngineSession {
             previewMemo.invalidate(path: path)
             frameEdits[path] = defaultEditState()
             dirtyPaths.remove(path)
-            pathsWithStoredProcessMode.remove(path)
+            pathsWithSidecar.remove(path)
 
             let gotAccess = beginFileAccess(for: frame.url)
             defer {
@@ -1266,8 +1266,8 @@ final class EngineSession {
             if edit.manualCropRect != nil {
                 edit.autoCropEnabled = false
             }
-            if flat["process_mode"] != nil {
-                pathsWithStoredProcessMode.insert(path)
+            if loaded.hasSidecar {
+                pathsWithSidecar.insert(path)
             }
             return edit
         } catch {
@@ -1277,7 +1277,7 @@ final class EngineSession {
 
     private func scheduleAutodetectIfNeeded(for path: String) {
         guard preferences.autodetectProcessMode else { return }
-        guard !pathsWithStoredProcessMode.contains(path) else { return }
+        guard !pathsWithSidecar.contains(path) else { return }
         Task {
             guard let detected = await detectProcessMode(path: path, force: false) else { return }
             guard var edit = frameEdits[path], edit.processMode != detected else { return }
@@ -1682,7 +1682,7 @@ final class EngineSession {
         selectionAnchorID = nil
         frameEdits = [:]
         dirtyPaths = []
-        pathsWithStoredProcessMode = []
+        pathsWithSidecar = []
         thumbnailReloadPending = false
         thumbnailReloadPasses = 0
         isCropToolActive = false

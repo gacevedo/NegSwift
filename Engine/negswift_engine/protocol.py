@@ -70,7 +70,7 @@ def _cmd_load_config(params: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(path, str) or not path:
         raise ProtocolError("INVALID_REQUEST", "params.path is required")
     try:
-        return {"config": load_config_dict(path)}
+        return load_config_dict(path)
     except FileNotFoundError as exc:
         raise ProtocolError("NOT_FOUND", str(exc)) from exc
     except OSError as exc:

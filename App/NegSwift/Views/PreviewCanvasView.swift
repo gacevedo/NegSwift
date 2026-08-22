@@ -266,8 +266,15 @@ struct PreviewCanvasView: View {
             cropRect: cropBinding,
             aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio),
             imagePixelSize: session.previewPixelSize ?? image.size,
-            onClickOutside: { session.setCropToolActive(false) }
+            onClickOutside: applyCrop
         )
+        .background {
+            CropKeyCaptureView(onApply: applyCrop)
+        }
+    }
+
+    private func applyCrop() {
+        session.setCropToolActive(false)
     }
 
     private var scratchOverlay: some View {

@@ -117,9 +117,9 @@ struct GeometryPanelView: View {
 
     private var cropToolHint: String {
         if session.currentEdit.autoExposure && session.currentEdit.autoDensityUsesCrop {
-            "Click outside the box to apply. Auto Density follows the crop box as you drag."
+            "Click outside the box or press Enter to apply. Auto Density follows the crop box as you drag."
         } else {
-            "Click outside the box to apply. Full frame loads first; tone stays fixed while adjusting."
+            "Click outside the box or press Enter to apply. Full frame loads first; tone stays fixed while adjusting."
         }
     }
 

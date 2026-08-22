@@ -38,7 +38,8 @@ class NegSwiftUITestCase: XCTestCase {
         dropPaths: [String] = [],
         exportDir: String? = nil,
         batchExportAll: Bool = false,
-        scratchSeedPoints: [CGPoint] = []
+        scratchSeedPoints: [CGPoint] = [],
+        canvasZoomToMax: Bool = false
     ) {
         app.terminate()
         configureLaunchEnvironment()
@@ -61,6 +62,9 @@ class NegSwiftUITestCase: XCTestCase {
             app.launchEnvironment["NEGSWIFT_UI_TEST_SCRATCH_SEED_POINTS"] = scratchSeedPoints
                 .map { "\($0.x),\($0.y)" }
                 .joined(separator: "|")
+        }
+        if canvasZoomToMax {
+            app.launchEnvironment["NEGSWIFT_UI_TEST_CANVAS_ZOOM_MAX"] = "1"
         }
         app.launchArguments.append(UITestLaunch.launchArgument)
         app.launch()
@@ -127,6 +131,33 @@ class NegSwiftUITestCase: XCTestCase {
     func waitForScratchUndoHeal(timeout: TimeInterval = 60) throws {
         let undo = app.buttons[AccessibilityID.scratchUndoHeal]
         XCTAssertTrue(undo.waitForExistence(timeout: timeout), "Undo Last Heal did not appear after commit")
+    }
+
+    func waitForCanvasZoomLabel(_ label: String, timeout: TimeInterval = 30) throws {
+        let zoomLabel = app.staticTexts[AccessibilityID.canvasZoomLabel]
+        XCTAssertTrue(zoomLabel.waitForExistence(timeout: timeout), "Canvas zoom label missing")
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if zoomLabel.label == label {
+                return
+            }
+            usleep(100_000)
+        }
+        XCTFail("Expected canvas zoom label \"\(label)\", got \"\(zoomLabel.label)\"")
+    }
+
+    func waitForScratchSystemCursor(hidden: Bool, timeout: TimeInterval = 10) throws {
+        let reporter = app.staticTexts[AccessibilityID.scratchSystemCursor]
+        XCTAssertTrue(reporter.waitForExistence(timeout: timeout), "Scratch cursor reporter missing")
+        let expected = hidden ? "hidden" : "visible"
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if reporter.label == expected {
+                return
+            }
+            usleep(100_000)
+        }
+        XCTFail("Expected scratch system cursor \"\(expected)\", got \"\(reporter.label)\"")
     }
 
     func waitForPreviewError(timeout: TimeInterval = 30) throws {
@@ -246,4 +277,6 @@ enum AccessibilityID {
     static let scratchFinish = "negSwift.scratchFinish"
     static let scratchClear = "negSwift.scratchClear"
     static let scratchUndoHeal = "negSwift.scratchUndoHeal"
+    static let scratchSystemCursor = "negSwift.scratchSystemCursor"
+    static let canvasZoomLabel = "negSwift.canvasZoomLabel"
 }

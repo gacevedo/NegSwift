@@ -34,6 +34,32 @@ enum PreviewCanvasGeometry {
         contentSize.width > viewportSize.width + 0.5 || contentSize.height > viewportSize.height + 0.5
     }
 
+    /// Portion of content-local coordinates visible inside the clipped viewport.
+    static func visibleContentRect(
+        contentSize: CGSize,
+        contentOffset: CGPoint,
+        viewportSize: CGSize
+    ) -> CGRect {
+        guard contentSize.width > 0, contentSize.height > 0,
+              viewportSize.width > 0, viewportSize.height > 0
+        else {
+            return .zero
+        }
+
+        let contentFrameInViewport = CGRect(origin: contentOffset, size: contentSize)
+        let visibleInViewport = contentFrameInViewport.intersection(CGRect(origin: .zero, size: viewportSize))
+        guard !visibleInViewport.isNull, visibleInViewport.width > 0, visibleInViewport.height > 0 else {
+            return .zero
+        }
+
+        return CGRect(
+            x: visibleInViewport.minX - contentOffset.x,
+            y: visibleInViewport.minY - contentOffset.y,
+            width: visibleInViewport.width,
+            height: visibleInViewport.height
+        )
+    }
+
     static func centeredContentRect(contentSize: CGSize, in viewportSize: CGSize) -> CGRect {
         CGRect(
             x: (viewportSize.width - contentSize.width) / 2,

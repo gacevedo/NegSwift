@@ -66,4 +66,18 @@ struct ScratchToolOverlayTests {
         #expect(large > small)
         #expect(small >= 1.5)
     }
+
+    @Test func scratchInteractionRectClipsToVisibleViewport() {
+        let imageRect = CGRect(x: 0, y: 0, width: 3200, height: 2400)
+        let visible = CGRect(x: 400, y: 300, width: 800, height: 600)
+        let interaction = ScratchToolOverlayGeometry.scratchInteractionRect(
+            imageRect: imageRect,
+            visibleContentRect: visible
+        )
+        #expect(interaction == visible)
+
+        let sidebarPoint = CGPoint(x: 100, y: 400)
+        #expect(!interaction.contains(sidebarPoint))
+        #expect(imageRect.contains(sidebarPoint))
+    }
 }

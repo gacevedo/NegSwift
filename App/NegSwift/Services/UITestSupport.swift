@@ -46,6 +46,11 @@ enum UITestSupport {
         return parseScratchSeedPoints(raw)
     }
 
+    /// Zoom preview to maximum display scale (400%) once the canvas has a viewport size.
+    static var canvasZoomToMaxDisplayScale: Bool {
+        ProcessInfo.processInfo.environment["NEGSWIFT_UI_TEST_CANVAS_ZOOM_MAX"] == "1"
+    }
+
     static func parseScratchSeedPoints(_ raw: String) -> [CGPoint]? {
         var points: [CGPoint] = []
         for pair in raw.split(separator: "|") {

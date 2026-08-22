@@ -7,6 +7,7 @@ import SwiftUI
 
 struct ScratchToolOverlayView: View {
     let imagePixelSize: CGSize
+    let visibleContentRect: CGRect
     let brushSize: Int
     let inProgressPoints: [CGPoint]
     var onAddPoint: (CGPoint) -> Void
@@ -28,6 +29,10 @@ struct ScratchToolOverlayView: View {
                 ScratchMouseCaptureView(
                     imagePixelSize: imagePixelSize,
                     imageRect: imageRect,
+                    interactionRect: ScratchToolOverlayGeometry.scratchInteractionRect(
+                        imageRect: imageRect,
+                        visibleContentRect: visibleContentRect
+                    ),
                     brushSize: brushSize,
                     onAddPoint: onAddPoint,
                     onFinish: { finish(imageRect: imageRect) },
@@ -96,6 +101,15 @@ struct ScratchToolOverlayView: View {
 enum ScratchToolOverlayGeometry {
     /// NegPy `HEAL_SIZE_REF` — brush diameter is defined at this reference dimension.
     static let healSizeRef: CGFloat = 1600
+
+    /// Region where scratch hits, cursor hiding, and brush preview are active.
+    static func scratchInteractionRect(imageRect: CGRect, visibleContentRect: CGRect) -> CGRect {
+        guard !visibleContentRect.isNull, visibleContentRect.width > 0, visibleContentRect.height > 0 else {
+            return imageRect
+        }
+        let intersection = imageRect.intersection(visibleContentRect)
+        return intersection.isNull || intersection.width <= 0 || intersection.height <= 0 ? imageRect : intersection
+    }
 
     static func brushScreenRadius(brushSize: CGFloat, imageRect: CGRect) -> CGFloat {
         guard imageRect.width > 0, imageRect.height > 0 else { return 0 }

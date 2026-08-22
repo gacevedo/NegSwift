@@ -14,6 +14,7 @@ struct PreviewCanvasView: View {
 
     @State private var interaction = CanvasInteractionState()
     @State private var viewportSize = CGSize.zero
+    @State private var appliedUITestMaxZoom = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -38,6 +39,11 @@ struct PreviewCanvasView: View {
                 contentOrigin: contentOrigin,
                 pixelSize: pixelSize
             )
+            .overlay {
+                if UITestSupport.isActive {
+                    ScratchCursorUITestReporterView()
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("negSwift.previewCanvas")
@@ -51,7 +57,14 @@ struct PreviewCanvasView: View {
         pixelSize: CGSize
     ) -> some View {
         let stack = ZStack(alignment: .topLeading) {
-            canvasContent(contentSize: contentSize)
+            canvasContent(
+                contentSize: contentSize,
+                visibleContentRect: PreviewCanvasGeometry.visibleContentRect(
+                    contentSize: contentSize,
+                    contentOffset: contentOrigin,
+                    viewportSize: viewportSize
+                )
+            )
                 .frame(width: contentSize.width, height: contentSize.height, alignment: .topLeading)
                 .offset(x: contentOrigin.x, y: contentOrigin.y)
 
@@ -85,10 +98,12 @@ struct PreviewCanvasView: View {
         .onAppear {
             self.viewportSize = viewportSize
             syncContentOffset(pixelSize: pixelSize, viewportSize: viewportSize)
+            applyUITestMaxZoomIfNeeded(viewportSize: viewportSize, pixelSize: pixelSize)
         }
         .onChange(of: viewportSize) { _, newValue in
             self.viewportSize = newValue
             syncContentOffset(pixelSize: pixelSize, viewportSize: newValue)
+            applyUITestMaxZoomIfNeeded(viewportSize: newValue, pixelSize: pixelSize)
         }
         .onChange(of: session.selectedFrameID) { _, _ in
             syncContentOffset(pixelSize: pixelSize, viewportSize: viewportSize)
@@ -111,24 +126,24 @@ struct PreviewCanvasView: View {
     }
 
     @ViewBuilder
-    private func canvasContent(contentSize: CGSize) -> some View {
+    private func canvasContent(contentSize: CGSize, visibleContentRect: CGRect) -> some View {
         ZStack(alignment: .topLeading) {
             Image(nsImage: image)
                 .resizable()
                 .frame(width: contentSize.width, height: contentSize.height)
 
-            toolOverlays
+            toolOverlays(visibleContentRect: visibleContentRect)
                 .frame(width: contentSize.width, height: contentSize.height)
         }
     }
 
     @ViewBuilder
-    private var toolOverlays: some View {
+    private func toolOverlays(visibleContentRect: CGRect) -> some View {
         if session.isCropToolActive, session.isCropOverlayReady {
             cropOverlay
         }
         if session.isScratchToolActive {
-            scratchOverlay
+            scratchOverlay(visibleContentRect: visibleContentRect)
         }
     }
 
@@ -299,9 +314,10 @@ struct PreviewCanvasView: View {
         session.setCropToolActive(false)
     }
 
-    private var scratchOverlay: some View {
+    private func scratchOverlay(visibleContentRect: CGRect) -> some View {
         ScratchToolOverlayView(
             imagePixelSize: session.previewPixelSize ?? image.size,
+            visibleContentRect: visibleContentRect,
             brushSize: session.currentEdit.manualDustSize,
             inProgressPoints: session.scratchInProgressPoints,
             onAddPoint: { session.appendScratchInProgressPoint($0) },
@@ -342,6 +358,26 @@ struct PreviewCanvasView: View {
         Binding(
             get: { session.currentEdit.manualCropRect ?? .full },
             set: { session.setManualCropRect($0) }
+        )
+    }
+
+    private func applyUITestMaxZoomIfNeeded(viewportSize: CGSize, pixelSize: CGSize) {
+        guard UITestSupport.isActive,
+              UITestSupport.canvasZoomToMaxDisplayScale,
+              !appliedUITestMaxZoom,
+              viewportSize.width > 0,
+              viewportSize.height > 0,
+              pixelSize.width > 0,
+              pixelSize.height > 0
+        else { return }
+
+        appliedUITestMaxZoom = true
+        zoom.magnification = zoom.maxMagnification(imageSize: pixelSize, viewport: viewportSize)
+        interaction.contentOffset = PreviewCanvasGeometry.anchoredContentOffset(
+            anchorInViewport: CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2),
+            viewportSize: viewportSize,
+            pixelSize: pixelSize,
+            magnification: zoom.magnification
         )
     }
 }

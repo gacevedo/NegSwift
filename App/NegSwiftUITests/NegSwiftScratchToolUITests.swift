@@ -87,4 +87,24 @@ final class NegSwiftScratchToolUITests: NegSwiftUITestCase {
         app.buttons[AccessibilityID.scratchClear].click()
         XCTAssertFalse(app.staticTexts[AccessibilityID.scratchPointCount].exists)
     }
+
+    func testScratchToolRestoresCursorOverSidebarAtMaxZoom() throws {
+        relaunch(importPath: Self.fixtureScanURL.path, canvasZoomToMax: true)
+        try waitForEngineReady()
+        try waitForImportComplete()
+        try waitForCanvasZoomLabel("400%")
+
+        try setScratchToolActive(true)
+
+        let canvas = try previewCanvas()
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).hover()
+        try waitForScratchSystemCursor(hidden: true)
+
+        let brushSize = app.descendants(matching: .any)
+            .matching(identifier: AccessibilityID.scratchBrushSize)
+            .firstMatch
+        XCTAssertTrue(brushSize.waitForExistence(timeout: 5))
+        brushSize.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).hover()
+        try waitForScratchSystemCursor(hidden: false)
+    }
 }

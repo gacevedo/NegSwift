@@ -10,6 +10,7 @@ import SwiftUI
 struct ScratchMouseCaptureView: NSViewRepresentable {
     let imagePixelSize: CGSize
     let imageRect: CGRect
+    let interactionRect: CGRect
     let brushSize: Int
     var onAddPoint: (CGPoint) -> Void
     var onFinish: () -> Void
@@ -34,6 +35,7 @@ struct ScratchMouseCaptureView: NSViewRepresentable {
 
         nsView.imagePixelSize = imagePixelSize
         nsView.imageRect = imageRect
+        nsView.interactionRect = interactionRect
         nsView.brushSize = brushSize
         nsView.coordinator = context.coordinator
         nsView.updateTrackingAreas()
@@ -51,6 +53,7 @@ struct ScratchMouseCaptureView: NSViewRepresentable {
 final class ScratchCaptureNSView: NSView {
     var imagePixelSize: CGSize = .zero
     var imageRect: CGRect = .zero
+    var interactionRect: CGRect = .zero
     var brushSize = EditControlDefaults.manualDustSize
     weak var coordinator: ScratchMouseCaptureView.Coordinator?
 
@@ -97,9 +100,10 @@ final class ScratchCaptureNSView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
-        guard imageRect.width > 0, imageRect.height > 0 else { return }
+        let trackingRect = activeInteractionRect
+        guard trackingRect.width > 0, trackingRect.height > 0 else { return }
         let area = NSTrackingArea(
-            rect: imageRect,
+            rect: trackingRect,
             options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .enabledDuringMouseDrag, .inVisibleRect],
             owner: self,
             userInfo: nil
@@ -108,13 +112,13 @@ final class ScratchCaptureNSView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard imageRect.contains(point) else { return nil }
+        guard activeInteractionRect.contains(point) else { return nil }
         return super.hitTest(point)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        guard isMouseOverImage() else { return }
+        guard isMouseOverInteractionArea() else { return }
         let point = currentMouseLocation()
         let radius = ScratchToolOverlayGeometry.brushScreenRadius(
             brushSize: CGFloat(brushSize),
@@ -188,7 +192,7 @@ final class ScratchCaptureNSView: NSView {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.window?.isKeyWindow == true else { return event }
-            guard self.shouldHoldKeyboardFocus || self.isMouseOverImage() else { return event }
+            guard self.shouldHoldKeyboardFocus || self.isMouseOverInteractionArea() else { return event }
             return self.handleScratchKey(event) ? nil : event
         }
     }
@@ -243,13 +247,20 @@ final class ScratchCaptureNSView: NSView {
         return convert(window.mouseLocationOutsideOfEventStream, from: nil)
     }
 
-    private func isMouseOverImage() -> Bool {
-        imageRect.contains(currentMouseLocation())
+    private func isMouseOverInteractionArea() -> Bool {
+        activeInteractionRect.contains(currentMouseLocation())
+    }
+
+    private var activeInteractionRect: CGRect {
+        guard !interactionRect.isNull, interactionRect.width > 0, interactionRect.height > 0 else {
+            return imageRect
+        }
+        return interactionRect
     }
 
     private func syncCursor() {
-        let overImage = isMouseOverImage()
-        if overImage {
+        let overInteractionArea = isMouseOverInteractionArea()
+        if overInteractionArea {
             guard !isBrushCursorHidden else { return }
             isBrushCursorHidden = true
             NSCursor.hide()
@@ -259,6 +270,7 @@ final class ScratchCaptureNSView: NSView {
             NSCursor.unhide()
             NSCursor.arrow.set()
         }
+        ScratchCursorUITestReporter.setSystemCursorHidden(isBrushCursorHidden)
     }
 
     private func restoreCursor() {
@@ -266,5 +278,6 @@ final class ScratchCaptureNSView: NSView {
         isBrushCursorHidden = false
         NSCursor.unhide()
         NSCursor.arrow.set()
+        ScratchCursorUITestReporter.setSystemCursorHidden(false)
     }
 }

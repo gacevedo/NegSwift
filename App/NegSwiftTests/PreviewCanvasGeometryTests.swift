@@ -71,4 +71,33 @@ import Testing
         )
         #expect(point == CGPoint(x: 150, y: 130))
     }
+
+    @Test func visibleContentRectMatchesClippedViewportWhenPanned() {
+        let contentSize = CGSize(width: 3200, height: 2400)
+        let viewport = CGSize(width: 800, height: 600)
+        let contentOffset = CGPoint(x: -400, y: -300)
+
+        let visible = PreviewCanvasGeometry.visibleContentRect(
+            contentSize: contentSize,
+            contentOffset: contentOffset,
+            viewportSize: viewport
+        )
+
+        #expect(visible.origin == CGPoint(x: 400, y: 300))
+        #expect(visible.size == viewport)
+    }
+
+    @Test func visibleContentRectMatchesCenteredFitContent() {
+        let contentSize = CGSize(width: 400, height: 300)
+        let viewport = CGSize(width: 800, height: 600)
+        let contentOffset = CGPoint(x: 200, y: 150)
+
+        let visible = PreviewCanvasGeometry.visibleContentRect(
+            contentSize: contentSize,
+            contentOffset: contentOffset,
+            viewportSize: viewport
+        )
+
+        #expect(visible == CGRect(origin: .zero, size: contentSize))
+    }
 }

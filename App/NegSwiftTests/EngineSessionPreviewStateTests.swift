@@ -32,4 +32,19 @@ struct EngineSessionPreviewStateTests {
         #expect(!session.isPreviewStale)
         #expect(session.previewMemoHitForTests(path: path))
     }
+
+    @Test @MainActor func defersSelectedThumbnailWhilePreviewStale() {
+        let session = EngineSession.preview
+        let path = session.frames[0].path
+        session.setCurrentPathForTests(nil)
+        #expect(session.isPreviewStale)
+        #expect(session.defersThumbnailLoadToPreviewForTests(path: path))
+    }
+
+    @Test @MainActor func doesNotDeferThumbnailForNonSelectedFrame() {
+        let session = EngineSession.preview
+        session.setCurrentPathForTests(nil)
+        let otherPath = "/tmp/other-scan.tif"
+        #expect(!session.defersThumbnailLoadToPreviewForTests(path: otherPath))
+    }
 }

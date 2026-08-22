@@ -35,6 +35,25 @@ def test_detect_bw_monochrome_tiff(tmp_path: Path) -> None:
     assert result["detected_mode"] == "B&W Negative"
 
 
+def test_bw_autodetect_then_render(tmp_path: Path) -> None:
+    """Monochrome scan: detect B&W, then preview render with that mode (NegSwift load path)."""
+    path = tmp_path / "bw.tif"
+    _write_bw_tiff(path)
+    detected = detect_process_mode_dict(str(path))
+    assert detected["process_mode"] == "B&W Negative"
+    msg = ndjson_request(
+        "render",
+        {
+            "path": str(path),
+            "prefer_gpu": False,
+            "config": {"process_mode": detected["process_mode"]},
+        },
+        req_id="bw-autodetect-render",
+    )
+    assert msg["ok"] is True
+    assert msg["result"]["width"] > 0
+
+
 def test_detect_skips_when_sidecar_present(sample_tiff: Path) -> None:
     sidecar = Path(sidecar_path_for(str(sample_tiff)))
     sidecar.write_text(json.dumps({"process_mode": "Color Negative"}), encoding="utf-8")

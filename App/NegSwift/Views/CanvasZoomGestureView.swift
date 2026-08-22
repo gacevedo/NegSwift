@@ -80,13 +80,15 @@ struct CanvasZoomGestureView: NSViewRepresentable {
             guard hostView.bounds.contains(location) else { return false }
 
             if isZoomEnabled, event.modifierFlags.contains(.option) {
-                let factor: CGFloat
-                if event.hasPreciseScrollingDeltas {
-                    factor = pow(1.001, -event.scrollingDeltaY)
-                } else {
-                    factor = event.scrollingDeltaY > 0 ? 1.1 : 0.9
-                }
-                guard factor > 0 else { return false }
+                let deltaY = CanvasZoomScroll.normalizedScrollingDeltaY(
+                    event.scrollingDeltaY,
+                    invertedFromDevice: event.isDirectionInvertedFromDevice
+                )
+                let factor = CanvasZoomScroll.factor(
+                    fromScrollingDeltaY: deltaY,
+                    precise: event.hasPreciseScrollingDeltas
+                )
+                guard factor > 0, factor != 1 else { return false }
                 onZoomBy?(factor, location)
                 return true
             }
@@ -132,5 +134,20 @@ final class CanvasZoomCaptureNSView: NSView {
 
     func refreshMonitors() {
         coordinator?.refreshMonitors()
+    }
+}
+
+enum CanvasZoomScroll {
+    /// Undo mouse natural-scrolling inversion so trackpad and mouse share one zoom direction.
+    static func normalizedScrollingDeltaY(_ deltaY: CGFloat, invertedFromDevice: Bool) -> CGFloat {
+        invertedFromDevice ? -deltaY : deltaY
+    }
+
+    /// Scroll down zooms in; scroll up zooms out — matches Photoshop and NegPy desktop.
+    static func factor(fromScrollingDeltaY deltaY: CGFloat, precise: Bool) -> CGFloat {
+        if precise {
+            return pow(1.001, -deltaY)
+        }
+        return deltaY < 0 ? 1.1 : 0.9
     }
 }

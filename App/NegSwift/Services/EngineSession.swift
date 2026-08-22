@@ -1217,9 +1217,10 @@ final class EngineSession {
             await persistEdit(for: previousPath)
             Task { await refreshThumbnail(for: previousPath) }
         }
-        async let editReady: Void = ensureEditLoaded(for: frame.path)
+        async let editReady: Void = ensureEditLoaded(for: frame.path, scheduleAutodetect: false)
         prefetchAsset(at: frame.url)
         await editReady
+        await autodetectProcessModeIfNeeded(for: frame.path)
         previewDebounce.cancel()
 
         let path = frame.path
@@ -1245,11 +1246,25 @@ final class EngineSession {
         }
     }
 
-    private func ensureEditLoaded(for path: String) async {
+    private func ensureEditLoaded(for path: String, scheduleAutodetect: Bool = true) async {
         if frameEdits[path] != nil { return }
         let edit = await loadConfigOnly(for: path)
         frameEdits[path] = edit
-        scheduleAutodetectIfNeeded(for: path)
+        if scheduleAutodetect {
+            scheduleAutodetectIfNeeded(for: path)
+        }
+    }
+
+    /// Apply process-mode autodetect before the first preview render so we do not queue a
+    /// superseding B&W render that strip thumbnails can cancel on the engine worker.
+    private func autodetectProcessModeIfNeeded(for path: String) async {
+        guard preferences.autodetectProcessMode else { return }
+        guard !pathsWithSidecar.contains(path) else { return }
+        guard let detected = await detectProcessMode(path: path, force: false) else { return }
+        guard var edit = frameEdits[path], edit.processMode != detected else { return }
+        previewMemo.invalidate(path: path)
+        edit.processMode = detected
+        frameEdits[path] = edit
     }
 
     private func loadConfigOnly(for path: String) async -> FrameEditState {
@@ -1325,6 +1340,11 @@ final class EngineSession {
         }
 
         isRenderingPreview = true
+        defer {
+            if generation == previewGeneration {
+                isRenderingPreview = false
+            }
+        }
         previewError = nil
 
         let path = url.path
@@ -1393,10 +1413,6 @@ final class EngineSession {
                 refreshAfterClose: refreshThumbnailAfterClose
             )
         }
-
-        if generation == previewGeneration {
-            isRenderingPreview = false
-        }
     }
 
     private func finishCropCloseThumbnailRefresh(
@@ -1432,6 +1448,7 @@ final class EngineSession {
               let index = frames.firstIndex(where: { $0.path == path })
         else { return }
         if let generation, generation != thumbnailGeneration { return }
+        if defersThumbnailLoadToPreview(for: path) { return }
         if applyPreviewToSelectedThumbnail(for: path) { return }
 
         let frame = frames[index]
@@ -1529,7 +1546,10 @@ final class EngineSession {
         thumbnailGeneration += 1
         let thumbGen = thumbnailGeneration
         let indices = thumbnailLoadOrder().filter { index in
-            frames[index].thumbnail == nil && !applyPreviewToSelectedThumbnail(for: frames[index].path)
+            let path = frames[index].path
+            return frames[index].thumbnail == nil
+                && !applyPreviewToSelectedThumbnail(for: path)
+                && !defersThumbnailLoadToPreview(for: path)
         }
         guard !indices.isEmpty else { return true }
 
@@ -1596,6 +1616,7 @@ final class EngineSession {
         guard frames.indices.contains(index) else { return }
         guard frames[index].thumbnail == nil else { return }
         let path = frames[index].path
+        if defersThumbnailLoadToPreview(for: path) { return }
         if applyPreviewToSelectedThumbnail(for: path) { return }
 
         updateFrame(at: index) { $0.isLoadingThumbnail = true }
@@ -1809,6 +1830,14 @@ final class EngineSession {
         previewLoadingMessage = message
     }
 
+    func defersThumbnailLoadToPreviewForTests(path: String) -> Bool {
+        defersThumbnailLoadToPreview(for: path)
+    }
+
+    func runThumbnailLoadingForTests() async {
+        await loadMissingThumbnails()
+    }
+
     func setCurrentPathForTests(_ path: String?) {
         currentPath = path
     }
@@ -1859,6 +1888,13 @@ final class EngineSession {
         return previewMemo.get(path: path, fingerprint: fingerprint) != nil
     }
     #endif
+
+    /// Selected-frame strip thumbs come from the canvas preview; do not issue a competing
+    /// engine render while that preview is still in flight (same-path supersession).
+    private func defersThumbnailLoadToPreview(for path: String) -> Bool {
+        guard path == selectedFramePath else { return false }
+        return isPreviewStale
+    }
 
     @discardableResult
     private func applyPreviewToSelectedThumbnail(for path: String? = nil) -> Bool {

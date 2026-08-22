@@ -44,7 +44,7 @@ struct CropOverlayView: View {
                 Rectangle()
                     .stroke(Color.white, lineWidth: 1.5)
                     .frame(width: max(cropScreenRect.width, 1), height: max(cropScreenRect.height, 1))
-                    .offset(x: cropScreenRect.minX, y: cropScreenRect.minY)
+                    .position(x: cropScreenRect.midX, y: cropScreenRect.midY)
                     .contentShape(Rectangle())
                     .gesture(moveGesture(imageRect: imageRect))
 
@@ -127,7 +127,7 @@ struct CropOverlayView: View {
         }
         handleShape
             .frame(width: size.width, height: size.height)
-            .offset(x: point.x - size.width / 2, y: point.y - size.height / 2)
+            .position(x: point.x, y: point.y)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in

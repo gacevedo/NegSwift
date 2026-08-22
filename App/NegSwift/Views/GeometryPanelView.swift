@@ -46,13 +46,6 @@ struct GeometryPanelView: View {
 
                 HStack(spacing: 4) {
                     geometryIconButton(
-                        title: "Rotate 90° counter-clockwise",
-                        systemImage: "rotate.left"
-                    ) {
-                        session.rotateCounterClockwise()
-                    }
-
-                    geometryIconButton(
                         title: "Rotate 90° clockwise",
                         systemImage: "rotate.right"
                     ) {
@@ -60,16 +53,22 @@ struct GeometryPanelView: View {
                     }
 
                     geometryIconButton(
+                        title: "Rotate 90° counter-clockwise",
+                        systemImage: "rotate.left"
+                    ) {
+                        session.rotateCounterClockwise()
+                    }
+
+                    geometryIconButton(
                         title: "Flip horizontal",
-                        systemImage: "arrowtriangle.left.and.line.vertical.and.arrowtriangle.right"
+                        systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right"
                     ) {
                         session.toggleFlipHorizontal()
                     }
 
                     geometryIconButton(
                         title: "Flip vertical",
-                        systemImage: "arrowtriangle.left.and.line.vertical.and.arrowtriangle.right",
-                        rotationDegrees: 90
+                        systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down"
                     ) {
                         session.toggleFlipVertical()
                     }
@@ -84,13 +83,11 @@ struct GeometryPanelView: View {
     private func geometryIconButton(
         title: String,
         systemImage: String,
-        rotationDegrees: Double = 0,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .labelStyle(.iconOnly)
-                .rotationEffect(.degrees(rotationDegrees))
         }
         .controlSize(.small)
         .help(title)

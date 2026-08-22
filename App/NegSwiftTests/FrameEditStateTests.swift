@@ -22,6 +22,8 @@ struct FrameEditStateTests {
             "dust_threshold": 0.5,
             "dust_size": 6,
             "manual_crop_rect": [0.1, 0.15, 0.9, 0.85],
+            "flip_horizontal": true,
+            "flip_vertical": true,
         ])
         #expect(state.processMode == .bw)
         #expect(state.density == 1.2)
@@ -35,6 +37,8 @@ struct FrameEditStateTests {
         #expect(state.dustThreshold == 0.5)
         #expect(state.dustSize == 6)
         #expect(state.manualCropRect?.x2 == 0.9)
+        #expect(state.flipHorizontal == true)
+        #expect(state.flipVertical == true)
     }
 
     @Test func fromFlatConfigAcceptsLegacyProcessModeKeys() {
@@ -69,6 +73,8 @@ struct FrameEditStateTests {
             dustSize: 5,
             rotation: 1,
             fineRotation: -3.0,
+            flipHorizontal: true,
+            flipVertical: false,
             autocropRatio: "4:3",
             manualCropRect: NormalizedRect(x1: 0.1, y1: 0.1, x2: 0.9, y2: 0.9)
         )
@@ -83,6 +89,8 @@ struct FrameEditStateTests {
         #expect(object?["dust_remove"] as? Bool == true)
         #expect(object?["dust_threshold"] as? Double == 0.55)
         #expect(object?["dust_size"] as? Int == 5)
+        #expect(object?["flip_horizontal"] as? Bool == true)
+        #expect(object?["flip_vertical"] as? Bool == false)
         #expect(object?["manual_crop_rect"] as? [Double] == [0.1, 0.1, 0.9, 0.9])
 
         let decoded = try JSONDecoder().decode(FrameEditState.self, from: data)

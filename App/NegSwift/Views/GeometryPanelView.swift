@@ -58,6 +58,22 @@ struct GeometryPanelView: View {
                         Label("90° CW", systemImage: "rotate.right")
                     }
                     .controlSize(.small)
+
+                    Button {
+                        session.toggleFlipHorizontal()
+                    } label: {
+                        Label("Flip H", systemImage: "arrow.left.and.right")
+                    }
+                    .controlSize(.small)
+                    .help("Flip image horizontally")
+
+                    Button {
+                        session.toggleFlipVertical()
+                    } label: {
+                        Label("Flip V", systemImage: "arrow.up.and.down")
+                    }
+                    .controlSize(.small)
+                    .help("Flip image vertically")
                 }
 
                 fineRotationRow

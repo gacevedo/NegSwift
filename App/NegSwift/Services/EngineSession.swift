@@ -605,6 +605,29 @@ final class EngineSession {
 
     func rotateCounterClockwise() { applyRotation(direction: 1) }
 
+    func toggleFlipHorizontal() { applyFlip(horizontal: true) }
+
+    func toggleFlipVertical() { applyFlip(horizontal: false) }
+
+    private func applyFlip(horizontal: Bool) {
+        updateEdit(refreshPreview: false) { edit in
+            if horizontal {
+                edit.flipHorizontal.toggle()
+            } else {
+                edit.flipVertical.toggle()
+            }
+            if edit.fineRotation != 0 {
+                edit.fineRotation = -edit.fineRotation
+            }
+            if let rect = edit.manualCropRect {
+                edit.manualCropRect = rect.mirrored(horizontal: horizontal)
+            }
+        }
+        syncCropPreviewBaselineGeometry(from: currentEdit)
+        invalidateCropOverlayForGeometryPreview()
+        refreshPreviewNow()
+    }
+
     private func applyRotation(direction: Int) {
         updateEdit(refreshPreview: false) { edit in
             edit.rotation = (edit.rotation + direction + 4) % 4
@@ -747,6 +770,8 @@ final class EngineSession {
         var preview = baseline
         preview.rotation = config.rotation
         preview.fineRotation = config.fineRotation
+        preview.flipHorizontal = config.flipHorizontal
+        preview.flipVertical = config.flipVertical
         preview.manualCropRect = config.manualCropRect
         preview.analysisBuffer = config.analysisBuffer
         preview.autoDensityUsesCrop = config.autoDensityUsesCrop
@@ -757,6 +782,8 @@ final class EngineSession {
         guard isCropToolActive, var baseline = cropPreviewBaseline else { return }
         baseline.rotation = config.rotation
         baseline.fineRotation = config.fineRotation
+        baseline.flipHorizontal = config.flipHorizontal
+        baseline.flipVertical = config.flipVertical
         baseline.manualCropRect = config.manualCropRect
         cropPreviewBaseline = baseline
     }

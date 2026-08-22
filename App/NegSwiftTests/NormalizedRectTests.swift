@@ -31,6 +31,21 @@ struct NormalizedRectTests {
         #expect(rotated.y2 <= 1)
     }
 
+    @Test func mirroredMatchesNegPyHorizontalAndVertical() {
+        let rect = NormalizedRect(x1: 0.1, y1: 0.2, x2: 0.5, y2: 0.7)
+        let horizontal = rect.mirrored(horizontal: true)
+        #expect(horizontal.x1 == 0.5)
+        #expect(horizontal.y1 == 0.2)
+        #expect(horizontal.x2 == 0.9)
+        #expect(horizontal.y2 == 0.7)
+
+        let vertical = rect.mirrored(horizontal: false)
+        #expect(vertical.x1 == 0.1)
+        #expect(abs(vertical.y1 - 0.3) < 1e-12)
+        #expect(vertical.x2 == 0.5)
+        #expect(vertical.y2 == 0.8)
+    }
+
     @Test func fromFlatValueParsesFourDoubles() {
         let rect = NormalizedRect.fromFlatValue([0.1, 0.2, 0.9, 0.85])
         #expect(rect?.x1 == 0.1)

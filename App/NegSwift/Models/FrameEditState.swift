@@ -54,6 +54,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var dustSize: Int = EditControlDefaults.dustSize
     var rotation: Int = 0
     var fineRotation: Double = 0
+    var flipHorizontal: Bool = false
+    var flipVertical: Bool = false
     var autocropRatio: String = "3:2"
     var manualCropRect: NormalizedRect?
     /// NegPy ``manual_heal_strokes`` — scratch/hair polylines in source-normalized space.
@@ -82,6 +84,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         case dustSize = "dust_size"
         case rotation
         case fineRotation = "fine_rotation"
+        case flipHorizontal = "flip_horizontal"
+        case flipVertical = "flip_vertical"
         case autocropRatio = "autocrop_ratio"
         case manualCropRect = "manual_crop_rect"
         case manualHealStrokes = "manual_heal_strokes"
@@ -108,6 +112,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         dustSize: Int = EditControlDefaults.dustSize,
         rotation: Int = 0,
         fineRotation: Double = 0,
+        flipHorizontal: Bool = false,
+        flipVertical: Bool = false,
         autocropRatio: String = "3:2",
         manualCropRect: NormalizedRect? = nil,
         manualHealStrokes: [HealStroke] = [],
@@ -130,6 +136,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         self.dustSize = dustSize
         self.rotation = rotation
         self.fineRotation = fineRotation
+        self.flipHorizontal = flipHorizontal
+        self.flipVertical = flipVertical
         self.autocropRatio = autocropRatio
         self.manualCropRect = manualCropRect
         self.manualHealStrokes = manualHealStrokes
@@ -157,6 +165,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         dustSize = try container.decodeIfPresent(Int.self, forKey: .dustSize) ?? EditControlDefaults.dustSize
         rotation = try container.decodeIfPresent(Int.self, forKey: .rotation) ?? 0
         fineRotation = try container.decodeIfPresent(Double.self, forKey: .fineRotation) ?? 0
+        flipHorizontal = try container.decodeIfPresent(Bool.self, forKey: .flipHorizontal) ?? false
+        flipVertical = try container.decodeIfPresent(Bool.self, forKey: .flipVertical) ?? false
         autocropRatio = try container.decodeIfPresent(String.self, forKey: .autocropRatio) ?? "3:2"
         if let parts = try container.decodeIfPresent([Double].self, forKey: .manualCropRect), parts.count == 4 {
             manualCropRect = NormalizedRect(x1: parts[0], y1: parts[1], x2: parts[2], y2: parts[3])
@@ -187,6 +197,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         try container.encode(dustSize, forKey: .dustSize)
         try container.encode(rotation, forKey: .rotation)
         try container.encode(fineRotation, forKey: .fineRotation)
+        try container.encode(flipHorizontal, forKey: .flipHorizontal)
+        try container.encode(flipVertical, forKey: .flipVertical)
         try container.encode(autocropRatio, forKey: .autocropRatio)
         if let manualCropRect {
             try container.encode(manualCropRect.arrayValue(), forKey: .manualCropRect)
@@ -218,6 +230,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
             dustSize: int(config["dust_size"], default: EditControlDefaults.dustSize),
             rotation: int(config["rotation"], default: 0),
             fineRotation: double(config["fine_rotation"], default: 0),
+            flipHorizontal: bool(config["flip_horizontal"], default: false),
+            flipVertical: bool(config["flip_vertical"], default: false),
             autocropRatio: string(config["autocrop_ratio"], default: "3:2"),
             manualCropRect: NormalizedRect.fromFlatValue(config["manual_crop_rect"]),
             manualHealStrokes: HealStroke.fromFlatValue(config["manual_heal_strokes"]),

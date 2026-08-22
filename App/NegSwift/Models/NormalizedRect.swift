@@ -46,6 +46,14 @@ struct NormalizedRect: Equatable, Sendable {
         return NormalizedRect(x1: nums[0], y1: nums[1], x2: nums[2], y2: nums[3])
     }
 
+    /// Match NegPy ``mirror_normalized_rect`` — mirror across vertical (horizontal) or horizontal (vertical) center.
+    func mirrored(horizontal: Bool) -> NormalizedRect {
+        if horizontal {
+            return NormalizedRect(x1: 1 - x2, y1: y1, x2: 1 - x1, y2: y2)
+        }
+        return NormalizedRect(x1: x1, y1: 1 - y2, x2: x2, y2: 1 - y1)
+    }
+
     /// Match NegPy ``rotate_normalized_rect`` — quarter-turns CCW on normalized UV.
     func rotated(quarterTurnsCCW: Int) -> NormalizedRect {
         var corners: [(Double, Double)] = [

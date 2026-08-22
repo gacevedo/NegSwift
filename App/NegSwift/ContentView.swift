@@ -12,7 +12,8 @@ struct ContentView: View {
     @State private var showExportSheet = false
     @State private var showEngineSheet = false
     @State private var showResetSheet = false
-    @State private var previewZoomMode: PreviewZoomMode = .fit
+    @State private var previewZoom = PreviewCanvasZoom.fit
+    @State private var zoomToggleNonce = 0
 
     @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
     @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
@@ -164,7 +165,7 @@ struct ContentView: View {
             wireCommandBridge()
         }
         .onChange(of: engineSession.selectedFrameID) { _, _ in
-            previewZoomMode = .fit
+            previewZoom = .fit
             syncCommandBridgeState()
         }
         .onChange(of: engineSession.engineReady) { _, _ in syncCommandBridgeState() }
@@ -189,7 +190,7 @@ struct ContentView: View {
             showExportSheet = true
         }
         commandBridge.toggleCanvasZoom = {
-            previewZoomMode.toggle()
+            zoomToggleNonce &+= 1
         }
         commandBridge.toggleCropTool = {
             Task { @MainActor in
@@ -243,7 +244,8 @@ struct ContentView: View {
             if let image = engineSession.previewImage {
                 PreviewCanvasView(
                     session: engineSession,
-                    zoomMode: $previewZoomMode,
+                    zoom: $previewZoom,
+                    zoomToggleNonce: zoomToggleNonce,
                     image: image
                 )
             } else if !engineSession.isPreviewStale {

@@ -8,22 +8,34 @@ import SwiftUI
 
 struct PreviewCanvasView: View {
     @Bindable var session: EngineSession
-    @Binding var zoomMode: PreviewZoomMode
+    @Binding var zoom: PreviewCanvasZoom
+    let zoomToggleNonce: Int
     let image: NSImage
 
-    @State private var scrollPosition = ScrollPosition()
-    @State private var pendingOneToOneClick: CGPoint?
+    @State private var interaction = CanvasInteractionState()
+    @State private var viewportSize = CGSize.zero
 
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
-            ZStack {
-                switch zoomMode {
-                case .fit:
-                    fitCanvas(in: size)
-                case .oneToOne:
-                    oneToOneCanvas(viewportSize: size)
-                }
+            let pixelSize = displayedPixelSize
+            let fitRect = PreviewCanvasGeometry.aspectFitRect(imageSize: pixelSize, in: size)
+            let atFit = zoom.isAtFit()
+            let contentSize = atFit
+                ? fitRect.size
+                : zoom.contentSize(imageSize: pixelSize, viewport: size)
+            let contentOrigin = atFit
+                ? fitRect.origin
+                : PreviewCanvasGeometry.clampedContentOffset(
+                    interaction.contentOffset,
+                    contentSize: contentSize,
+                    viewportSize: size
+                )
+
+            ZStack(alignment: .topLeading) {
+                canvasContent(contentSize: contentSize)
+                    .frame(width: contentSize.width, height: contentSize.height, alignment: .topLeading)
+                    .offset(x: contentOrigin.x, y: contentOrigin.y)
 
                 if session.isLoadingCropPreview {
                     ZStack {
@@ -35,12 +47,42 @@ struct PreviewCanvasView: View {
                     }
                 }
             }
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .clipped()
+            .contentShape(Rectangle())
+            .gesture(canvasDoubleClickGesture())
+            .gesture(panGesture(contentSize: contentSize, viewportSize: size))
             .overlay(alignment: .bottomLeading) {
-                canvasHUD
+                canvasHUD(viewportSize: size, pixelSize: pixelSize)
             }
-            .onChange(of: zoomMode) { _, newValue in
-                guard newValue == .oneToOne else { return }
-                applyOneToOneScroll(viewportSize: size)
+            .background {
+                CanvasZoomGestureView(
+                    isZoomEnabled: zoomGesturesEnabled,
+                    isScrollPanEnabled: canScrollPan(contentSize: contentSize, viewportSize: size),
+                    onZoomBy: { factor, anchor in
+                        applyZoomFactor(factor, anchorInViewport: anchor, viewportSize: size, pixelSize: pixelSize)
+                    },
+                    onScrollPanBy: { delta in
+                        applyScrollPan(delta, contentSize: contentSize, viewportSize: size)
+                    }
+                )
+            }
+            .onAppear {
+                viewportSize = size
+                syncContentOffset(pixelSize: pixelSize, viewportSize: size)
+            }
+            .onChange(of: size) { _, newValue in
+                viewportSize = newValue
+                syncContentOffset(pixelSize: pixelSize, viewportSize: newValue)
+            }
+            .onChange(of: session.selectedFrameID) { _, _ in
+                syncContentOffset(pixelSize: pixelSize, viewportSize: size)
+            }
+            .onChange(of: pixelSize) { _, _ in
+                syncContentOffset(pixelSize: pixelSize, viewportSize: size)
+            }
+            .onChange(of: zoomToggleNonce) { _, _ in
+                performMenuToggle(viewportSize: size, pixelSize: pixelSize)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -48,41 +90,15 @@ struct PreviewCanvasView: View {
     }
 
     @ViewBuilder
-    private func fitCanvas(in size: CGSize) -> some View {
-        ZStack {
+    private func canvasContent(contentSize: CGSize) -> some View {
+        ZStack(alignment: .topLeading) {
             Image(nsImage: image)
                 .resizable()
-                .scaledToFit()
-                .frame(width: size.width, height: size.height)
-                .contentShape(Rectangle())
-                .gesture(fitDoubleClickGesture())
+                .frame(width: contentSize.width, height: contentSize.height)
 
             toolOverlays
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(width: contentSize.width, height: contentSize.height)
         }
-        .frame(width: size.width, height: size.height)
-    }
-
-    @ViewBuilder
-    private func oneToOneCanvas(viewportSize: CGSize) -> some View {
-        let pixelSize = displayedPixelSize
-        ScrollView([.horizontal, .vertical]) {
-            ZStack {
-                Image(nsImage: image)
-                    .resizable()
-                    .frame(width: pixelSize.width, height: pixelSize.height)
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) {
-                        zoomToFit()
-                    }
-
-                toolOverlays
-                    .frame(width: pixelSize.width, height: pixelSize.height)
-            }
-            .frame(width: pixelSize.width, height: pixelSize.height)
-        }
-        .scrollDisabled(session.isScratchToolActive)
-        .scrollPosition($scrollPosition)
     }
 
     @ViewBuilder
@@ -95,37 +111,154 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private func fitDoubleClickGesture() -> some Gesture {
+    private func canvasDoubleClickGesture() -> some Gesture {
         SpatialTapGesture(count: 2)
             .onEnded { value in
-                zoomToOneToOne(at: value.location)
+                if zoom.isAtFit() {
+                    zoomToOneToOne(at: value.location)
+                } else {
+                    zoomToFit()
+                }
             }
     }
 
+    private func panGesture(contentSize: CGSize, viewportSize: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { value in
+                guard canDragPan(contentSize: contentSize, viewportSize: viewportSize) else { return }
+                if !interaction.isPanDragging {
+                    interaction.isPanDragging = true
+                    interaction.panDragStartOffset = interaction.contentOffset
+                }
+                interaction.contentOffset = PreviewCanvasGeometry.clampedContentOffset(
+                    CGPoint(
+                        x: interaction.panDragStartOffset.x + value.translation.width,
+                        y: interaction.panDragStartOffset.y + value.translation.height
+                    ),
+                    contentSize: contentSize,
+                    viewportSize: viewportSize
+                )
+            }
+            .onEnded { _ in
+                interaction.isPanDragging = false
+            }
+    }
+
+    private func canDragPan(contentSize: CGSize, viewportSize: CGSize) -> Bool {
+        !session.isCropToolActive
+            && !session.isScratchToolActive
+            && PreviewCanvasGeometry.contentOverflows(contentSize: contentSize, viewportSize: viewportSize)
+    }
+
+    private func canScrollPan(contentSize: CGSize, viewportSize: CGSize) -> Bool {
+        PreviewCanvasGeometry.contentOverflows(contentSize: contentSize, viewportSize: viewportSize)
+    }
+
+    private var zoomGesturesEnabled: Bool {
+        !session.isCropToolActive && !session.isScratchToolActive
+    }
+
+    private func syncContentOffset(pixelSize: CGSize, viewportSize: CGSize) {
+        guard !interaction.isPanDragging else { return }
+        let fitRect = PreviewCanvasGeometry.aspectFitRect(imageSize: pixelSize, in: viewportSize)
+        if zoom.isAtFit() {
+            interaction.contentOffset = fitRect.origin
+            return
+        }
+        let contentSize = zoom.contentSize(imageSize: pixelSize, viewport: viewportSize)
+        interaction.contentOffset = PreviewCanvasGeometry.clampedContentOffset(
+            interaction.contentOffset,
+            contentSize: contentSize,
+            viewportSize: viewportSize
+        )
+    }
+
+    private func effectiveContentOffset(pixelSize: CGSize, viewportSize: CGSize) -> CGPoint {
+        if zoom.isAtFit() {
+            return PreviewCanvasGeometry.aspectFitRect(imageSize: pixelSize, in: viewportSize).origin
+        }
+        return interaction.contentOffset
+    }
+
+    private func performMenuToggle(viewportSize: CGSize, pixelSize: CGSize) {
+        guard zoomGesturesEnabled else { return }
+        if zoom.isAtFit() {
+            let anchor = CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+            zoom.setOneToOne(imageSize: pixelSize, viewport: viewportSize)
+            interaction.contentOffset = PreviewCanvasGeometry.anchoredContentOffset(
+                anchorInViewport: anchor,
+                viewportSize: viewportSize,
+                pixelSize: pixelSize,
+                magnification: zoom.magnification
+            )
+        } else {
+            zoom.setFit()
+            syncContentOffset(pixelSize: pixelSize, viewportSize: viewportSize)
+        }
+    }
+
+    private func applyZoomFactor(
+        _ factor: CGFloat,
+        anchorInViewport: CGPoint,
+        viewportSize: CGSize,
+        pixelSize: CGSize
+    ) {
+        guard zoomGesturesEnabled, factor > 0 else { return }
+
+        let oldMagnification = zoom.magnification
+        let newMagnification = zoom.clampedMagnification(
+            oldMagnification * factor,
+            imageSize: pixelSize,
+            viewport: viewportSize
+        )
+        guard abs(newMagnification - oldMagnification) > 0.0001 else { return }
+
+        let oldContentSize = zoom.contentSize(imageSize: pixelSize, viewport: viewportSize)
+        let contentPoint = PreviewCanvasGeometry.contentPointUnderAnchor(
+            anchorInViewport: anchorInViewport,
+            contentOffset: effectiveContentOffset(pixelSize: pixelSize, viewportSize: viewportSize),
+            contentSize: oldContentSize
+        )
+
+        zoom.magnification = newMagnification
+        let newContentSize = zoom.contentSize(imageSize: pixelSize, viewport: viewportSize)
+        interaction.contentOffset = PreviewCanvasGeometry.contentOffsetKeepingContentPointFixed(
+            contentPoint: contentPoint,
+            oldContentSize: oldContentSize,
+            newContentSize: newContentSize,
+            anchorInViewport: anchorInViewport,
+            viewportSize: viewportSize
+        )
+    }
+
+    private func applyScrollPan(_ delta: CGPoint, contentSize: CGSize, viewportSize: CGSize) {
+        interaction.contentOffset = PreviewCanvasGeometry.clampedContentOffset(
+            CGPoint(
+                x: interaction.contentOffset.x + delta.x,
+                y: interaction.contentOffset.y + delta.y
+            ),
+            contentSize: contentSize,
+            viewportSize: viewportSize
+        )
+    }
+
     private func zoomToOneToOne(at location: CGPoint) {
-        guard !session.isCropToolActive, !session.isScratchToolActive else { return }
-        pendingOneToOneClick = location
-        zoomMode = .oneToOne
+        guard zoomGesturesEnabled else { return }
+        let pixelSize = displayedPixelSize
+        let viewport = viewportSize
+        zoom.setOneToOne(imageSize: pixelSize, viewport: viewport)
+        interaction.contentOffset = PreviewCanvasGeometry.anchoredContentOffset(
+            anchorInViewport: location,
+            viewportSize: viewport,
+            pixelSize: pixelSize,
+            magnification: zoom.magnification
+        )
     }
 
     private func zoomToFit() {
-        guard !session.isCropToolActive, !session.isScratchToolActive else { return }
-        pendingOneToOneClick = nil
-        zoomMode = .fit
-    }
-
-    private func applyOneToOneScroll(viewportSize: CGSize) {
-        let pixelSize = displayedPixelSize
-        let offset = PreviewCanvasGeometry.oneToOneScrollOffset(
-            clickInViewport: pendingOneToOneClick,
-            viewportSize: viewportSize,
-            pixelSize: pixelSize
-        )
-        Task { @MainActor in
-            await Task.yield()
-            scrollPosition.scrollTo(x: offset.x, y: offset.y)
-            pendingOneToOneClick = nil
-        }
+        guard zoomGesturesEnabled else { return }
+        zoom.setFit()
+        syncContentOffset(pixelSize: displayedPixelSize, viewportSize: viewportSize)
     }
 
     private var cropOverlay: some View {
@@ -153,9 +286,9 @@ struct PreviewCanvasView: View {
         )
     }
 
-    private var canvasHUD: some View {
+    private func canvasHUD(viewportSize: CGSize, pixelSize: CGSize) -> some View {
         HStack(spacing: 8) {
-            Text(zoomMode.label)
+            Text(zoom.label(imageSize: pixelSize, viewport: viewportSize))
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
             if let pixelSize = session.previewPixelSize {

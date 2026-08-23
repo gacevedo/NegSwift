@@ -24,19 +24,11 @@ struct AboutView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Text("Swift UI for NegPy film-negative processing.")
-                .font(.body)
-                .multilineTextAlignment(.center)
+            Text(AppMetadata.copyrightLine)
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(spacing: 6) {
-                Text("By \(AppMetadata.authorName)")
-                    .font(.body)
-                Link(AppMetadata.authorURL.absoluteString, destination: AppMetadata.authorURL)
-                    .font(.caption)
-            }
-
+                .multilineTextAlignment(.center)
+            
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
@@ -44,11 +36,6 @@ struct AboutView: View {
                 creditRow(title: "NegPy upstream", url: AppMetadata.negPySourceURL)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(AppMetadata.copyrightLine)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
 
             Text(
                 "NegSwift and the bundled NegPy engine are free software under "

@@ -42,7 +42,7 @@ enum AppMetadata {
 
     static var copyrightLine: String {
         Bundle.main.infoDictionary?["NSHumanReadableCopyright"] as? String
-            ?? "Copyright © 2026 Gabriel Acevedo. Licensed under GPL-3.0."
+            ?? "Copyright © 2026 Gabriel Acevedo."
     }
 
     static func legalFileURL(named name: String) -> URL? {

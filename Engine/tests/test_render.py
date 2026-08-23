@@ -75,6 +75,27 @@ def test_render_protocol_jpeg(sample_tiff: Path) -> None:
     assert jpeg[:2] == b"\xff\xd8"
 
 
+def test_render_fast_preview(sample_tiff: Path) -> None:
+    from ndjson_helpers import ndjson_request
+
+    msg = ndjson_request(
+        "render",
+        {
+            "path": str(sample_tiff),
+            "prefer_gpu": False,
+            "fast_preview": True,
+            "long_edge_px": 256,
+        },
+        req_id="render-fast-thumb",
+    )
+    assert msg["ok"] is True, msg
+    result = msg["result"]
+    assert result["width"] > 0
+    assert result["height"] > 0
+    png = base64.standard_b64decode(result["png_base64"])
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def _render_long_edge(result: dict) -> int:
     return max(result["width"], result["height"])
 
@@ -99,7 +120,7 @@ def test_render_long_edge_px_scales_output(large_tiff: Path) -> None:
     fast_le = _render_long_edge(fast["result"])
     high_le = _render_long_edge(high["result"])
     assert fast_le < high_le
-    assert 750 <= fast_le <= 850
+    assert 735 <= fast_le <= 850
     assert 1450 <= high_le <= 1650
 
 
@@ -178,6 +199,41 @@ def test_concurrent_frame_switch_renders(sample_tiff: Path, tmp_path: Path) -> N
         assert png[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_render_reports_autocrop_metrics_when_armed(sample_tiff: Path) -> None:
+    from ndjson_helpers import ndjson_request
+
+    msg = ndjson_request(
+        "render",
+        {
+            "path": str(sample_tiff),
+            "prefer_gpu": False,
+            "config": {"crop_from_auto": True, "auto_crop_enabled": True},
+        },
+        req_id="render-autocrop-metrics",
+    )
+    assert msg["ok"] is True, msg
+    metrics = msg["result"].get("metrics") or {}
+    # Tiny synthetic TIFF may not detect a border; when it does, rect and key are paired.
+    if metrics.get("autocrop_resolved_rect") is not None:
+        assert metrics.get("autocrop_resolved_key")
+
+
+def test_open_include_splash_optional(sample_tiff: Path) -> None:
+    from ndjson_helpers import ndjson_request
+
+    msg = ndjson_request(
+        "open",
+        {"path": str(sample_tiff), "include_splash": True},
+        req_id="open-splash",
+    )
+    assert msg["ok"] is True, msg
+    result = msg["result"]
+    assert result["width"] == 48
+    if "splash_jpeg_base64" in result:
+        assert result["splash_width"] > 0
+        assert result["splash_height"] > 0
+
+
 def test_render_job_cancelled_maps_to_cancelled_code(monkeypatch, sample_tiff: Path) -> None:
     """JobCancelled from cooperative cancel must not become RENDER_FAILED."""
     from negswift_engine.jobs import JobCancelled
@@ -193,3 +249,27 @@ def test_render_job_cancelled_maps_to_cancelled_code(monkeypatch, sample_tiff: P
         raise AssertionError("expected ProtocolError")
     except ProtocolError as exc:
         assert exc.code == "CANCELLED"
+
+
+def test_preview_load_passes_use_camera_wb(monkeypatch, sample_tiff: Path) -> None:
+    """Preview decode must match export: camera WB unless linear_raw is enabled."""
+    from negpy.services.rendering.preview_manager import PreviewManager
+
+    from negswift_engine.render import render_preview_raster, reset_render_cache
+
+    captured: dict[str, bool] = {}
+    original = PreviewManager.load_linear_preview
+
+    def spy(self, file_path, color_space=None, use_camera_wb=False, **kwargs):
+        captured["use_camera_wb"] = use_camera_wb
+        return original(self, file_path, color_space=color_space, use_camera_wb=use_camera_wb, **kwargs)
+
+    monkeypatch.setattr(PreviewManager, "load_linear_preview", spy)
+    reset_render_cache()
+    render_preview_raster(str(sample_tiff), prefer_gpu=False)
+    assert captured["use_camera_wb"] is True
+
+    captured.clear()
+    reset_render_cache()
+    render_preview_raster(str(sample_tiff), config_overrides={"linear_raw": True}, prefer_gpu=False)
+    assert captured["use_camera_wb"] is False

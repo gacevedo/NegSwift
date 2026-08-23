@@ -124,9 +124,13 @@ enum PreviewTransportFormat: String, Encodable, Sendable {
 
 struct RenderMetrics: Codable, Sendable {
     let detectedCropRect: [Double]?
+    let autocropResolvedRect: [Double]?
+    let autocropResolvedKey: String?
 
     enum CodingKeys: String, CodingKey {
         case detectedCropRect = "detected_crop_rect"
+        case autocropResolvedRect = "autocrop_resolved_rect"
+        case autocropResolvedKey = "autocrop_resolved_key"
     }
 }
 
@@ -201,6 +205,11 @@ struct OpenResult: Codable, Sendable {
     let width: Int
     let height: Int
     let hasSidecar: Bool
+    let splashWidth: Int?
+    let splashHeight: Int?
+    let splashJPEGBase64: String?
+    let suggestedCropRect: [Double]?
+    let cropDetectKey: String?
 
     enum CodingKeys: String, CodingKey {
         case path
@@ -208,6 +217,11 @@ struct OpenResult: Codable, Sendable {
         case width
         case height
         case hasSidecar = "has_sidecar"
+        case splashWidth = "splash_width"
+        case splashHeight = "splash_height"
+        case splashJPEGBase64 = "splash_jpeg_base64"
+        case suggestedCropRect = "suggested_crop_rect"
+        case cropDetectKey = "crop_detect_key"
     }
 }
 
@@ -301,8 +315,11 @@ actor EngineClient {
         try await call(method: "info", params: EmptyParams())
     }
 
-    func open(path: String) async throws -> OpenResult {
-        try await call(method: "open", params: OpenParams(path: path))
+    func open(path: String, includeSplash: Bool = false, config: FrameEditState? = nil) async throws -> OpenResult {
+        try await call(
+            method: "open",
+            params: OpenParams(path: path, includeSplash: includeSplash, config: config)
+        )
     }
 
     func render(
@@ -346,6 +363,7 @@ actor EngineClient {
                     preferGpu: preferGPU,
                     config: config,
                     cropPreviewFull: cropPreviewFull,
+                    fastPreview: stripThumbnail,
                     previewFormat: previewFormat,
                     jpegQuality: jpegQuality
                 ),
@@ -505,6 +523,25 @@ actor EngineClient {
 
     private struct OpenParams: Encodable {
         let path: String
+        let includeSplash: Bool
+        let config: FrameEditState?
+
+        enum CodingKeys: String, CodingKey {
+            case path
+            case includeSplash = "include_splash"
+            case config
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(path, forKey: .path)
+            if includeSplash {
+                try container.encode(true, forKey: .includeSplash)
+            }
+            if let config {
+                try container.encode(config, forKey: .config)
+            }
+        }
     }
 
     private struct LoadConfigParams: Encodable {
@@ -546,6 +583,7 @@ actor EngineClient {
         let preferGpu: Bool
         let config: FrameEditState?
         let cropPreviewFull: Bool
+        let fastPreview: Bool
         let previewFormat: PreviewTransportFormat
         let jpegQuality: Int
 
@@ -555,6 +593,7 @@ actor EngineClient {
             case preferGpu = "prefer_gpu"
             case config
             case cropPreviewFull = "crop_preview_full"
+            case fastPreview = "fast_preview"
             case previewFormat = "preview_format"
             case jpegQuality = "jpeg_quality"
         }
@@ -565,6 +604,9 @@ actor EngineClient {
             try container.encodeIfPresent(longEdgePx, forKey: .longEdgePx)
             try container.encode(preferGpu, forKey: .preferGpu)
             try container.encode(cropPreviewFull, forKey: .cropPreviewFull)
+            if fastPreview {
+                try container.encode(true, forKey: .fastPreview)
+            }
             try container.encode(previewFormat, forKey: .previewFormat)
             if previewFormat == .jpeg {
                 try container.encode(jpegQuality, forKey: .jpegQuality)

@@ -64,28 +64,59 @@ def _has_manual_crop_rect(flat: dict[str, Any]) -> bool:
     return _as_rect(flat.get("crop_rect")) is not None or _as_rect(flat.get("manual_crop_rect")) is not None
 
 
+def _armed_auto_crop(flat: dict[str, Any]) -> bool:
+    if _has_manual_crop_rect(flat):
+        return bool(flat.get("crop_from_auto", False))
+    return bool(flat.get("crop_from_auto", False)) or bool(flat.get("auto_crop_enabled", False))
+
+
 def negpy_flat_for_save(flat: dict[str, Any]) -> dict[str, Any]:
     """Strip NegSwift-only keys; never persist wire-only ``analysis_rect`` overrides."""
     out = {key: value for key, value in flat.items() if key not in NEGSWIFT_SIDECAR_KEYS}
-    if _has_manual_crop_rect(out):
-        out = dict(out)
-        out.pop("analysis_rect", None)
+    out = dict(out)
+    out["local_floors"] = [0.0, 0.0, 0.0]
+    out["local_ceils"] = [0.0, 0.0, 0.0]
+    # ``analysis_rect`` is a render-time wire override in NegSwift, not a stored edit.
+    out.pop("analysis_rect", None)
     return out
 
 
 def negpy_flat_for_pipeline(flat: dict[str, Any]) -> dict[str, Any]:
     """Map NegSwift metering prefs onto NegPy ``WorkspaceConfig`` flat keys for render/export."""
     out = negpy_flat_for_save(flat)
-    if not _has_manual_crop_rect(out):
-        return out
+    # NegSwift re-meters every render/export. Never pin preview bounds onto export.
     out = dict(out)
-    # A drawn rect is manual unless the caller explicitly armed auto crop with no rect yet.
-    out["crop_from_auto"] = False
+    out["local_floors"] = [0.0, 0.0, 0.0]
+    out["local_ceils"] = [0.0, 0.0, 0.0]
     out.pop("auto_crop_enabled", None)
+    if not _has_manual_crop_rect(out):
+        if _armed_auto_crop(flat):
+            out["crop_from_auto"] = True
+            detect_key = flat.get("crop_detect_key")
+            if isinstance(detect_key, str) and detect_key:
+                out["crop_detect_key"] = detect_key
+        if not default_auto_density_uses_crop(flat):
+            out["analysis_rect"] = FULL_FRAME_ANALYSIS_RECT
+        return out
+    crop_from_auto = bool(flat.get("crop_from_auto", False))
+    if crop_from_auto:
+        out["crop_from_auto"] = True
+        rect = _as_rect(flat.get("crop_rect")) or _as_rect(flat.get("manual_crop_rect"))
+        if rect is not None:
+            out["crop_rect"] = list(rect)
+            out.pop("manual_crop_rect", None)
+        detect_key = flat.get("crop_detect_key")
+        if isinstance(detect_key, str) and detect_key:
+            out["crop_detect_key"] = detect_key
+    else:
+        out["crop_from_auto"] = False
     if default_auto_density_uses_crop(flat):
-        meter_rect = crop_metering_analysis_rect(flat)
-        if meter_rect is not None:
-            out["analysis_rect"] = meter_rect
+        # Auto-detected crops meter through geometry ``crop_rect`` + ``analysis_buffer``,
+        # matching NegPy desktop. ``analysis_rect`` is only for manual crops in NegSwift.
+        if not crop_from_auto:
+            meter_rect = crop_metering_analysis_rect(flat)
+            if meter_rect is not None:
+                out["analysis_rect"] = meter_rect
     else:
         out["analysis_rect"] = FULL_FRAME_ANALYSIS_RECT
     return out

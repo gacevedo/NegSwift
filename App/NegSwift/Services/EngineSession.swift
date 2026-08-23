@@ -595,6 +595,8 @@ final class EngineSession {
                     ratioLabel: value,
                     imageAspect: size.width / max(size.height, 1)
                 )
+                edit.cropFromAuto = false
+                edit.cropDetectKey = ""
             }
         }
     }
@@ -602,6 +604,8 @@ final class EngineSession {
     func setManualCropRect(_ rect: NormalizedRect) {
         updateEdit(refreshPreview: false) {
             $0.manualCropRect = rect
+            $0.cropFromAuto = false
+            $0.cropDetectKey = ""
             $0.autoCropEnabled = false
         }
         guard isCropToolActive,
@@ -616,6 +620,8 @@ final class EngineSession {
     func resetCrop() {
         updateEdit(refreshPreview: !isCropToolActive) { edit in
             edit.manualCropRect = nil
+            edit.cropFromAuto = false
+            edit.cropDetectKey = ""
             edit.autoCropEnabled = preferences.autoCropEnabled
             if isCropToolActive, let size = previewPixelSize {
                 edit.manualCropRect = NormalizedRect.centered(
@@ -679,25 +685,73 @@ final class EngineSession {
         guard !edit.autoCropEnabled else { return }
         let aspect = previewPixelSize.map { $0.width / max($0.height, 1) } ?? 1.5
         edit.manualCropRect = NormalizedRect.centered(ratioLabel: edit.autocropRatio, imageAspect: aspect)
+        edit.cropFromAuto = false
+        edit.cropDetectKey = ""
         edit.autoCropEnabled = false
         frameEdits[path] = edit
         dirtyPaths.insert(path)
     }
 
-    private func applyDetectedCropRect(_ rect: NormalizedRect, for path: String, imageAspect: Double) {
+    private func applyDetectedCropRect(
+        _ rect: NormalizedRect,
+        for path: String,
+        imageAspect: Double,
+        fromAuto: Bool = true,
+        detectKey: String = ""
+    ) {
         var edit = frameEdits[path] ?? defaultEditState()
         guard edit.manualCropRect == nil else { return }
         edit.manualCropRect = rect
         edit.autocropRatio = rect.closestFilmAspectRatioLabel(imageAspect: imageAspect)
+        edit.cropFromAuto = fromAuto
+        edit.cropDetectKey = detectKey
         edit.autoCropEnabled = false
         frameEdits[path] = edit
         dirtyPaths.insert(path)
         if var baseline = cropPreviewBaseline {
             baseline.manualCropRect = rect
             baseline.autocropRatio = edit.autocropRatio
+            baseline.cropFromAuto = fromAuto
+            baseline.cropDetectKey = detectKey
             baseline.autoCropEnabled = false
             cropPreviewBaseline = baseline
         }
+    }
+
+    private func applySuggestedCrop(from result: OpenResult, for path: String) {
+        guard let parts = result.suggestedCropRect, parts.count == 4 else { return }
+        guard var edit = frameEdits[path] else { return }
+        guard edit.manualCropRect == nil, edit.autoCropEnabled else { return }
+        let longEdge = max(result.splashHeight ?? result.height, result.splashWidth ?? result.width, 1)
+        let shortEdge = min(result.splashHeight ?? result.height, result.splashWidth ?? result.width, 1)
+        let imageAspect = Double(longEdge) / Double(shortEdge)
+        applyDetectedCropRect(
+            NormalizedRect(x1: parts[0], y1: parts[1], x2: parts[2], y2: parts[3]),
+            for: path,
+            imageAspect: imageAspect,
+            fromAuto: true,
+            detectKey: result.cropDetectKey ?? ""
+        )
+        previewMemo.invalidate(path: path)
+    }
+
+    @discardableResult
+    private func freezeResolvedAutoCropIfNeeded(from result: RenderResult, for path: String) -> Bool {
+        let edit = frameEdits[path] ?? defaultEditState()
+        guard edit.manualCropRect == nil else { return false }
+        guard edit.autoCropEnabled else { return false }
+        guard let parts = result.metrics?.autocropResolvedRect, parts.count == 4 else { return false }
+        let imageAspect = Double(result.width) / max(Double(result.height), 1)
+        applyDetectedCropRect(
+            NormalizedRect(x1: parts[0], y1: parts[1], x2: parts[2], y2: parts[3]),
+            for: path,
+            imageAspect: imageAspect,
+            fromAuto: true,
+            detectKey: result.metrics?.autocropResolvedKey ?? ""
+        )
+        previewMemo.invalidate(path: path)
+        scheduleDebouncedSave(for: path)
+        return true
     }
 
     private func finishCropPreviewOverlay(for path: String, result: RenderResult) {
@@ -778,8 +832,11 @@ final class EngineSession {
     /// Map UI edit state to NegPy pipeline config (auto crop, crop-tool preview metering).
     private func pipelineConfig(for config: FrameEditState) -> FrameEditState {
         var out = effectivePreviewConfig(config)
-        if out.manualCropRect != nil {
+        if out.manualCropRect != nil, !out.cropFromAuto {
             out.autoCropEnabled = false
+            return out
+        }
+        if out.manualCropRect != nil {
             return out
         }
         if out.autoCropEnabled {
@@ -1218,7 +1275,6 @@ final class EngineSession {
             Task { await refreshThumbnail(for: previousPath) }
         }
         async let editReady: Void = ensureEditLoaded(for: frame.path, scheduleAutodetect: false)
-        prefetchAsset(at: frame.url)
         await editReady
         await autodetectProcessModeIfNeeded(for: frame.path)
         previewDebounce.cancel()
@@ -1235,6 +1291,8 @@ final class EngineSession {
             }
             return
         }
+
+        await warmOpenAsset(for: frame)
 
         previewGeneration += 1
         let generation = previewGeneration
@@ -1386,15 +1444,22 @@ final class EngineSession {
             previewImage = image
             previewPixelSize = CGSize(width: result.width, height: result.height)
             currentPath = path
-            storePreviewMemo(
-                path: path,
-                image: image,
-                pixelSize: CGSize(width: result.width, height: result.height),
-                cropPreviewFull: isCropToolActive
-            )
             if isCropToolActive {
+                storePreviewMemo(
+                    path: path,
+                    image: image,
+                    pixelSize: CGSize(width: result.width, height: result.height),
+                    cropPreviewFull: true
+                )
                 finishCropPreviewOverlay(for: path, result: result)
             } else {
+                _ = freezeResolvedAutoCropIfNeeded(from: result, for: path)
+                storePreviewMemo(
+                    path: path,
+                    image: image,
+                    pixelSize: CGSize(width: result.width, height: result.height),
+                    cropPreviewFull: false
+                )
                 applyPreviewToSelectedThumbnail()
             }
             await finishCropCloseThumbnailRefresh(
@@ -1655,6 +1720,35 @@ final class EngineSession {
         }
     }
 
+    private func warmOpenAsset(for frame: ScanFrame) async {
+        guard engineReady else { return }
+
+        let gotAccess = beginFileAccess(for: frame.url)
+        defer {
+            if gotAccess {
+                endFileAccess(for: frame.url)
+            }
+        }
+
+        let path = frame.path
+        let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
+        guard let result = try? await client.open(path: path, includeSplash: true, config: config) else { return }
+        applySuggestedCrop(from: result, for: path)
+        dirtyPaths.insert(path)
+        scheduleDebouncedSave(for: path)
+        guard let base64 = result.splashJPEGBase64 else { return }
+        guard let image = await decodePreviewImage(
+            base64: base64,
+            format: PreviewTransportFormat.jpeg.rawValue
+        ) else { return }
+        previewImage = image
+        if let width = result.splashWidth, let height = result.splashHeight {
+            previewPixelSize = CGSize(width: width, height: height)
+        }
+        currentPath = path
+        previewError = nil
+    }
+
     private func prefetchAsset(at url: URL) {
         Task {
             let gotAccess = beginFileAccess(for: url)
@@ -1663,7 +1757,9 @@ final class EngineSession {
                     endFileAccess(for: url)
                 }
             }
-            _ = try? await client.open(path: url.path)
+            let path = url.path
+            let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
+            _ = try? await client.open(path: path, config: config)
         }
     }
 

@@ -2,6 +2,8 @@
 
 Guidance for AI agents working in the NegSwift repository.
 
+**This file is NOT gospel.** You can question it, but do not deviate from its instructions without confirming with the user.
+
 > **Keep this file current.** When a change alters commands, milestone gates, the engine protocol, or repo layout — update this file in the same change.
 
 > **Keep user-facing docs current in the same change.** `PLAN.md` is the roadmap; `docs/ENGINE_PROTOCOL.md` is the IPC contract; `docs/MANUAL_TEST_CHECKLIST.md` is the per-milestone smoke list. A protocol or control change belongs in all three when it affects testers or contributors.

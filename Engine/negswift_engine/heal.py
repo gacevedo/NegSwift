@@ -14,6 +14,7 @@ from negswift_engine.render import (
     _pipeline_lock,
     _preview_manager_instance,
     _processor_instance,
+    _use_camera_wb,
     resolve_config,
 )
 
@@ -57,6 +58,7 @@ def _uv_grid_for_config(path: str, flat: dict[str, Any]) -> Any:
             path,
             color_space=WORKING_COLOR_SPACE,
             file_hash=f_hash,
+            use_camera_wb=_use_camera_wb(config),
         )
         ir_buffer = meta.get("ir_preview")
         processor = _processor_instance()

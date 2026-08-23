@@ -50,8 +50,14 @@ def _cmd_open(params: dict[str, Any]) -> dict[str, Any]:
     path = params.get("path")
     if not isinstance(path, str) or not path:
         raise ProtocolError("INVALID_REQUEST", "params.path is required")
+    include_splash = params.get("include_splash", False)
+    if not isinstance(include_splash, bool):
+        raise ProtocolError("INVALID_REQUEST", "params.include_splash must be a boolean")
+    config = params.get("config")
+    if config is not None and not isinstance(config, dict):
+        raise ProtocolError("INVALID_REQUEST", "params.config must be an object")
     try:
-        return open_asset(path)
+        return open_asset(path, include_splash=include_splash, config_overrides=config)
     except FileNotFoundError as exc:
         raise ProtocolError("NOT_FOUND", str(exc)) from exc
     except OSError as exc:
@@ -133,6 +139,9 @@ def _cmd_render(params: dict[str, Any], cancel: threading.Event | None = None) -
     crop_preview_full = params.get("crop_preview_full", False)
     if not isinstance(crop_preview_full, bool):
         raise ProtocolError("INVALID_REQUEST", "params.crop_preview_full must be a boolean")
+    fast_preview = params.get("fast_preview", False)
+    if not isinstance(fast_preview, bool):
+        raise ProtocolError("INVALID_REQUEST", "params.fast_preview must be a boolean")
     preview_format = params.get("preview_format", "png")
     if not isinstance(preview_format, str) or preview_format not in VALID_PREVIEW_FORMATS:
         raise ProtocolError("INVALID_REQUEST", "params.preview_format must be 'png' or 'jpeg'")
@@ -146,6 +155,7 @@ def _cmd_render(params: dict[str, Any], cancel: threading.Event | None = None) -
             long_edge_px=long_edge,
             prefer_gpu=prefer_gpu,
             crop_preview_full=crop_preview_full,
+            fast_preview=fast_preview,
             preview_format=preview_format,
             jpeg_quality=jpeg_quality,
             cancel=cancel,

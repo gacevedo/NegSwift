@@ -37,6 +37,12 @@ def test_unknown_method() -> None:
     assert msg["error"]["code"] == "INVALID_REQUEST"
 
 
+def test_open_rejects_non_bool_include_splash(sample_tiff) -> None:
+    msg = ndjson_request("open", {"path": str(sample_tiff), "include_splash": "yes"}, req_id="open-bad-splash")
+    assert msg["ok"] is False
+    assert msg["error"]["code"] == "INVALID_REQUEST"
+
+
 def test_render_not_found() -> None:
     msg = ndjson_request(
         "render",
@@ -52,6 +58,16 @@ def test_render_rejects_non_bool_crop_preview_full(sample_tiff) -> None:
         "render",
         {"path": str(sample_tiff), "crop_preview_full": "yes"},
         req_id="crop-bad-type",
+    )
+    assert msg["ok"] is False
+    assert msg["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_render_rejects_non_bool_fast_preview(sample_tiff) -> None:
+    msg = ndjson_request(
+        "render",
+        {"path": str(sample_tiff), "fast_preview": "yes"},
+        req_id="fast-bad-type",
     )
     assert msg["ok"] is False
     assert msg["error"]["code"] == "INVALID_REQUEST"

@@ -66,9 +66,20 @@ Error:
 
 ### `open`
 
-Register a file path (no full decode).
+Register a file path and warm the preview decode cache. Optionally return an embedded-JPEG splash for instant first paint (NegPy desktop parity).
 
-**Params:** `{ "path": "/absolute/path/to/scan.tif" }`  
+**Params:**
+
+```json
+{
+  "path": "/absolute/path/to/scan.tif",
+  "include_splash": false,
+  "config": { }
+}
+```
+
+Optional `config` — flat edit overrides used to decide whether armed auto-crop should run on the warmed preview buffer.
+
 **Result:**
 
 ```json
@@ -77,9 +88,16 @@ Register a file path (no full decode).
   "hash": "abc123...",
   "width": 6036,
   "height": 4011,
-  "has_sidecar": true
+  "has_sidecar": true,
+  "splash_width": 1600,
+  "splash_height": 1066,
+  "splash_jpeg_base64": "/9j/4AAQ...",
+  "suggested_crop_rect": [0.05, 0.04, 0.99, 0.98],
+  "crop_detect_key": "..."
 }
 ```
+
+`splash_*` and `suggested_crop_rect` / `crop_detect_key` are omitted when unavailable.
 
 ### `discover`
 
@@ -152,16 +170,21 @@ Preview render at display resolution.
   "long_edge_px": 1600,
   "prefer_gpu": true,
   "crop_preview_full": false,
-  "preview_format": "png",
+  "fast_preview": false,
+  "preview_format": "jpeg",
   "jpeg_quality": 90
 }
 ```
 
 `crop_preview_full` — when `true`, render the full transformed frame without applying the crop (for on-canvas crop editing). Matches NegPy desktop crop-tool behaviour.
 
-`preview_format` — `"png"` (default) or `"jpeg"`. JPEG reduces IPC payload size for live preview; PNG remains the compatibility default when omitted.
+`fast_preview` — when `true`, request a strip-thumbnail render (`long_edge_px` ≈ 256). Uses the same `PreviewManager` + `run_pipeline` path as canvas preview; reserved for callers that want to distinguish thumb jobs (cancellation priority).
+
+`preview_format` — `"jpeg"` (recommended for canvas IPC) or `"png"`. Swift canvas preview uses JPEG by default; PNG remains available for compatibility.
 
 `jpeg_quality` — integer `1`–`100` (default `90`). Used when `preview_format` is `"jpeg"`.
+
+Canvas preview uses the fast `PreviewManager` + `run_pipeline` path (NegPy desktop parity). Auto-crop is detected at `open` when armed and stored in the sidecar (`crop_rect`, `crop_from_auto`, `crop_detect_key`). Per-frame `local_floors` / `local_ceils` are cleared on every render so export always re-meters at full resolution.
 
 **Result (PNG):**
 

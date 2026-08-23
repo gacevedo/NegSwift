@@ -58,6 +58,10 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var flipVertical: Bool = false
     var autocropRatio: String = "Free"
     var manualCropRect: NormalizedRect?
+    /// NegPy ``crop_from_auto`` — frozen auto-detected crop (paired with ``manualCropRect``).
+    var cropFromAuto: Bool = false
+    /// NegPy ``crop_detect_key`` — detection identity for the stored auto crop.
+    var cropDetectKey: String = ""
     /// NegPy ``manual_heal_strokes`` — scratch/hair polylines in source-normalized space.
     var manualHealStrokes: [HealStroke] = []
     /// NegPy ``manual_dust_size`` — heal brush diameter at HEAL_SIZE_REF scale.
@@ -88,6 +92,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
         case flipVertical = "flip_vertical"
         case autocropRatio = "autocrop_ratio"
         case manualCropRect = "manual_crop_rect"
+        case cropRect = "crop_rect"
+        case cropFromAuto = "crop_from_auto"
+        case cropDetectKey = "crop_detect_key"
         case manualHealStrokes = "manual_heal_strokes"
         case manualDustSize = "manual_dust_size"
     }
@@ -116,6 +123,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         flipVertical: Bool = false,
         autocropRatio: String = "Free",
         manualCropRect: NormalizedRect? = nil,
+        cropFromAuto: Bool = false,
+        cropDetectKey: String = "",
         manualHealStrokes: [HealStroke] = [],
         manualDustSize: Int = EditControlDefaults.manualDustSize
     ) {
@@ -140,6 +149,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
         self.flipVertical = flipVertical
         self.autocropRatio = autocropRatio
         self.manualCropRect = manualCropRect
+        self.cropFromAuto = cropFromAuto
+        self.cropDetectKey = cropDetectKey
         self.manualHealStrokes = manualHealStrokes
         self.manualDustSize = manualDustSize
     }
@@ -168,7 +179,11 @@ struct FrameEditState: Equatable, Codable, Sendable {
         flipHorizontal = try container.decodeIfPresent(Bool.self, forKey: .flipHorizontal) ?? false
         flipVertical = try container.decodeIfPresent(Bool.self, forKey: .flipVertical) ?? false
         autocropRatio = try container.decodeIfPresent(String.self, forKey: .autocropRatio) ?? "Free"
-        if let parts = try container.decodeIfPresent([Double].self, forKey: .manualCropRect), parts.count == 4 {
+        cropFromAuto = try container.decodeIfPresent(Bool.self, forKey: .cropFromAuto) ?? false
+        cropDetectKey = try container.decodeIfPresent(String.self, forKey: .cropDetectKey) ?? ""
+        if let parts = try container.decodeIfPresent([Double].self, forKey: .cropRect), parts.count == 4 {
+            manualCropRect = NormalizedRect(x1: parts[0], y1: parts[1], x2: parts[2], y2: parts[3])
+        } else if let parts = try container.decodeIfPresent([Double].self, forKey: .manualCropRect), parts.count == 4 {
             manualCropRect = NormalizedRect(x1: parts[0], y1: parts[1], x2: parts[2], y2: parts[3])
         } else {
             manualCropRect = nil
@@ -191,7 +206,11 @@ struct FrameEditState: Equatable, Codable, Sendable {
         try container.encode(autoNormalizeContrast, forKey: .autoNormalizeContrast)
         try container.encode(analysisBuffer, forKey: .analysisBuffer)
         try container.encode(autoDensityUsesCrop, forKey: .autoDensityUsesCrop)
-        try container.encode(autoCropEnabled, forKey: .autoCropEnabled)
+        if manualCropRect == nil {
+            try container.encode(autoCropEnabled, forKey: .autoCropEnabled)
+        } else {
+            try container.encode(false, forKey: .autoCropEnabled)
+        }
         try container.encode(dustRemove, forKey: .dustRemove)
         try container.encode(dustThreshold, forKey: .dustThreshold)
         try container.encode(dustSize, forKey: .dustSize)
@@ -201,7 +220,15 @@ struct FrameEditState: Equatable, Codable, Sendable {
         try container.encode(flipVertical, forKey: .flipVertical)
         try container.encode(autocropRatio, forKey: .autocropRatio)
         if let manualCropRect {
-            try container.encode(manualCropRect.arrayValue(), forKey: .manualCropRect)
+            if cropFromAuto {
+                try container.encode(manualCropRect.arrayValue(), forKey: .cropRect)
+                try container.encode(true, forKey: .cropFromAuto)
+                if !cropDetectKey.isEmpty {
+                    try container.encode(cropDetectKey, forKey: .cropDetectKey)
+                }
+            } else {
+                try container.encode(manualCropRect.arrayValue(), forKey: .manualCropRect)
+            }
         }
         if !manualHealStrokes.isEmpty {
             try container.encode(manualHealStrokes, forKey: .manualHealStrokes)
@@ -215,12 +242,17 @@ struct FrameEditState: Equatable, Codable, Sendable {
         let cropRect = NormalizedRect.fromFlatValue(config["crop_rect"])
             ?? NormalizedRect.fromFlatValue(config["manual_crop_rect"])
         let cropFromAuto = bool(config["crop_from_auto"], default: false)
+        let cropDetectKey = string(config["crop_detect_key"], default: "")
         let legacyAutoCrop = bool(config["auto_crop_enabled"], default: false)
         let autoCrop: Bool
-        if config["crop_from_auto"] != nil || config["auto_crop_enabled"] != nil {
-            autoCrop = cropRect == nil && (cropFromAuto || legacyAutoCrop)
+        if cropRect == nil {
+            if config["crop_from_auto"] != nil || config["auto_crop_enabled"] != nil {
+                autoCrop = cropFromAuto || legacyAutoCrop
+            } else {
+                autoCrop = true
+            }
         } else {
-            autoCrop = cropRect == nil
+            autoCrop = false
         }
         return FrameEditState(
             processMode: ProcessMode.fromFlatValue(config["process_mode"]),
@@ -244,6 +276,8 @@ struct FrameEditState: Equatable, Codable, Sendable {
             flipVertical: bool(config["flip_vertical"], default: false),
             autocropRatio: string(config["autocrop_ratio"], default: "Free"),
             manualCropRect: cropRect,
+            cropFromAuto: cropFromAuto && cropRect != nil,
+            cropDetectKey: cropDetectKey,
             manualHealStrokes: HealStroke.fromFlatValue(config["manual_heal_strokes"]),
             manualDustSize: int(config["manual_dust_size"], default: EditControlDefaults.manualDustSize)
         )

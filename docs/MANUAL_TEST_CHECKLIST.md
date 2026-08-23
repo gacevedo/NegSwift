@@ -248,9 +248,7 @@ See [docs/BATCH_EXPORT.md](BATCH_EXPORT.md) and [PLAN.md](../PLAN.md) §7 M14.
 - [x] ⌘E default scope: current frame, or selected when 2+ strip items are selected
 - [x] **Selected** scope when 2+ frames are multi-selected (⌘/shift-click in strip)
 
-**Phase 3 — Separate menus** — not planned (Export… sheet is the single batch entry point)
-
-**Phase 4 — Automated tests**
+**Phase 3 — Automated tests**
 
 - [x] `EngineSessionBatchExportTests` — all/selected scope, per-path configs, cancel, `isExporting` guard
 - [x] `testBatchExportAllWritesMultipleJPEGs` UI test (folder import + batch export hook)

@@ -89,7 +89,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
 
-**Current status (2026-08-23):** M0–M15 feature complete (M14 Phase 3 menus deferred). **M12** code phases done — manual benchmarks remain. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-08-23):** M0–M15 feature complete. **M12** code phases done — manual benchmarks remain. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

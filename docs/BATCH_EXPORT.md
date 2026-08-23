@@ -2,7 +2,7 @@
 
 Export all frames in the film strip, or a multi-selected subset, using the same format and destination as single-frame export today.
 
-**Status:** Phases 1–2 complete; Phase 3 (separate menus) deferred; Phase 4 automated tests complete.  
+**Status:** Phases 1–2 complete; Phase 3 automated tests complete.  
 **Milestone:** M14 in [PLAN.md](../PLAN.md).  
 **Manual smoke:** [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) § M14 (regression rows remain).
 
@@ -226,8 +226,7 @@ Add `exportBatch(scope:to:settings:)` (or refactor `exportCurrentFrame` to call 
 
 1. ~~**Batch engine path**~~ — `exportBatch` + progress ✅
 2. ~~**Sheet scope UI**~~ — scope picker + summary text ✅
-3. ~~**Menus + shortcuts**~~ — deferred; Export… sheet covers All / Selected / This Frame ✅
-4. **Tests + manual checklist** — unit tests, UI test hook, M14 smoke rows ✅ (automated); manual regression optional
+3. **Tests + manual checklist** — unit tests, UI test hook, M14 smoke rows ✅ (automated); manual regression optional
 
 ---
 

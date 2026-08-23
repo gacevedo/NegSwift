@@ -25,7 +25,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
 | **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
-| **M14** Batch export | **Done** | Phases 1–2 shipped; Phase 3 deferred; Phase 4 tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
+| **M14** Batch export | **Done** | Sheet scope + tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
 
 **Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
@@ -783,11 +783,7 @@ NegPy reference: `request_batch_export`, `request_export_selected` in `negpy/des
 - [x] Batch summary line with frame count and format
 - [x] ⌘E opens sheet with smart default scope (`.selected` when 2+ strip items selected, else `.current`)
 
-**Phase 3 — Separate menus / shortcuts** — **Deferred (not planned)**
-
-Export… and Quick Export already open the sheet with the right scope options. No separate File menu items (Export All…, Export Selected…) or ⌘⇧E shortcut.
-
-**Phase 4 — Tests and docs**
+**Phase 3 — Tests and docs**
 
 - [x] Swift unit tests (mocked export handler) — scope, per-path configs, cancel
 - [x] UI test: batch Export All → N files in `NEGSWIFT_UI_TEST_EXPORT_DIR`

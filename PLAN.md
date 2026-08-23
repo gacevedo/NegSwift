@@ -26,9 +26,8 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 | **M14** Batch export | **Done** | Phases 1–2 shipped; Phase 3 deferred; Phase 4 tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
-| **M15** Instagram share | **Planned** | Instagram-ready export + handoff; no protocol change — see [§7 M15](#m15--instagram-share-planned) |
 
-**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md). **Next feature:** M15 Instagram share (after M12 release smoke).
+**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -251,7 +250,6 @@ Preview responses use **PNG bytes (base64)** in v1 for simplicity; Milestone 7+ 
 - **Color:** WB cyan/magenta/yellow
 - **Geometry:** auto crop, rotation, aspect ratio preset
 - **Export:** JPEG + TIFF, sRGB, next to source or chosen folder
-- **Share (M15):** Instagram-ready JPEG export + handoff (current frame only)
 - Persist edits (`.negpy` sidecar; optional same DB path as NegPy)
 - **Retouch (M13):** scratch tool — click polyline along scratch/hair; commits to NegPy `manual_heal_strokes` (see [§7 M13](#m13--scratch-tool-planned))
 
@@ -814,132 +812,6 @@ Export… and Quick Export already open the sheet with the right scope options. 
 
 ---
 
-### M15 — Instagram share (planned)
-
-One action from the current frame: export an Instagram-ready JPEG and hand off to Instagram with minimal friction. **Swift-only orchestration** — reuses existing engine `export` with NegPy `target_px` sizing; no protocol change, no Meta SDK.
-
-**Non-goals (v1):** Batch/carousel posting; Stories/Reels; in-app filters or scheduling; direct Meta Graph API publish (defer to M15e); replacing the full Export sheet for archival TIFF.
-
-#### Platform constraints
-
-| Approach | macOS | v1 choice |
-|----------|-------|-----------|
-| iOS Document Interaction (`com.instagram.photo`) | Not available | — |
-| `NSSharingService` named “Instagram” | Not available | — |
-| Instagram web upload (`instagram.com`) | Supported | **Primary handoff** |
-| AirDrop → iPhone → Instagram | Via `NSSharingServicePicker` | **Fallback** |
-| Meta Graph API (direct publish) | Works; heavy OAuth + App Review | **Defer (M15e)** |
-
-macOS has no reliable in-app Instagram composer. v1 is **export + handoff**, not direct API publish.
-
-#### Goals
-
-| Action | Behavior |
-|--------|----------|
-| Share to Instagram… | Export current frame → temp JPEG → copy to pasteboard → open instagram.com → reveal in Finder |
-| Scope | Current frame only (multi-select shows “Select one frame to share”) |
-| Aspect | Preset crop (4:5 default, 3:4, 1:1) or honor workspace crop |
-| Caption | Optional; copied to pasteboard for user to paste in Instagram |
-
-#### Locked decisions (v1)
-
-| Decision | Choice |
-|----------|--------|
-| Engine protocol | No change — existing `export` with `export_resolution_mode: target_px`, `export_target_long_edge_px: 1080` |
-| Format | JPEG, sRGB, quality 90 (slider in sheet) |
-| Crop overrides | Ephemeral (share session only); do not persist to `.negpy` |
-| Temp files | `~/Library/Application Support/NegSwift/share-staging/`; keep last 5; prune on launch |
-| Handoff | Copy image + caption to pasteboard; open `https://www.instagram.com/`; reveal in Finder |
-| Out of scope | Graph API OAuth, Stories, carousels, caption templates |
-
-NegPy reference: `ExportResolutionMode.TARGET_PX` + `export_target_long_edge_px` in `negpy/domain/models.py`.
-
-#### Architecture
-
-```
-SwiftUI — InstagramShareSheetView (preset, caption, preview)
-    → EngineSession.shareToInstagram(settings:)
-    → negswift-engine export (JPEG, target_px 1080, ephemeral crop overrides)
-    → InstagramShareService (temp file, pasteboard, NSWorkspace, Finder reveal)
-```
-
-New Swift files (planned):
-
-- `App/NegSwift/Models/InstagramShareSettings.swift` — preset, quality, handoff flags
-- `App/NegSwift/Models/InstagramAspectPreset.swift` — 4:5 / 3:4 / 1:1 / use-crop
-- `App/NegSwift/Services/InstagramShareService.swift` — export staging, pasteboard, browser
-- `App/NegSwift/Views/InstagramShareSheetView.swift`
-
-Wire via `MainWindowCommandBridge` (toolbar + File menu); optional shortcut **⇧⌘I** if no collision.
-
-Recommended client export profile (document in `docs/ENGINE_PROTOCOL.md`, not a new method):
-
-```json
-{
-  "export_fmt": "JPEG",
-  "export_color_space": "sRGB",
-  "export_resolution_mode": "target_px",
-  "export_target_long_edge_px": 1080,
-  "jpeg_quality": 90
-}
-```
-
-Instagram accepts aspect ratios between **1.91:1** and **3:4** at max width **1080 px**. Default preset **4:5 (1080×1350)**; warn inline if output falls outside supported range.
-
-#### Phased delivery
-
-**Phase 1 — Service + sheet (use-crop only)**
-
-- [ ] `InstagramShareSettings` + `InstagramShareService` (temp dir, pasteboard, browser, Finder reveal)
-- [ ] `EngineSession.shareToInstagram(settings:)` — reuses `exportCurrentFrame` + `isExporting` / cancel
-- [ ] `InstagramShareSheetView` — caption field, Share / Cancel
-- [ ] Toolbar **Share to Instagram…** + `MainWindowCommandBridge` wiring
-
-**Phase 2 — Aspect presets + preview**
-
-- [ ] `InstagramAspectPreset` — 4:5, 3:4, 1:1, use crop; ephemeral crop overrides merged into export config
-- [ ] Live preview thumbnail in sheet
-- [ ] Inline warning when aspect is outside Instagram range
-
-**Phase 3 — Share picker + preferences**
-
-- [ ] “More options…” → `NSSharingServicePicker` (AirDrop, Messages, etc.)
-- [ ] Settings → Sharing: default preset, open browser on/off, reveal in Finder on/off
-
-**Phase 4 — Tests and docs**
-
-- [ ] Swift unit tests — `exportOverrides()`, aspect crop math, temp pruning, pasteboard
-- [ ] `EngineSession` test — share calls export with correct overrides
-- [ ] Manual checklist M15 in `docs/MANUAL_TEST_CHECKLIST.md`
-
-**M15e — Direct API publish (optional, defer)**
-
-- [ ] Meta Instagram API with Instagram Login (`instagram_business_content_publish`)
-- [ ] OAuth via `ASWebAuthenticationSession`; tokens in Keychain
-- [ ] Requires Business/Creator account, App Review, public image URL for container — evaluate only if handoff UX is insufficient
-
-#### Testing
-
-| Layer | Coverage |
-|-------|----------|
-| Swift | Aspect preset crop math; `exportOverrides()` keys; temp file pruning |
-| Swift | `EngineSession.shareToInstagram` calls export with `target_px` 1080 |
-| Manual | `docs/MANUAL_TEST_CHECKLIST.md` M15 |
-
-**Manual smoke:** Portrait negative → 4:5 → 1080×1350 JPEG; pre-cropped frame → “Use crop” preserves crop; caption on pasteboard; browser opens instagram.com; AirDrop to iPhone → Instagram accepts; cancel mid-export; share disabled during batch export.
-
-#### Risks
-
-| Risk | Mitigation |
-|------|------------|
-| No native macOS Instagram composer | Handoff via pasteboard + web + AirDrop; set user expectations in UI copy |
-| Full-res scan → 1080 px may look soft | Intentional `target_px`; note in sheet |
-| Crop math drift vs preview | Reuse canvas normalized-crop helpers; parity spot-check one rotated frame |
-| User expects true in-app post | Copy: “Opens Instagram in your browser” |
-| GPL + Meta SDK | Avoid SDK in v1; API phase uses plain HTTPS only |
-
----
-
 ## 8. Project structure
 
 ```
@@ -1098,8 +970,7 @@ flowchart LR
   M7 --> M9 --> M9b --> M10
   M8 --> M9
   M10 --> M11 --> M12
-  M9 --> M15
-  M14 --> M15
+  M9 --> M14
 ```
 
-M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** depends on M9 export + M8 crop; no engine protocol change.
+M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs.

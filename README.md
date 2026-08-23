@@ -1,6 +1,6 @@
 # NegSwift
 
-macOS-native app for **quick film scan processing** — import negatives, adjust tone and color, export. NegSwift is a simpler SwiftUI interface focused on the essentials; all rendering, color science, and export math run through upstream [NegPy](https://github.com/marcinz606/NegPy) (GPU pipeline, density curves, white balance, crop, heal strokes, and more). No forked algorithms: the bundled engine imports NegPy directly.
+macOS-native app for **quick film scan processing** — import negatives, adjust crop, tone and color, export. All rendering, color science, and export math run through upstream [NegPy](https://github.com/marcinz606/NegPy) (GPU pipeline, density curves, white balance, crop, heal strokes, and more). No forked algorithms: the bundled engine imports NegPy directly.
 
 **Platform:** macOS 14+ only. **License:** GPL-3.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)).
 

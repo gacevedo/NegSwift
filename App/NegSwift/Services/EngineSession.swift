@@ -78,6 +78,8 @@ final class EngineSession {
     #if DEBUG
     private var exportTestRecords: [EngineExportCallRecord] = []
     private var exportTestHandler: (@Sendable (EngineExportCallRecord) async throws -> ExportResult)?
+    private var renderTestRecords: [EngineRenderCallRecord] = []
+    private var renderTestHandler: (@Sendable (EngineRenderCallRecord) async throws -> RenderResult)?
     #endif
 
     var engineReady: Bool {
@@ -1392,6 +1394,42 @@ final class EngineSession {
         }
     }
 
+    private func engineRender(
+        path: String,
+        longEdgePx: Int?,
+        preferGPU: Bool,
+        config: FrameEditState?,
+        cropPreviewFull: Bool,
+        stripThumbnail: Bool = false,
+        previewFormat: PreviewTransportFormat = .jpeg,
+        jpegQuality: Int = PreviewRenderSettings.previewJPEGQuality
+    ) async throws -> RenderResult {
+        #if DEBUG
+        if let renderTestHandler {
+            let record = EngineRenderCallRecord(
+                path: path,
+                longEdgePx: longEdgePx,
+                preferGPU: preferGPU,
+                config: config ?? FrameEditState(),
+                cropPreviewFull: cropPreviewFull,
+                stripThumbnail: stripThumbnail
+            )
+            renderTestRecords.append(record)
+            return try await renderTestHandler(record)
+        }
+        #endif
+        return try await client.render(
+            path: path,
+            longEdgePx: longEdgePx,
+            preferGPU: preferGPU,
+            config: config,
+            cropPreviewFull: cropPreviewFull,
+            stripThumbnail: stripThumbnail,
+            previewFormat: previewFormat,
+            jpegQuality: jpegQuality
+        )
+    }
+
     private func renderPreview(at url: URL, generation: Int, config: FrameEditState? = nil) async {
         guard engineReady else { return }
 
@@ -1418,7 +1456,7 @@ final class EngineSession {
         do {
             let settings = PreviewRenderSettings(preferences: preferences)
             let result = try await PerformanceLogger.measure("render_ipc") {
-                try await client.render(
+                try await engineRender(
                     path: path,
                     longEdgePx: settings.longEdgePx,
                     preferGPU: settings.preferGPU,
@@ -1537,7 +1575,7 @@ final class EngineSession {
 
         do {
             let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
-            let result = try await client.render(
+            let result = try await engineRender(
                 path: path,
                 longEdgePx: FilmStripLayout.thumbnailLongEdge,
                 preferGPU: preferGPU,
@@ -1705,7 +1743,7 @@ final class EngineSession {
         }
 
         do {
-            let result = try await client.render(
+            let result = try await engineRender(
                 path: path,
                 longEdgePx: FilmStripLayout.thumbnailLongEdge,
                 preferGPU: preferGPU,
@@ -1973,6 +2011,10 @@ final class EngineSession {
         frameEdits[path] = edit
     }
 
+    func setHasSidecarForTests(path: String) {
+        pathsWithSidecar.insert(path)
+    }
+
     func setExportTestHandlerForTests(
         _ handler: @escaping @Sendable (EngineExportCallRecord) async throws -> ExportResult
     ) {
@@ -1983,6 +2025,26 @@ final class EngineSession {
     func clearExportTestHandlerForTests() {
         exportTestHandler = nil
         exportTestRecords = []
+    }
+
+    func setRenderTestHandlerForTests(
+        _ handler: @escaping @Sendable (EngineRenderCallRecord) async throws -> RenderResult
+    ) {
+        renderTestRecords = []
+        renderTestHandler = handler
+    }
+
+    func clearRenderTestHandlerForTests() {
+        renderTestHandler = nil
+        renderTestRecords = []
+    }
+
+    var renderTestRecordsForTests: [EngineRenderCallRecord] {
+        renderTestRecords
+    }
+
+    var canvasRenderTestRecordsForTests: [EngineRenderCallRecord] {
+        renderTestRecords.filter { !$0.stripThumbnail }
     }
 
     var exportTestRecordsForTests: [EngineExportCallRecord] {
@@ -2077,5 +2139,15 @@ struct EngineExportCallRecord: Sendable {
     let path: String
     let config: FrameEditState
     let settings: ExportSettings
+}
+
+/// Recorded arguments for a mocked engine `render` call (unit tests only).
+struct EngineRenderCallRecord: Sendable {
+    let path: String
+    let longEdgePx: Int?
+    let preferGPU: Bool
+    let config: FrameEditState
+    let cropPreviewFull: Bool
+    let stripThumbnail: Bool
 }
 #endif

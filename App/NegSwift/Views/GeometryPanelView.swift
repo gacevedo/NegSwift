@@ -45,8 +45,6 @@ struct GeometryPanelView: View {
                 }
 
                 cropToolControls
-
-                fineRotationRow
             }
         }
         .disabled(session.selectedFrameID == nil)
@@ -76,6 +74,8 @@ struct GeometryPanelView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            fineRotationRow
         } else {
             Text("Turn on Crop Tool to draw and adjust the crop box on the preview.")
                 .font(.caption)

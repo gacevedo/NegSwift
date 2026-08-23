@@ -16,9 +16,9 @@ struct ContentView: View {
     @State private var zoomToggleNonce = 0
 
     @AppStorage("negSwift.sidebar.filmStrip") private var filmStripExpanded = true
-    @AppStorage("negSwift.sidebar.tone") private var toneExpanded = true
+    @AppStorage("negSwift.sidebar.tone") private var toneExpanded = false
     @AppStorage("negSwift.sidebar.color") private var colorExpanded = false
-    @AppStorage("negSwift.sidebar.crop") private var cropExpanded = false
+    @AppStorage("negSwift.sidebar.crop") private var cropExpanded = true
     @AppStorage("negSwift.sidebar.scratch") private var scratchExpanded = false
     @State private var isImportDropTargeted = false
 

@@ -34,6 +34,14 @@ struct FrameEditState: Equatable, Codable, Sendable {
     var processMode: ProcessMode = .c41
     var density: Double = 1.0
     var grade: Double = 100.0
+    /// NegPy ``shadow_density`` — zone ΔD weighted to deep shadows.
+    var shadowDensity: Double = 0
+    /// NegPy ``highlight_density`` — zone ΔD weighted to highlights.
+    var highlightDensity: Double = 0
+    /// NegPy ``shadow_grade`` — split grade in shadow zone (ISO-R points).
+    var shadowGrade: Double = 0
+    /// NegPy ``highlight_grade`` — split grade in highlight zone (ISO-R points).
+    var highlightGrade: Double = 0
     var saturation: Double = 1.0
     var wbCyan: Double = 0
     var wbMagenta: Double = 0
@@ -74,6 +82,10 @@ struct FrameEditState: Equatable, Codable, Sendable {
         case processMode = "process_mode"
         case density
         case grade
+        case shadowDensity = "shadow_density"
+        case highlightDensity = "highlight_density"
+        case shadowGrade = "shadow_grade"
+        case highlightGrade = "highlight_grade"
         case saturation
         case wbCyan = "wb_cyan"
         case wbMagenta = "wb_magenta"
@@ -105,6 +117,10 @@ struct FrameEditState: Equatable, Codable, Sendable {
         processMode: ProcessMode = .c41,
         density: Double = 1.0,
         grade: Double = 100.0,
+        shadowDensity: Double = 0,
+        highlightDensity: Double = 0,
+        shadowGrade: Double = 0,
+        highlightGrade: Double = 0,
         saturation: Double = 1.0,
         wbCyan: Double = 0,
         wbMagenta: Double = 0,
@@ -131,6 +147,10 @@ struct FrameEditState: Equatable, Codable, Sendable {
         self.processMode = processMode
         self.density = density
         self.grade = grade
+        self.shadowDensity = shadowDensity
+        self.highlightDensity = highlightDensity
+        self.shadowGrade = shadowGrade
+        self.highlightGrade = highlightGrade
         self.saturation = saturation
         self.wbCyan = wbCyan
         self.wbMagenta = wbMagenta
@@ -160,6 +180,10 @@ struct FrameEditState: Equatable, Codable, Sendable {
         processMode = try container.decodeIfPresent(ProcessMode.self, forKey: .processMode) ?? .c41
         density = try container.decodeIfPresent(Double.self, forKey: .density) ?? 1.0
         grade = try container.decodeIfPresent(Double.self, forKey: .grade) ?? 100.0
+        shadowDensity = try container.decodeIfPresent(Double.self, forKey: .shadowDensity) ?? 0
+        highlightDensity = try container.decodeIfPresent(Double.self, forKey: .highlightDensity) ?? 0
+        shadowGrade = try container.decodeIfPresent(Double.self, forKey: .shadowGrade) ?? 0
+        highlightGrade = try container.decodeIfPresent(Double.self, forKey: .highlightGrade) ?? 0
         saturation = try container.decodeIfPresent(Double.self, forKey: .saturation) ?? 1.0
         wbCyan = try container.decodeIfPresent(Double.self, forKey: .wbCyan) ?? 0
         wbMagenta = try container.decodeIfPresent(Double.self, forKey: .wbMagenta) ?? 0
@@ -198,6 +222,18 @@ struct FrameEditState: Equatable, Codable, Sendable {
         try container.encode(processMode, forKey: .processMode)
         try container.encode(density, forKey: .density)
         try container.encode(grade, forKey: .grade)
+        if shadowDensity != 0 {
+            try container.encode(shadowDensity, forKey: .shadowDensity)
+        }
+        if highlightDensity != 0 {
+            try container.encode(highlightDensity, forKey: .highlightDensity)
+        }
+        if shadowGrade != 0 {
+            try container.encode(shadowGrade, forKey: .shadowGrade)
+        }
+        if highlightGrade != 0 {
+            try container.encode(highlightGrade, forKey: .highlightGrade)
+        }
         try container.encode(saturation, forKey: .saturation)
         try container.encode(wbCyan, forKey: .wbCyan)
         try container.encode(wbMagenta, forKey: .wbMagenta)
@@ -258,6 +294,10 @@ struct FrameEditState: Equatable, Codable, Sendable {
             processMode: ProcessMode.fromFlatValue(config["process_mode"]),
             density: double(config["density"], default: 1.0),
             grade: double(config["grade"], default: 100.0),
+            shadowDensity: double(config["shadow_density"], default: 0),
+            highlightDensity: double(config["highlight_density"], default: 0),
+            shadowGrade: double(config["shadow_grade"], default: 0),
+            highlightGrade: double(config["highlight_grade"], default: 0),
             saturation: double(config["saturation"], default: 1.0),
             wbCyan: double(config["wb_cyan"], default: 0),
             wbMagenta: double(config["wb_magenta"], default: 0),
@@ -310,6 +350,9 @@ struct FrameEditState: Equatable, Codable, Sendable {
 enum EditControlRanges {
     static let density = 0.0 ... 2.0
     static let grade = 50.0 ... 180.0
+    static let shadowDensity = -0.9 ... 0.9
+    static let highlightDensity = -0.5 ... 0.5
+    static let zoneGrade = -50.0 ... 50.0
     static let saturation = 0.0 ... 2.0
     static let whiteBalance = -1.0 ... 1.0
     static let analysisBuffer = 0.0 ... 0.25
@@ -322,6 +365,10 @@ enum EditControlRanges {
 enum EditControlDefaults {
     static let density = 1.0
     static let grade = 100.0
+    static let shadowDensity = 0.0
+    static let highlightDensity = 0.0
+    static let shadowGrade = 0.0
+    static let highlightGrade = 0.0
     static let saturation = 1.0
     static let whiteBalance = 0.0
     static let analysisBuffer = 0.05

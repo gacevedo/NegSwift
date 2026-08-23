@@ -73,4 +73,18 @@ struct PreviewRenderMemoTests {
     let second = PreviewMemoFingerprint.make(pipelineConfig: healed, settings: settings, cropPreviewFull: false)
     #expect(first != second)
   }
+
+  @Test func fingerprintChangesWhenZoneToneFieldsChange() {
+    let settings = PreviewRenderSettings(longEdgePx: 1600, preferGPU: true)
+    let base = FrameEditState()
+    let changed = FrameEditState(
+      shadowDensity: -0.2,
+      highlightDensity: 0.1,
+      shadowGrade: -10.0,
+      highlightGrade: 5.0
+    )
+    let first = PreviewMemoFingerprint.make(pipelineConfig: base, settings: settings, cropPreviewFull: false)
+    let second = PreviewMemoFingerprint.make(pipelineConfig: changed, settings: settings, cropPreviewFull: false)
+    #expect(first != second)
+  }
 }

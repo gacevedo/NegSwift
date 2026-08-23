@@ -8,6 +8,19 @@ import Testing
 @testable import NegSwift
 
 struct FrameEditStateTests {
+    @Test func fromFlatConfigMapsZoneToneKeys() {
+        let state = FrameEditState.fromFlatConfig([
+            "shadow_density": -0.25,
+            "highlight_density": 0.15,
+            "shadow_grade": -12.0,
+            "highlight_grade": 8.0,
+        ])
+        #expect(state.shadowDensity == -0.25)
+        #expect(state.highlightDensity == 0.15)
+        #expect(state.shadowGrade == -12.0)
+        #expect(state.highlightGrade == 8.0)
+    }
+
     @Test func fromFlatConfigMapsNegPyKeys() {
         let state = FrameEditState.fromFlatConfig([
             "process_mode": "B&W Negative",
@@ -110,5 +123,32 @@ struct FrameEditStateTests {
 
         let decoded = try JSONDecoder().decode(FrameEditState.self, from: data)
         #expect(decoded == original)
+    }
+
+    @Test func jsonRoundTripZoneToneKeys() throws {
+        let original = FrameEditState(
+            shadowDensity: -0.3,
+            highlightDensity: 0.2,
+            shadowGrade: -15.0,
+            highlightGrade: 10.0
+        )
+        let data = try JSONEncoder().encode(original)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        #expect(object?["shadow_density"] as? Double == -0.3)
+        #expect(object?["highlight_density"] as? Double == 0.2)
+        #expect(object?["shadow_grade"] as? Double == -15.0)
+        #expect(object?["highlight_grade"] as? Double == 10.0)
+
+        let decoded = try JSONDecoder().decode(FrameEditState.self, from: data)
+        #expect(decoded == original)
+    }
+
+    @Test func encodeOmitsNeutralZoneToneDefaults() throws {
+        let data = try JSONEncoder().encode(FrameEditState())
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        #expect(object?["shadow_density"] == nil)
+        #expect(object?["highlight_density"] == nil)
+        #expect(object?["shadow_grade"] == nil)
+        #expect(object?["highlight_grade"] == nil)
     }
 }

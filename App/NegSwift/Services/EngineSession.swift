@@ -316,6 +316,10 @@ final class EngineSession {
 
     func setDensity(_ value: Double) { updateEdit { $0.density = value } }
     func setGrade(_ value: Double) { updateEdit { $0.grade = value } }
+    func setShadowDensity(_ value: Double) { updateEdit { $0.shadowDensity = value } }
+    func setHighlightDensity(_ value: Double) { updateEdit { $0.highlightDensity = value } }
+    func setShadowGrade(_ value: Double) { updateEdit { $0.shadowGrade = value } }
+    func setHighlightGrade(_ value: Double) { updateEdit { $0.highlightGrade = value } }
     func setSaturation(_ value: Double) { updateEdit { $0.saturation = value } }
     func setWBCyan(_ value: Double) { updateEdit { $0.wbCyan = value } }
     func setWBMagenta(_ value: Double) { updateEdit { $0.wbMagenta = value } }

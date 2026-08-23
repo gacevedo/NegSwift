@@ -26,6 +26,7 @@ struct ControlsPanelView: View {
                         defaultValue: EditControlDefaults.density,
                         format: "%.2f"
                     )
+                    zoneDensityRow
                     gradientSliderRow(
                         "ISO-R Grade",
                         style: .grade,
@@ -34,6 +35,7 @@ struct ControlsPanelView: View {
                         defaultValue: EditControlDefaults.grade,
                         format: "%.0f"
                     )
+                    splitGradeRow
                     gradientSliderRow(
                         "Chroma",
                         style: .chroma,
@@ -91,6 +93,104 @@ struct ControlsPanelView: View {
         }
     }
 
+    private var zoneDensityRow: some View {
+        pairedGradientSliderRow(
+            leftTitle: "Shadows Density",
+            leftStyle: .density,
+            leftValue: shadowDensityBinding,
+            leftRange: EditControlRanges.shadowDensity,
+            leftDefault: EditControlDefaults.shadowDensity,
+            leftFormat: "%.2f",
+            rightTitle: "Highlights Density",
+            rightStyle: .density,
+            rightValue: highlightDensityBinding,
+            rightRange: EditControlRanges.highlightDensity,
+            rightDefault: EditControlDefaults.highlightDensity,
+            rightFormat: "%.2f"
+        )
+    }
+
+    private var splitGradeRow: some View {
+        pairedGradientSliderRow(
+            leftTitle: "Shadows Grade",
+            leftStyle: .grade,
+            leftValue: shadowGradeBinding,
+            leftRange: EditControlRanges.zoneGrade,
+            leftDefault: EditControlDefaults.shadowGrade,
+            leftFormat: "%.0f",
+            rightTitle: "Highlights Grade",
+            rightStyle: .grade,
+            rightValue: highlightGradeBinding,
+            rightRange: EditControlRanges.zoneGrade,
+            rightDefault: EditControlDefaults.highlightGrade,
+            rightFormat: "%.0f"
+        )
+    }
+
+    private func pairedGradientSliderRow(
+        leftTitle: String,
+        leftStyle: SliderTrackStyle,
+        leftValue: Binding<Double>,
+        leftRange: ClosedRange<Double>,
+        leftDefault: Double,
+        leftFormat: String,
+        rightTitle: String,
+        rightStyle: SliderTrackStyle,
+        rightValue: Binding<Double>,
+        rightRange: ClosedRange<Double>,
+        rightDefault: Double,
+        rightFormat: String
+    ) -> some View {
+        HStack(spacing: 8) {
+            compactGradientSlider(
+                title: leftTitle,
+                style: leftStyle,
+                value: leftValue,
+                range: leftRange,
+                defaultValue: leftDefault,
+                format: leftFormat
+            )
+            compactGradientSlider(
+                title: rightTitle,
+                style: rightStyle,
+                value: rightValue,
+                range: rightRange,
+                defaultValue: rightDefault,
+                format: rightFormat
+            )
+        }
+    }
+
+    private func compactGradientSlider(
+        title: String,
+        style: SliderTrackStyle,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        defaultValue: Double,
+        format: String,
+        valueScale: Double = 1
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 4)
+                Text(String(format: format, value.wrappedValue * valueScale))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            GradientSlider(
+                value: value,
+                style: style,
+                range: range,
+                defaultValue: defaultValue
+            )
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private func gradientSliderRow(
         _ title: String,
         style: SliderTrackStyle,
@@ -144,6 +244,34 @@ struct ControlsPanelView: View {
         Binding(
             get: { session.currentEdit.grade },
             set: { session.setGrade($0) }
+        )
+    }
+
+    private var shadowDensityBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.shadowDensity },
+            set: { session.setShadowDensity($0) }
+        )
+    }
+
+    private var highlightDensityBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.highlightDensity },
+            set: { session.setHighlightDensity($0) }
+        )
+    }
+
+    private var shadowGradeBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.shadowGrade },
+            set: { session.setShadowGrade($0) }
+        )
+    }
+
+    private var highlightGradeBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.highlightGrade },
+            set: { session.setHighlightGrade($0) }
         )
     }
 

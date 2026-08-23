@@ -6,7 +6,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 ---
 
-## Plan status (last updated: 2026-08-22)
+## Plan status (last updated: 2026-08-23)
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
@@ -26,6 +26,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 | **M14** Batch export | **Done** | Phases 1–2 shipped; Phase 3 deferred; Phase 4 tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
+| **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
 
 **Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
@@ -246,7 +247,7 @@ Preview responses use **PNG bytes (base64)** in v1 for simplicity; Milestone 7+ 
 - Folder import + film strip (grid of thumbnails)
 - Canvas preview (fit / 1:1 zoom, pan)
 - **Setup:** process mode (C-41 / B&W; slides/E-6 deferred to full NegPy), auto density / auto grade
-- **Tone:** density, grade, saturation (single slider)
+- **Tone:** density, grade, saturation (single slider); **M15:** shadows/highlights density (zone ΔD) and shadows/highlights grade (ISO-R split grade)
 - **Color:** WB cyan/magenta/yellow
 - **Geometry:** auto crop, rotation, aspect ratio preset
 - **Export:** JPEG + TIFF, sRGB, next to source or chosen folder
@@ -812,6 +813,64 @@ Export… and Quick Export already open the sheet with the right scope options. 
 
 ---
 
+### M15 — Zone tone controls (done)
+
+Add **Shadows / Highlights Density** and **Shadows / Highlights Grade** sliders to the Tone sidebar — the zone-density (ΔD) and split-grade (ISO-R) controls that sit beside Print Density and ISO-R Grade in NegPy desktop. **Swift-only** — no engine or protocol change; NegPy pipeline already applies these `ExposureConfig` fields.
+
+**Non-goals:** Per-layer R/G/B trims (`shadow_grade_trim_*`, `highlight_grade_trim_*`); keyboard shortcuts for zone sliders (NegPy has `shadow_density_inc` etc.); toe/shoulder, contrast mask, snap, or other Tone panel controls not already in lite.
+
+#### NegPy reference
+
+| Control | Flat key | Range | Default | NegPy UI |
+|---------|----------|-------|---------|----------|
+| Shadows Density | `shadow_density` | −0.9 … 0.9 | `0.0` | Zone ΔD, weighted to deep shadows; positive darkens, negative lifts |
+| Highlights Density | `highlight_density` | −0.5 … 0.5 | `0.0` | Zone ΔD, weighted to highlights; positive burns, negative bleaches |
+| Shadows Grade | `shadow_grade` | −50 … 50 ISO-R | `0.0` | Split grade — local contrast in shadow zone; negative = harder |
+| Highlights Grade | `highlight_grade` | −50 … 50 ISO-R | `0.0` | Split grade — local contrast in highlight zone; negative = harder |
+
+Upstream: `negpy/desktop/view/sidebar/tone.py` (`ToneSidebar` zone-density and split-grade rows); math in `docs/PIPELINE.md` (Zone Density ΔD, Split Grade). Grade sliders use inverted drag direction in NegPy (right = harder); match lite ISO-R Grade convention.
+
+HDR merge seeding of `shadow_density` (`seed_shadow_density`) is NegPy desktop behavior — lite loads sidecars with seeded values but does not replicate merge seeding.
+
+#### Deliverables
+
+**Swift model + IPC**
+
+- [x] `FrameEditState` fields + `CodingKeys` / `fromFlatConfig` / encode (omit when `0.0` like other neutral defaults)
+- [x] `EditControlRanges` and `EditControlDefaults` for all four controls
+- [x] `EngineSession` setters + debounced preview (same as density/grade)
+- [x] `PreviewRenderMemo` fingerprint includes the four fields
+
+**UI**
+
+- [x] Tone section: paired rows below ISO-R Grade (match NegPy layout)
+  - Row 1: Shadows Density + Highlights Density (`GradientSlider` or paired compact sliders)
+  - Row 2: Shadows Grade + Highlights Grade (ISO-R labels; inverted like main Grade)
+- [x] Optional: short caption under rows (“Zone density” / “Split grade”) if space allows
+
+**Tests**
+
+- [x] `FrameEditStateTests` — round-trip flat config for all four keys
+- [x] `PreviewRenderMemoTests` — fingerprint changes when zone fields change
+
+**Docs**
+
+- [x] `docs/MANUAL_TEST_CHECKLIST.md` M15 smoke items
+
+**Automated:** `xcodebuild test`; existing engine `tests/test_config.py` already round-trips full `WorkspaceConfig` (no engine change).
+
+**Manual:** Load frame with strong shadow or highlight detail; drag Shadows Density negative — shadows open without midtone shift; drag Highlights Grade negative — highlights harden without flattening mids; compare same four sliders in NegPy desktop; quit/reopen — values restored from sidecar.
+
+#### Risks
+
+| Risk | Mitigation |
+|------|------------|
+| Sidecar values ignored on load | `fromFlatConfig` must read keys desktop already saves |
+| Memo serves stale preview | Include four fields in fingerprint |
+| UI clutter in Tone section | Paired half-width sliders like NegPy; collapse under Tone expander |
+
+---
+
 ## 8. Project structure
 
 ```
@@ -925,7 +984,8 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 1. **M12 manual:** Navigate A→B→A on real scan ≥ 20 MP; record `frame_switch_revisit_ms` and JPEG transport baselines.
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
-3. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
+3. **M15:** Wire zone tone sliders (shadows/highlights density + ISO-R split grade) per §7 M15. — **Done**
+4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 
 ---
 
@@ -971,6 +1031,7 @@ flowchart LR
   M8 --> M9
   M10 --> M11 --> M12
   M9 --> M14
+  M6 --> M15
 ```
 
-M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs.
+M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work.

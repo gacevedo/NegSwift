@@ -264,6 +264,20 @@ See [docs/BATCH_EXPORT.md](BATCH_EXPORT.md) and [PLAN.md](../PLAN.md) §7 M14.
 
 ---
 
+## M15 — Zone tone controls
+
+See [PLAN.md](../PLAN.md) §7 M15.
+
+- [ ] Tone sidebar shows Shadows / Highlights Density pair below ISO-R Grade
+- [ ] Tone sidebar shows Shadows / Highlights Grade pair (split grade)
+- [ ] Shadows Density negative lifts deep shadows without midtone shift
+- [ ] Highlights Grade negative hardens highlights without flattening mids
+- [ ] Values match NegPy desktop Tone panel for same four sliders (± visual tolerance)
+- [ ] Quit and reopen — zone tone values restored from sidecar
+- [ ] `FrameEditStateTests` and `PreviewRenderMemoTests` pass for zone fields
+
+---
+
 ## UI automation (NegSwiftUITests)
 
 Run from `App/` (requires `cd Engine && uv sync` first):

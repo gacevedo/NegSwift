@@ -87,8 +87,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M12** | **In progress** — Performance; Phase 4 JPEG transport + Phase 5 preview memo done |
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
+| **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
 
-**Current status (2026-08-21):** M0–M14 feature complete (M14 Phase 3 menus deferred). **M12** code phases done — manual benchmarks remain. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-08-23):** M0–M15 feature complete (M14 Phase 3 menus deferred). **M12** code phases done — manual benchmarks remain. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 
@@ -148,7 +149,7 @@ When adding a protocol method: update `ENGINE_PROTOCOL.md`, engine dispatcher, S
 
 ## Lite UI scope (v1)
 
-**In scope:** folder import, film strip, canvas preview, process mode, auto density/grade, density/grade/saturation, WB CMY, crop/rotation, JPEG/TIFF export, **batch export (M14)** — all or multi-selected frames, sidecar persist, **scratch tool (M13)** — polyline along scratch/hair into `manual_heal_strokes`.
+**In scope:** folder import, film strip, canvas preview, process mode, auto density/grade, density/grade/saturation, **zone tone (M15)** — shadows/highlights density and split grade, WB CMY, crop/rotation, JPEG/TIFF export, **batch export (M14)** — all or multi-selected frames, sidecar persist, **scratch tool (M13)** — polyline along scratch/hair into `manual_heal_strokes`.
 
 **Out of scope (defer to full NegPy):** scanner/camera, dodge/burn, heal brush (paint), transport-line scratch tracer, lab/toning/finish panels, history/work prints, metadata gear library, soft proof, contact sheets, export presets/templates.
 
@@ -243,7 +244,7 @@ NegSwift engine should stay thin as upstream adds headless APIs.
 
 | Doc | Purpose |
 |-----|---------|
-| [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M14 |
+| [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M15 |
 | [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) | M14 batch export design |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | M12 benchmarks and baseline methodology (Phase 0) |
 | [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md) | NDJSON API |

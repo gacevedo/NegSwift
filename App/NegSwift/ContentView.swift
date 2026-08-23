@@ -84,7 +84,13 @@ struct ContentView: View {
                             .frame(minHeight: 96, maxHeight: 220)
                         }
 
+                        Divider()
+                            .padding(.vertical, 4)
+
                         ProcessModePickerView(session: engineSession)
+
+                        Divider()
+                            .padding(.vertical, 4)
 
                         GeometryPanelView(session: engineSession, isExpanded: $cropExpanded)
 

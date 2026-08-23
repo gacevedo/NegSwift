@@ -10,7 +10,7 @@ struct ScratchPanelView: View {
     @Binding var isExpanded: Bool
 
     var body: some View {
-        SidebarSection(title: "Scratch", isExpanded: $isExpanded) {
+        SidebarSection(title: "Repair", isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle("Scratch Tool", isOn: scratchToolBinding)
                     .controlSize(.small)

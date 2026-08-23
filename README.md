@@ -4,6 +4,8 @@ macOS-native app for **quick film scan processing** — import negatives, adjust
 
 **Platform:** macOS 14+ only. **License:** GPL-3.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)).
 
+<img width="1317" height="836" alt="image" src="https://github.com/user-attachments/assets/a016a10e-1fdc-4238-967d-4d50a2520064" />
+
 ## What you get
 
 - **Import** — open a folder of scans; film strip with lazy thumbnails; drag-and-drop

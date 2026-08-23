@@ -10,41 +10,11 @@ struct GeometryPanelView: View {
     @Binding var isExpanded: Bool
 
     var body: some View {
-        SidebarSection(title: "Crop", isExpanded: $isExpanded) {
+        SidebarSection(title: "Crop & Rotate", isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Crop Tool", isOn: cropToolBinding)
-                    .controlSize(.small)
-                    .help("Draw and adjust the crop box on the preview (⇧C)")
-
-                if session.isCropToolActive {
-                    Picker("Ratio", selection: aspectRatioBinding) {
-                        ForEach(CropAspectRatio.allCases) { ratio in
-                            Text(ratio.pickerLabel).tag(ratio)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    if session.currentEdit.autoExposure {
-                        Toggle("Apply Auto Density while cropping", isOn: autoDensityUsesCropBinding)
-                            .controlSize(.small)
-                    }
-
-                    Button("Reset Crop Box") {
-                        session.resetCrop()
-                    }
-                    .controlSize(.small)
-
-                    Text(cropToolHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text("Turn on Crop Tool to draw and adjust the crop box on the preview.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
                 HStack(spacing: 4) {
+                    cropToolButton
+
                     geometryIconButton(
                         title: "Rotate 90° clockwise",
                         systemImage: "rotate.right"
@@ -74,10 +44,54 @@ struct GeometryPanelView: View {
                     }
                 }
 
+                cropToolControls
+
                 fineRotationRow
             }
         }
         .disabled(session.selectedFrameID == nil)
+    }
+
+    @ViewBuilder
+    private var cropToolControls: some View {
+        if session.isCropToolActive {
+            Picker("Ratio", selection: aspectRatioBinding) {
+                ForEach(CropAspectRatio.allCases) { ratio in
+                    Text(ratio.pickerLabel).tag(ratio)
+                }
+            }
+            .pickerStyle(.menu)
+
+            if session.currentEdit.autoExposure {
+                Toggle("Apply Auto Density while cropping", isOn: autoDensityUsesCropBinding)
+                    .controlSize(.small)
+            }
+
+            Button("Reset Crop Box") {
+                session.resetCrop()
+            }
+            .controlSize(.small)
+
+            Text(cropToolHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text("Turn on Crop Tool to draw and adjust the crop box on the preview.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var cropToolButton: some View {
+        Button(action: toggleCropTool) {
+            Label("Crop Tool", systemImage: "crop")
+                .labelStyle(.iconOnly)
+        }
+        .controlSize(.small)
+        .tint(session.isCropToolActive ? .accentColor : nil)
+        .help("Draw and adjust the crop box on the preview (⇧C)")
+        .accessibilityIdentifier("negSwift.cropToolToggle")
     }
 
     private func geometryIconButton(
@@ -91,6 +105,13 @@ struct GeometryPanelView: View {
         }
         .controlSize(.small)
         .help(title)
+    }
+
+    private func toggleCropTool() {
+        Task { @MainActor in
+            await Task.yield()
+            session.setCropToolActive(!session.isCropToolActive)
+        }
     }
 
     private var fineRotationRow: some View {
@@ -127,19 +148,6 @@ struct GeometryPanelView: View {
         Binding(
             get: { CropAspectRatio.canonical(session.currentEdit.autocropRatio) },
             set: { session.setAutocropRatio($0.rawValue) }
-        )
-    }
-
-    private var cropToolBinding: Binding<Bool> {
-        Binding(
-            get: { session.isCropToolActive },
-            set: { newValue in
-                guard newValue != session.isCropToolActive else { return }
-                Task { @MainActor in
-                    await Task.yield()
-                    session.setCropToolActive(newValue)
-                }
-            }
         )
     }
 

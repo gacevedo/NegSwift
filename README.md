@@ -10,16 +10,16 @@ macOS-native app for **quick film scan processing** — import negatives, adjust
 
 - **Import** — open a folder of scans; film strip with lazy thumbnails; drag-and-drop
 - **Process** — C-41 and B&W negatives; auto density / auto grade; density, grade, saturation; WB cyan / magenta / yellow
-- **Geometry** — auto crop, rotation, aspect presets
-- **Retouch** — scratch tool (polyline heal along hairs and scratches); undo last heal (⌘Z)
-- **Export** — JPEG and TIFF (sRGB); single frame or batch (all / multi-select) via Export… sheet
+- **Geometry** — auto crop, rotation, reflection, aspect presets
+- **Retouch** — scratch tool (polyline heal along hairs and scratches)
+- **Export** — JPEG and TIFF (sRGB); single frame or batch (all / multi-select)
 - **Compatibility** — `.negpy` sidecars and the same `WorkspaceConfig` as desktop NegPy; edits round-trip
 
-Advanced workflows (scanner capture, dodge/burn, gear library, soft proof, contact sheets, etc.) stay in full NegPy desktop.
+Advanced workflows (scanner capture, dodge/burn, gear library, soft proof, contact sheets, etc.) are not available (use NegPy desktop instead).
 
 ## Status
 
-**M0–M14 feature complete** (batch export shipped; M14 Phase 3 menu items deferred). **M12** code phases done — manual benchmarks on real scans remain ([docs/PERFORMANCE.md](docs/PERFORMANCE.md)).
+**M0–M15 feature complete** (additional manual testing still needed).
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Contributors and agents: read **[AGENTS.md](AGENTS.md)** first.
 

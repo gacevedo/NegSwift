@@ -41,6 +41,33 @@ struct EngineSessionPreviewStateTests {
         #expect(session.defersThumbnailLoadToPreviewForTests(path: path))
     }
 
+    @Test @MainActor func isPreviewStaleWhenSelectedPathDiffersFromCurrent() {
+        let session = EngineSession.preview
+        session.setCurrentPathForTests(session.frames[0].path)
+        session.setFilmStripSelectionForTests(primary: session.frames[1].id, ids: [session.frames[1].id])
+        #expect(session.isPreviewStale)
+    }
+
+    @Test @MainActor func thumbnailInterimPreviewIsNotStale() {
+        let session = EngineSession.preview
+        let path = session.frames[1].path
+        let thumbnail = NSImage(size: NSSize(width: 56, height: 42))
+        session.setFramesForTests([
+            session.frames[0],
+            ScanFrame(
+                id: session.frames[1].id,
+                url: session.frames[1].url,
+                path: path,
+                name: session.frames[1].name,
+                thumbnail: thumbnail
+            ),
+        ])
+        session.setFilmStripSelectionForTests(primary: session.frames[1].id, ids: [session.frames[1].id])
+        session.setPreviewImageForTests(thumbnail)
+        session.setCurrentPathForTests(path)
+        #expect(!session.isPreviewStale)
+    }
+
     @Test @MainActor func doesNotDeferThumbnailForNonSelectedFrame() {
         let session = EngineSession.preview
         session.setCurrentPathForTests(nil)

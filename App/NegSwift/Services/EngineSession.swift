@@ -1292,6 +1292,7 @@ final class EngineSession {
             return
         }
 
+        applyThumbnailInterimPreview(for: frame)
         await warmOpenAsset(for: frame)
 
         previewGeneration += 1
@@ -1720,6 +1721,16 @@ final class EngineSession {
         }
     }
 
+    /// Low-res strip thumb while the full preview render runs — avoids flashing the raw
+    /// open splash (unprocessed scan) when switching between already-imported frames.
+    private func applyThumbnailInterimPreview(for frame: ScanFrame) {
+        guard let thumbnail = frame.thumbnail else { return }
+        previewImage = thumbnail
+        previewPixelSize = nil
+        currentPath = frame.path
+        previewError = nil
+    }
+
     private func warmOpenAsset(for frame: ScanFrame) async {
         guard engineReady else { return }
 
@@ -1736,6 +1747,9 @@ final class EngineSession {
         applySuggestedCrop(from: result, for: path)
         dirtyPaths.insert(path)
         scheduleDebouncedSave(for: path)
+        // Splash is for first paint on a cold open only; keep the prior frame or strip
+        // thumbnail visible while switching so users do not see an unprocessed scan flash.
+        guard previewImage == nil else { return }
         guard let base64 = result.splashJPEGBase64 else { return }
         guard let image = await decodePreviewImage(
             base64: base64,

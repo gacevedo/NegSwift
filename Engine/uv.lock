@@ -198,7 +198,7 @@ requires-dist = [
     { name = "opencv-python-headless", specifier = "==4.13.0.92" },
     { name = "piexif", specifier = "==1.1.3" },
     { name = "pillow", specifier = "==12.2.0" },
-    { name = "pyopticfilm", marker = "extra == 'plustek'", specifier = ">=1.3.1" },
+    { name = "pyopticfilm", marker = "extra == 'plustek'", specifier = ">=1.3.3" },
     { name = "pyqt6", specifier = "==6.11.0" },
     { name = "pyqt6-charts", specifier = "==6.11.0" },
     { name = "pyserial", specifier = ">=3.5" },
@@ -221,7 +221,7 @@ dev = [
 ]
 nkscan = [{ name = "nkscan", specifier = ">=0.9" }]
 pieusb = [{ name = "pieusb", specifier = ">=0.3.7" }]
-plustek = [{ name = "pyopticfilm", specifier = ">=1.3.1" }]
+plustek = [{ name = "pyopticfilm", specifier = ">=1.3.3" }]
 sane = [{ name = "python-sane", specifier = ">=2.9" }]
 
 [[package]]

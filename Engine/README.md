@@ -65,10 +65,10 @@ cd Engine && uv lock && uv sync --locked
 
 ## Bump NegPy pin
 
-Run from the **NegSwift repo root**. Prefer an upstream **tag** (e.g. `0.56.0`); pin a specific commit only when validating main before a tag lands.
+Run from the **NegSwift repo root**. Prefer an upstream **tag** (e.g. `0.57.0`); pin a specific commit only when validating main before a tag lands.
 
 ```bash
-cd Vendor/NegPy && git fetch --tags && git checkout 0.56.0
+cd Vendor/NegPy && git fetch --tags && git checkout 0.57.0
 cd ../..
 git add Vendor/NegPy
 # Update negpy==… in Engine/pyproject.toml to match Vendor/NegPy/VERSION
@@ -87,7 +87,7 @@ Commit the submodule SHA bump in NegSwift (not edits inside `Vendor/NegPy` — t
 - [ ] Manual smoke: [../docs/MANUAL_TEST_CHECKLIST.md](../docs/MANUAL_TEST_CHECKLIST.md) — at least render, sidecar round-trip, crop, export
 - [ ] If upstream changed serialized config keys (e.g. `process_mode` labels), update NegSwift models/tests in the same commit
 
-**Tag vs commit:** `git checkout 0.56.0` checks out the tagged release. To pin main at a specific SHA: `git checkout <full-or-short-sha>`.
+**Tag vs commit:** `git checkout 0.57.0` checks out the tagged release. To pin main at a specific SHA: `git checkout <full-or-short-sha>`.
 
 **Dual-repo dev unchanged:** sibling NegPy via `uv pip install -e ../../NegPy` does not update the committed pin; bump the submodule when you want CI and other clones on the new version.
 

@@ -95,13 +95,13 @@ struct ControlsPanelView: View {
 
     private var zoneDensityRow: some View {
         pairedGradientSliderRow(
-            leftTitle: "Shadows Density",
+            leftTitle: "Shadows\nDensity",
             leftStyle: .density,
             leftValue: shadowDensityBinding,
             leftRange: EditControlRanges.shadowDensity,
             leftDefault: EditControlDefaults.shadowDensity,
             leftFormat: "%.2f",
-            rightTitle: "Highlights Density",
+            rightTitle: "Highlights\nDensity",
             rightStyle: .density,
             rightValue: highlightDensityBinding,
             rightRange: EditControlRanges.highlightDensity,
@@ -112,13 +112,13 @@ struct ControlsPanelView: View {
 
     private var splitGradeRow: some View {
         pairedGradientSliderRow(
-            leftTitle: "Shadows Grade",
+            leftTitle: "Shadows\nGrade",
             leftStyle: .grade,
             leftValue: shadowGradeBinding,
             leftRange: EditControlRanges.zoneGrade,
             leftDefault: EditControlDefaults.shadowGrade,
             leftFormat: "%.0f",
-            rightTitle: "Highlights Grade",
+            rightTitle: "Highlights\nGrade",
             rightStyle: .grade,
             rightValue: highlightGradeBinding,
             rightRange: EditControlRanges.zoneGrade,
@@ -141,7 +141,7 @@ struct ControlsPanelView: View {
         rightDefault: Double,
         rightFormat: String
     ) -> some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
             compactGradientSlider(
                 title: leftTitle,
                 style: leftStyle,
@@ -171,15 +171,19 @@ struct ControlsPanelView: View {
         valueScale: Double = 1
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            HStack(alignment: .top) {
                 Text(title)
                     .font(.caption)
+                    .multilineTextAlignment(.leading)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 4)
-                Text(String(format: format, value.wrappedValue * valueScale))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                compactValueLabel(
+                    format: format,
+                    range: range,
+                    valueScale: valueScale,
+                    value: value.wrappedValue * valueScale
+                )
             }
             GradientSlider(
                 value: value,
@@ -189,6 +193,33 @@ struct ControlsPanelView: View {
             )
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func compactValueLabel(
+        format: String,
+        range: ClosedRange<Double>,
+        valueScale: Double,
+        value: Double
+    ) -> some View {
+        let placeholder = compactValuePlaceholder(format: format, range: range, valueScale: valueScale)
+        return ZStack(alignment: .trailing) {
+            Text(placeholder)
+                .font(.caption.monospacedDigit())
+                .hidden()
+            Text(String(format: format, value))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func compactValuePlaceholder(
+        format: String,
+        range: ClosedRange<Double>,
+        valueScale: Double
+    ) -> String {
+        [range.lowerBound, 0, range.upperBound]
+            .map { String(format: format, $0 * valueScale) }
+            .max(by: { $0.count < $1.count }) ?? "0"
     }
 
     private func gradientSliderRow(

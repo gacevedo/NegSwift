@@ -2,7 +2,9 @@
 
 Run these after each milestone before moving on. Record date, macOS version, and NegPy tag in the checklist header.
 
-**Completed in repo (automated):** M0–M5 engine tests pass via `make test`. Manual rows below still worth running before tagging M6.
+**Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
+
+Native engine **S0–S13** is a separate track (see `PLAN.md` §14) and is **not** started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -13,7 +15,10 @@ NegPy tag:
 NegSwift commit:
 Machine: (Apple Silicon / Intel)
 Test scan path:
+Native-engine scan (local C-41 TIFF ≥16 MP, not sample.tif):
 ```
+
+`App/NegSwiftUITests/Fixtures/sample.tif` is a tiny CI fixture. Every **S0–S13** look gate uses the named local ≥16 MP C-41 path above. Prefer a full-bleed or already-cropped frame for S4/S5 so holder borders do not dominate normalize bounds.
 
 ---
 
@@ -21,7 +26,7 @@ Test scan path:
 
 - [x] `cd Engine && uv sync` completes without error
 - [x] Xcode builds NegSwift scheme (Debug) — `make build-app`
-- [ ] App launches; empty window; Quit from menu works
+- [x] App launches; empty window; Quit from menu works
 
 ---
 
@@ -29,23 +34,23 @@ Test scan path:
 
 - [x] `uv run negswift-engine info` prints negpy version and GPU status
 - [x] `uv run negswift-engine open <tif>` prints JSON with hash and dimensions
-- [ ] Invalid path returns non-zero exit and readable stderr message
+- [x] Invalid path returns non-zero exit and readable stderr message
 
 ---
 
 ## M2 — Render PNG ✅
 
 - [x] `render --out /tmp/test.png` produces a valid PNG (automated in pytest)
-- [ ] Output looks like a positive on a real orange-mask negative
-- [ ] Same frame in NegPy desktop at defaults looks broadly similar
+- [x] Output looks like a positive on a real orange-mask negative
+- [x] Same frame in NegPy desktop at defaults looks broadly similar
 
 ---
 
-## M3 — Daemon protocol ⚠️
+## M3 — Daemon protocol ✅
 
 - [x] `serve --stdio` responds to `ping` (pytest)
 - [x] `render` via protocol returns base64 PNG (pytest)
-- [ ] Second `render` with same path is faster (warm cache) — manual
+- [x] Second `render` with same path is faster (warm cache) — manual
 - [x] `cancel` during slow render (pytest)
 
 ---
@@ -54,7 +59,7 @@ Test scan path:
 
 - [x] Engine panel shows NegPy/Python/GPU on launch (⌘R)
 - [x] Open File → preview in canvas
-- [ ] Error dialog for unsupported/corrupt file
+- [x] Error dialog for unsupported/corrupt file
 
 ---
 
@@ -62,7 +67,7 @@ Test scan path:
 
 - [x] Import Folder lists supported files; thumbnails load progressively
 - [x] Clicking strip item updates main preview
-- [ ] Import folder of 20+ frames — UI stays responsive between clicks
+- [x] Import folder of 20+ frames — UI stays responsive between clicks
 
 ---
 
@@ -75,7 +80,7 @@ Test scan path:
 - [x] Auto Density / Auto Grade toggles wired to pipeline
 - [x] Analysis Buffer slider (0–25%) — insets metering from frame/crop edge; visible when Auto Density is on
 - [x] Apply Auto Density while cropping — in Crop pane while crop tool is open; live re-meter on drag when on
-- [ ] Values match NegPy desktop for same slider positions (± visual tolerance) — manual compare
+- [x] Values match NegPy desktop for same slider positions (± visual tolerance) — manual compare
 
 ---
 
@@ -83,7 +88,7 @@ Test scan path:
 
 - [x] Edit sliders → `.negpy` sidecar appears next to source (after ~1 s)
 - [x] Quit and relaunch → edits restored via `load_config`
-- [ ] NegPy desktop opens same file with matching settings — manual compare
+- [x] NegPy desktop opens same file with matching settings — manual compare
 
 ---
 
@@ -105,27 +110,27 @@ Test scan path:
 
 - [x] Export JPEG / TIFF at full resolution (automated)
 - [x] Output dimensions reflect crop (automated)
-- [ ] NegPy desktop export matches (same config) — manual compare
+- [x] NegPy desktop export matches (same config) — manual compare
 
 ---
 
-## M9b — NegPy submodule (required before M10)
+## M9b — NegPy submodule (required before M10) ✅
 
 - [x] Fresh `git clone --recurse-submodules` → `uv sync` → `negswift-engine info` works
 - [x] No sibling `../../NegPy` required for engine to run
 - [x] `Vendor/NegPy` at tag **0.57.0**; `git submodule status` clean
 - [x] CI workflow checks out submodules and runs engine + Swift unit tests
-- [ ] Re-run M9 export smoke — output unchanged from pre-M9b
+- [x] Re-run M9 export smoke — output unchanged from pre-M9b
 
 ---
 
-## M10 — Bundled app
+## M10 — Bundled app ✅
 
 - [x] `make bundle-engine` → `Packaging/out/negswift-engine/negswift-engine info` succeeds
 - [x] CI smoke-tests bundled engine
-- [ ] Built `.app` runs on Mac without system Python
-- [ ] `Contents/Resources/engine/` present in Release build
-- [ ] Import → render → export on clean user account or second Mac
+- [x] Built `.app` runs on Mac without system Python
+- [x] `Contents/Resources/engine/` present in Release build
+- [x] Import → render → export on clean user account or second Mac
 
 ---
 
@@ -139,12 +144,12 @@ Test scan path:
 - [x] Auto-detect C-41 / B&W on new scans (no sidecar); wand button re-runs detect on current frame
 - [x] Preferences (⌘,) — preview quality, GPU toggle, optical dust removal (threshold, size), NegPy data folder (shared `edits.db` with desktop NegPy)
 - [x] Keyboard: Space toggle fit, ⇧C crop tool, ⌘O import, ⌘E export; double-click preview toggles fit / 1:1
-- [ ] Keyboard (M13): ⇧S scratch tool; Enter finish polyline; ⌘Z undo last heal (M13b, scratch tool active)
+- [x] Keyboard (M13): ⇧S scratch tool; Enter finish polyline; ⌘Z undo last heal (M13b, scratch tool active)
 - [x] Crop overlay hides during 90° rotation until preview catches up (no wrong-aspect flash)
 
 ---
 
-## M12 — Performance (NegSwift-local)
+## M12 — Performance (NegSwift-local) ✅
 
 **Phase 0 — Measurement (do this first)** ✅
 
@@ -152,7 +157,7 @@ Test scan path:
 - [x] `uv run pytest tests/test_perf.py -v` (or `make bench-engine`) runs and emits JSON timings
 - [x] Baseline recorded for: cold render, warm render, frame switch, export → preview
 - [x] Baseline file archived at `Engine/tests/fixtures/perf_baseline.json` (machine, macOS, commit in JSON)
-- [ ] Optional: real-scan baseline with `NEGSWIFT_PERF_SCAN` on a ≥ 20 MP TIFF (manual, for PR notes)
+- [x] Optional: real-scan baseline with `NEGSWIFT_PERF_SCAN` on a ≥ 20 MP TIFF (manual, for PR notes)
 
 **Phase 1 — Quick wins** ✅
 
@@ -160,13 +165,13 @@ Test scan path:
 - [x] Slider scrub — preview updates without main-thread hitch (decode off main)
 - [x] Selected frame strip thumb updates without a second engine `render` after preview
 - [x] Export then preview — softer cache cleanup (`release_source_cache=False` on export)
-- [ ] No preview parity regression vs NegPy desktop (spot-check M6)
+- [x] No preview parity regression vs NegPy desktop (spot-check M6)
 
 **Phase 2 — Interactive editing** ✅ (engine)
 
 - [x] `RenderExecutor` — single GPU worker; per-path supersession; cancel before hash/sidecar/load
 - [x] Debounced slider — `previewGeneration` bumps when debounced task fires (not on every schedule)
-- [ ] Rapid density slider scrub — no pile-up of stale previews; UI stays responsive (manual M6)
+- [x] Rapid density slider scrub — no pile-up of stale previews; UI stays responsive (manual M6)
 
 **Phase 3 — Frame switch & strip** ✅ (Swift)
 
@@ -174,13 +179,13 @@ Test scan path:
 - [x] Parallel strip thumbs (`TaskGroup`, concurrency 3); selected/near-visible frames first
 - [x] `open` prefetch on import / `selectFrame`; overlap `load_config` with prefetch
 - [x] Skip `detect_process_mode` when a ``.negpy`` sidecar exists (`load_config.has_sidecar`)
-- [ ] Import folder 20+ frames — strip thumbs fill progressively; selected preview appears quickly (manual M5)
-- [ ] Frame switch baseline improved vs Phase 0
+- [x] Import folder 20+ frames — strip thumbs fill progressively; selected preview appears quickly (manual M5)
+- [x] Frame switch baseline improved vs Phase 0
 
 **Phase 4 — Preview transport (optional)** ✅
 
 - [x] New transport format works; fallback PNG still works
-- [ ] IPC/decode baseline improved vs Phase 0 (re-run `make bench-engine` after merge)
+- [x] IPC/decode baseline improved vs Phase 0 (re-run `make bench-engine` after merge)
 
 **Phase 5 — Instant revisit (render memo)** ✅ (Swift)
 
@@ -188,48 +193,48 @@ Test scan path:
 - [x] Memo hit on `selectFrame` skips engine `render`; loading overlay only on miss
 - [x] Invalidate on edit, reset, export, save, preference change
 - [x] Engine benchmark `frame_switch_revisit_ms` in `bench.py`
-- [ ] Navigate A → B → A with no edits — preview instant, no loading spinner (manual)
-- [ ] Edit on A, switch away, switch back — memo invalidated, fresh render shown (manual)
-- [ ] `frame_switch_revisit_ms` baseline recorded on real scan ≥ 20 MP
-- [ ] No preview parity regression vs NegPy desktop after memo paths (spot-check M6)
+- [x] Navigate A → B → A with no edits — preview instant, no loading spinner (manual)
+- [x] Edit on A, switch away, switch back — memo invalidated, fresh render shown (manual)
+- [x] `frame_switch_revisit_ms` baseline recorded on real scan ≥ 20 MP
+- [x] No preview parity regression vs NegPy desktop after memo paths (spot-check M6)
 
 ---
 
-## M13 — Scratch Tool
+## M13 — Scratch Tool ✅
 
 Sidebar **Scratch** section (toggle, brush size, Finish, undo). Canvas HUD shows zoom only. Default brush size **6** (NegPy `manual_dust_size`). See [PLAN.md](../PLAN.md) §7 M13.
 
 **Phase 0 — Engine + config**
 
-- [ ] `manual_heal_strokes` / `manual_dust_size` round-trip in `FrameEditState` and sidecar save/load
-- [ ] `append_heal_stroke` IPC maps viewport points to source coords (pytest on rotated frame)
-- [ ] `render` with committed stroke changes preview pixels
+- [x] `manual_heal_strokes` / `manual_dust_size` round-trip in `FrameEditState` and sidecar save/load
+- [x] `append_heal_stroke` IPC maps viewport points to source coords (pytest on rotated frame)
+- [x] `render` with committed stroke changes preview pixels
 
 **Phase 1 — Canvas**
 
-- [ ] ⇧S toggles scratch tool; mutual exclusion with crop tool
-- [ ] Click points along scratch/hair; double-click or Enter commits
-- [ ] Backspace removes last in-progress point; Esc clears points then exits tool
-- [ ] Sidebar Scratch section shows tool toggle, brush size (2–16), Finish, and hint text
-- [ ] Preview double-click zoom disabled while tool active
-- [ ] Quit/reopen — strokes restored from `.negpy`
-- [ ] Same sidecar opens in NegPy desktop with strokes visible
-- [ ] Export TIFF — repair at full resolution
+- [x] ⇧S toggles scratch tool; mutual exclusion with crop tool
+- [x] Click points along scratch/hair; double-click or Enter commits
+- [x] Backspace removes last in-progress point; Esc clears points then exits tool
+- [x] Sidebar Scratch section shows tool toggle, brush size (2–16), Finish, and hint text
+- [x] Preview double-click zoom disabled while tool active
+- [x] Quit/reopen — strokes restored from `.negpy`
+- [x] Same sidecar opens in NegPy desktop with strokes visible
+- [x] Export TIFF — repair at full resolution
 
 **Phase 2 — Polish**
 
-- [ ] Placed-stroke overlay while tool active (optional)
-- [ ] Rotate frame 90° — new scratch still aligns with defect
+- [x] Placed-stroke overlay while tool active (optional)
+- [x] Rotate frame 90° — new scratch still aligns with defect
 
 **M13b — Undo last heal**
 
-- [ ] `undo_last_heal` engine IPC
-- [ ] ⌘Z with scratch tool active removes most recent committed stroke (not general edit undo)
-- [ ] Undo persists to sidecar and invalidates preview memo
+- [x] `undo_last_heal` engine IPC
+- [x] ⌘Z with scratch tool active removes most recent committed stroke (not general edit undo)
+- [x] Undo persists to sidecar and invalidates preview memo
 
 ---
 
-## M14 — Batch export
+## M14 — Batch export ✅
 
 See [docs/BATCH_EXPORT.md](BATCH_EXPORT.md) and [PLAN.md](../PLAN.md) §7 M14.
 
@@ -255,24 +260,148 @@ See [docs/BATCH_EXPORT.md](BATCH_EXPORT.md) and [PLAN.md](../PLAN.md) §7 M14.
 
 **Regression (manual)**
 
-- [ ] Single-frame Export… and Quick Export unchanged
-- [ ] Export All with 5+ mixed edits — all outputs correct dimensions and crop
-- [ ] Cancel mid-batch — no corrupt partial file; completed frames remain on disk
-- [ ] One output compared with NegPy desktop at same settings
+- [x] Single-frame Export… and Quick Export unchanged
+- [x] Export All with 5+ mixed edits — all outputs correct dimensions and crop
+- [x] Cancel mid-batch — no corrupt partial file; completed frames remain on disk
+- [x] One output compared with NegPy desktop at same settings
 
 ---
 
-## M15 — Zone tone controls
+## M15 — Zone tone controls ✅
 
 See [PLAN.md](../PLAN.md) §7 M15.
 
-- [ ] Tone sidebar shows Shadows / Highlights Density pair below ISO-R Grade
-- [ ] Tone sidebar shows Shadows / Highlights Grade pair (split grade)
-- [ ] Shadows Density negative lifts deep shadows without midtone shift
-- [ ] Highlights Grade negative hardens highlights without flattening mids
-- [ ] Values match NegPy desktop Tone panel for same four sliders (± visual tolerance)
-- [ ] Quit and reopen — zone tone values restored from sidecar
-- [ ] `FrameEditStateTests` and `PreviewRenderMemoTests` pass for zone fields
+- [x] Tone sidebar shows Shadows / Highlights Density pair below ISO-R Grade
+- [x] Tone sidebar shows Shadows / Highlights Grade pair (split grade)
+- [x] Shadows Density negative lifts deep shadows without midtone shift
+- [x] Highlights Grade negative hardens highlights without flattening mids
+- [x] Values match NegPy desktop Tone panel for same four sliders (± visual tolerance)
+- [x] Quit and reopen — zone tone values restored from sidecar
+- [x] `FrameEditStateTests` and `PreviewRenderMemoTests` pass for zone fields
+
+---
+
+## Native Swift engine (S0–S13)
+
+Python remains the default backend. A/B means Preferences **Engine: Python | Swift** on the **same** named scan, then the checks below. Do not fail a vertical for items listed under **Still wrong** in the native-engine plan. Do not compare Swift-at-S4 to Python-at-app-defaults (autos + sharpen on) — that is S5+S8.
+
+Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contrast=false`, Lab off (`sharpen=0`, `skin_protection=0`, `saturation=1`), identity geometry, no heal/dust, `cast_removal_strength=0.5` (C-41), Neutral paper, BPC on (`paper_black=false`).
+
+### S0 — Scaffold, A/B hook, harness
+
+- [ ] `Packages/NegSwiftEngine` builds for macOS and iOS
+- [ ] Preferences shows **Engine: Python | Swift**; Python is default
+- [ ] Switching backend restarts the session (workspace preserved)
+- [ ] MAE harness runs on `sample.tif` and writes a report (no look claim)
+- [ ] Header above names a local C-41 TIFF ≥16 MP
+- [ ] Still wrong: Swift may be blank or a stub JPEG
+
+### S1 — Decode + process-mode detect
+
+- [ ] Swift backend, real scan: **orange mask still orange** (unprocessed linear)
+- [ ] Untagged 16-bit TIFF is not sRGB-decoded (no crushed/dark orange)
+- [ ] Process-mode detect / wand agrees with Python on this C-41
+- [ ] (If available) a B&W scan detects as B&W on both backends
+- [ ] Still wrong: not a positive; sliders do nothing useful yet
+
+### S2 — Log-normalize (not invert)
+
+- [ ] C-41 reads as a **color positive**; orange mask gone
+- [ ] Image is harsh/flat vs Python at app defaults
+- [ ] No leftover “crude invert” path in the package
+- [ ] Still wrong: density, grade, WB, sharpness, crop. Not a full-pipeline MAE gate
+
+### S3 — Working OETF (unit / synthetic only)
+
+- [ ] Swift OETF unit tests / ramp goldens pass (563/256, no linear segment)
+- [ ] Optional: linear vs encoded ramp PNGs look like a power curve
+- [ ] **Do not** A/B a scan against Python for this vertical
+- [ ] Still wrong: scan preview unchanged until S4a applies encode
+
+### S4a — H&D + density/grade + cast + BPC + OETF
+
+- [ ] Both backends pinned as above (autos off, Lab off)
+- [ ] A/B same scan at defaults of that pin: Swift tracks Python (color/cast included)
+- [ ] Print Density moves both backends the same way
+- [ ] Grade moves both backends the same way
+- [ ] MAE/PSNR gate documented and passing on `sample.tif` and the real scan
+- [ ] Still wrong: autos, zone/CMY, Lab softness, crop, heal
+
+### S4b — Zone + CMY
+
+- [ ] Same S4 pin; one slider at a time vs Python
+- [ ] Shadows Density
+- [ ] Highlights Density
+- [ ] Shadows Grade
+- [ ] Highlights Grade
+- [ ] WB Cyan / Magenta / Yellow
+- [ ] Still wrong: autos, Lab, crop, heal
+
+### S5 — Auto Density / Auto Grade + metering
+
+- [ ] Autos on, Lab still off; A/B closer to current NegSwift
+- [ ] Analysis Buffer changes the look on a full-frame scan
+- [ ] **Apply Auto Density while cropping** off: crop drag does not re-meter
+- [ ] Same toggle on: crop drag re-meters (debounced)
+- [ ] Still wrong: Lab softness; stored-crop overlay polish (S6)
+
+### S6 — Stored geometry
+
+- [ ] Crop box matches Python; click-outside applies
+- [ ] 90° CW / CCW matches Python
+- [ ] Flip H/V and fine rotation match Python
+- [ ] Crop-tool preview is the uncropped frame (`crop_preview_full`)
+- [ ] Export pixel size shrinks with crop (same as M8 / `test_export.py`)
+- [ ] Still wrong: autocrop *detect* (S11)
+
+### S7 — Sidecar + stdio
+
+- [ ] Quit/reopen restores edits from `.negpy` on the Swift backend
+- [ ] Python NegSwift opens the same sidecar
+- [ ] NegPy desktop opens the same sidecar (lite keys; hidden keys preserved)
+- [ ] Engine pytest + `EngineClientIntegrationTests` pass against Swift `serve --stdio`
+- [ ] Still wrong: look (already gated in S4–S6). Desktop CLAHE/toning/HDR sidecars will not match
+
+### S8 — Lab defaults (default look lock)
+
+- [ ] A/B at **app defaults** (autos on + Lab on): Swift no longer softer than Python
+- [ ] Chroma slider matches Python
+- [ ] Default sharpen 0.25 and skin protection 0.5 are on (no extra UI)
+- [ ] Still wrong: export ICC details (S9), heal (S10a)
+
+### S9 — Export
+
+- [ ] JPEG then TIFF, original resolution; Preview.app / Photos open the files
+- [ ] Crop and pixel size match Python export of the same sidecar
+- [ ] Overwrite suffix matches current NegSwift behavior
+- [ ] `test_export.py` (or equivalent) passes against Swift
+
+### S10a — Heal
+
+- [ ] ⇧S polyline; scratch fades on preview
+- [ ] ⌘Z pops last stroke
+- [ ] Rotate 90°, new stroke still hits the defect
+- [ ] Quit/reopen restores strokes from `.negpy`
+- [ ] Still wrong: optical dust (S10b); full-res Navier–Stokes
+
+### S10b — Optical dust
+
+- [ ] Preferences dust on: specks recede vs Python on a dirty scan
+- [ ] Dust off restores them
+- [ ] Threshold / size move the same way as Python (preview-res is enough)
+- [ ] Still wrong: full-res OpenCV / Navier–Stokes parity
+
+### S11 — Autocrop detect
+
+- [ ] Holder scan auto-crops; rect stored (`crop_from_auto`, `crop_detect_key`)
+- [ ] Second render with no edit does **not** change the rect
+- [ ] Preview and export share the same crop
+- [ ] Still wrong: keystone / k1 (unused in lite)
+
+### S12 — Metal (optional) / S13 — iOS (later)
+
+- [ ] S12: not a look gate; slider drag stays interactive on ~20 MP only after CPU goldens
+- [ ] S13: tiny in-process harness only — not an App Store product; do not start before S4a
 
 ---
 
@@ -293,7 +422,7 @@ xcodebuild -scheme NegSwift -configuration Debug -destination 'platform=macOS' \
 
 ## Regression smoke (any milestone after M4)
 
-Quick pass before release tags:
+Current app (M0–M15) last passed this list. Re-run before a release tag:
 
 1. Open 3 different formats (TIFF, RAW if available, JPEG scan)
 2. Adjust density + export

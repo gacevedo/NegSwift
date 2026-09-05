@@ -1,12 +1,14 @@
 # NegSwift — macOS Lite Shell Plan
 
-A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing engine. No algorithm fork: NegSwift owns UI, orchestration, and packaging; NegPy owns pixels, pipeline, and file formats.
+A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing engine. The shipping path has no algorithm fork: NegSwift owns UI, orchestration, and packaging; NegPy owns pixels, pipeline, and file formats.
+
+**Native engine exception:** `Packages/NegSwiftEngine` is an approved third implementation of the **NegSwift lite** path (CPU-first, Python as oracle). Do not copy NegPy sources into `App/`. Milestones **S0–S13** live in the native-engine plan; this file keeps the M0–M15 lite-shell roadmap and a pointer.
 
 **License:** GPL-3.0 for the whole shipped product (Swift shell + bundled engine). NegPy is GPL-3.0; combining and distributing them requires the same license and source availability for NegSwift’s own code.
 
 ---
 
-## Plan status (last updated: 2026-08-23)
+## Plan status (last updated: 2026-09-05)
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
@@ -27,8 +29,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 | **M14** Batch export | **Done** | Sheet scope + tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
+| **S0–S13** Native Swift engine | **Not started** | `Packages/NegSwiftEngine`; Preferences Python\|Swift A/B from S0. See §14 and `docs/MANUAL_TEST_CHECKLIST.md` § S0–S13 |
 
-**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Resume here:** M12 manual benchmarks on real scan; release smoke. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Native engine starts at **S0** when that track is opened — do not start S12/S13 before S4a.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -49,7 +52,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 - Windows/Linux
 - SANE scanner UI, gphoto2 tethering, RGB-scan merge UI, stitch UI
 - Full panel parity with NegPy desktop (history branching, work prints, metadata gear library, soft-proof UI, printing notes)
-- Rewriting pipeline in Swift/Metal (future option only)
+- Rewriting pipeline in Swift/Metal **in `App/`** — the approved port is `Packages/NegSwiftEngine` (S0–S13), not a UI-side fork
 
 ---
 
@@ -660,7 +663,7 @@ SwiftUI — ScratchToolOverlayView + canvas HUD (toggle, brush size)
     → NegPy ImageProcessor source bake (strokes_to_score)
 ```
 
-**Coordinate mapping:** Preview clicks are in **display-normalized** space (0–1 in the bitmap Swift shows). NegPy stores strokes in **source-normalized** space. With rotation/fine rotation they differ. Do **not** reimplement `CoordinateMapping` in Swift.
+**Coordinate mapping:** Preview clicks are in **display-normalized** space (0–1 in the bitmap Swift shows). NegPy stores strokes in **source-normalized** space. With rotation/fine rotation they differ. Do **not** reimplement `CoordinateMapping` in the Swift UI. The native engine (**S10a**) must bake heals in source space on the decoded linear buffer, before geometry — same contract as NegPy.
 
 New engine IPC (see [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md)):
 
@@ -934,7 +937,7 @@ NegSwift/
 | Manual | `docs/MANUAL_TEST_CHECKLIST.md` per milestone | Before tagging |
 | Performance | `docs/PERFORMANCE.md` + `tests/test_perf.py` / `Engine/scripts/bench_render.py` | M12+; before/after each optimization phase |
 
-**Parity rule:** Lite does not reimplement math; if preview differs from NegPy desktop, treat as **engine wiring bug**, not “Swift UI bug”.
+**Parity rule:** The Python backend does not reimplement math; if that preview differs from NegPy desktop, treat as **engine wiring bug**, not “Swift UI bug”. `Packages/NegSwiftEngine` is the exception: compare it to Python at the vertical’s **pinned config**, not to app defaults until S5+S8.
 
 ---
 
@@ -948,7 +951,7 @@ What *does* transfer if iOS ever matters:
 - **IPC boundary** — today engine is local; tomorrow could be macOS helper syncing via CloudKit while iOS shows proxies only
 - **Embedded CPython on macOS** — practice for “host process + script engine” without PyInstaller
 
-A future iOS app would likely need **Metal port of subset pipeline** or **render-on-Mac sync** — not PyInstaller. Keeping NegSwift’s engine behind a clean protocol avoids painting into a corner.
+A future iOS app would likely need **Metal port of subset pipeline** or **render-on-Mac sync** — not PyInstaller. Keeping NegSwift’s engine behind a clean protocol avoids painting into a corner. The shared library for that path is `Packages/NegSwiftEngine` (**S13** in §14); do not start an iPad target until **S4a** has a golden gate.
 
 ---
 
@@ -982,6 +985,36 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 3. **M15:** Wire zone tone sliders (shadows/highlights density + ISO-R split grade) per §7 M15. — **Done**
 4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
+5. **Native engine (separate track):** S0 scaffold + Preferences A/B + named local ≥16 MP C-41 scan — see §14.
+
+---
+
+## 14. Native Swift engine (S0–S13)
+
+Approved exception to “never reimplement pipeline math”: **`Packages/NegSwiftEngine` only**. Python stays the default backend and the oracle until each vertical’s goldens pass.
+
+Full cards (goal, pinned config, automated gate, human procedure, still-wrong, exit) live in the sibling native-engine plan (`../negswift-engine/PLAN.md` when that folder is checked out next to this repo). Human rows are in [`docs/MANUAL_TEST_CHECKLIST.md`](docs/MANUAL_TEST_CHECKLIST.md) § S0–S13.
+
+| Milestone | Focus | First human gate |
+|-----------|--------|------------------|
+| **S0** | SwiftPM + `EngineBackend` + Preferences Python\|Swift + MAE harness | Toggle exists; name a local ≥16 MP C-41 TIFF |
+| **S1** | Linear ImageIO decode + `detect_process_mode` (0.12 crop) | Orange mask still orange |
+| **S2** | Kept log-normalize (not invert) | C-41 is a harsh positive |
+| **S3** | Adobe RGB 563/256 OETF | Unit/synthetic only — no scan A/B |
+| **S4a** | H&D + density/grade + cast 0.5 + BPC + OETF | First Python MAE / A/B (autos+Lab **off**) |
+| **S4b** | Zone density/grade + CMY | One slider at a time vs Python |
+| **S5** | Autos + `metering.py` remap | Auto Density while cropping |
+| **S6** | Stored crop / 90° / flip / fine rot | Overlay + export dims |
+| **S7** | `.negpy` + `serve --stdio` | Quit/reopen; desktop NegPy opens sidecar |
+| **S8** | Lab sat + sharpen 0.25 + skin 0.5 | Default look lock |
+| **S9** | sRGB JPEG/TIFF export | Preview.app dims match Python |
+| **S10a** | Heal mapping + preview inpaint | ⇧S / ⌘Z on a rotated frame |
+| **S10b** | Optical dust | Preferences toggle vs Python |
+| **S11** | Autocrop detect-once | Holder scan; preview = export rect |
+| **S12** | Metal (optional) | After CPU goldens; not a look gate |
+| **S13** | iOS harness (later) | After S4a; not an App Store product |
+
+Do not start S12 or S13 before S4a. Do not start S11 before S6. Do not compare Swift-at-S4 to Python-at-app-defaults.
 
 ---
 
@@ -1030,4 +1063,4 @@ flowchart LR
   M6 --> M15
 ```
 
-M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work.
+M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work. Native engine **S0–S13** is a parallel track (§14); S11 depends on S6 stored-crop, S12/S13 depend on S4a goldens.

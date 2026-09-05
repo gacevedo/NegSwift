@@ -49,7 +49,7 @@ final class EngineSession {
     /// Waiting for a crop-preview render to seed ``manualCropRect`` from auto-crop bounds.
     private var pendingAutoCropSeed = false
 
-    private let client = EngineClient()
+    private var backend: any EngineBackend
     private let preferences: AppPreferences
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
     private let saveDebounce = DebounceScheduler(interval: DebounceScheduler.saveInterval)
@@ -87,8 +87,13 @@ final class EngineSession {
         return false
     }
 
+    var activeEngineBackend: EngineBackendKind {
+        preferences.engineBackend
+    }
+
     init(preferences: AppPreferences) {
         self.preferences = preferences
+        self.backend = EngineBackendFactory.make(preferences.engineBackend)
         preferences.onPreviewSettingsChanged = { [weak self] in
             Task { @MainActor in
                 self?.applyAutoCropPreferenceToLoadedEdits()
@@ -97,6 +102,11 @@ final class EngineSession {
             }
         }
         preferences.onUserDataLocationChanged = { [weak self] in
+            Task { @MainActor in
+                await self?.restartEnginePreservingWorkspace()
+            }
+        }
+        preferences.onEngineBackendChanged = { [weak self] in
             Task { @MainActor in
                 await self?.restartEnginePreservingWorkspace()
             }
@@ -257,7 +267,7 @@ final class EngineSession {
                     exportTestRecords.append(record)
                     result = try await exportTestHandler(record)
                 } else {
-                    result = try await client.export(
+                    result = try await backend.export(
                         path: path,
                         destDir: destPath,
                         config: config,
@@ -266,7 +276,7 @@ final class EngineSession {
                     )
                 }
                 #else
-                result = try await client.export(
+                result = try await backend.export(
                     path: path,
                     destDir: destPath,
                     config: config,
@@ -380,7 +390,7 @@ final class EngineSession {
             }
 
             do {
-                _ = try await client.resetConfig(path: path)
+                _ = try await backend.resetConfig(path: path)
             } catch {
                 previewError = "Could not reset edits: \(error.localizedDescription)"
                 previewLoadingMessage = nil
@@ -537,7 +547,7 @@ final class EngineSession {
         }
 
         do {
-            let result = try await client.appendHealStroke(
+            let result = try await backend.appendHealStroke(
                 path: path,
                 points: wirePoints,
                 brushSize: config.manualDustSize,
@@ -572,7 +582,7 @@ final class EngineSession {
         }
 
         do {
-            let result = try await client.undoLastHeal(path: path, config: config)
+            let result = try await backend.undoLastHeal(path: path, config: config)
             guard result.removed != nil else { return }
             previewMemo.invalidate(path: path)
             var edit = frameEdits[path] ?? defaultEditState()
@@ -931,7 +941,7 @@ final class EngineSession {
         }
 
         do {
-            _ = try await client.saveConfig(path: path, config: pipelineConfig(for: edit))
+            _ = try await backend.saveConfig(path: path, config: pipelineConfig(for: edit))
             dirtyPaths.remove(path)
             previewMemo.invalidate(path: path)
         } catch {
@@ -959,7 +969,7 @@ final class EngineSession {
         guard case .idle = state else { return }
         state = .starting
         do {
-            let info = try await client.info()
+            let info = try await backend.info()
             state = .ready(info)
         } catch {
             state = .failed(error.localizedDescription)
@@ -988,7 +998,8 @@ final class EngineSession {
         thumbnailDebounce.cancel()
         saveDebounce.cancel()
 
-        await client.stop()
+        await backend.stop()
+        backend = EngineBackendFactory.make(preferences.engineBackend)
         state = .idle
         previewImage = nil
         previewError = nil
@@ -1048,7 +1059,7 @@ final class EngineSession {
 
     func stop() async {
         await flushPendingSaves()
-        await client.stop()
+        await backend.stop()
         clearFilmStrip()
         state = .idle
         previewImage = nil
@@ -1069,7 +1080,7 @@ final class EngineSession {
         stripGeneration += 1
         previewError = nil
         do {
-            let discovered = try await client.discover(paths: [url.path])
+            let discovered = try await backend.discover(paths: [url.path])
             frames = discovered.assets.map { asset in
                 ScanFrame(
                     id: UUID(),
@@ -1139,7 +1150,7 @@ final class EngineSession {
         stripGeneration += 1
         previewError = nil
         do {
-            let discovered = try await client.discover(paths: urls.map(\.path))
+            let discovered = try await backend.discover(paths: urls.map(\.path))
             frames = discovered.assets.map { asset in
                 ScanFrame(
                     id: UUID(),
@@ -1334,7 +1345,7 @@ final class EngineSession {
 
     private func loadConfigOnly(for path: String) async -> FrameEditState {
         do {
-            let loaded = try await client.loadConfig(path: path)
+            let loaded = try await backend.loadConfig(path: path)
             let flat = loaded.config.mapValues(\.anyValue)
             var edit = FrameEditState.fromFlatConfig(flat)
             if flat["crop_from_auto"] == nil, flat["auto_crop_enabled"] == nil {
@@ -1386,7 +1397,7 @@ final class EngineSession {
         }
 
         do {
-            let result = try await client.detectProcessMode(path: path, force: force)
+            let result = try await backend.detectProcessMode(path: path, force: force)
             guard !result.skipped, let mode = result.processMode else { return nil }
             return ProcessMode.fromFlatValue(mode)
         } catch {
@@ -1418,7 +1429,7 @@ final class EngineSession {
             return try await renderTestHandler(record)
         }
         #endif
-        return try await client.render(
+        return try await backend.render(
             path: path,
             longEdgePx: longEdgePx,
             preferGPU: preferGPU,
@@ -1785,7 +1796,7 @@ final class EngineSession {
 
         let path = frame.path
         let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
-        guard let result = try? await client.open(path: path, includeSplash: true, config: config) else { return }
+        guard let result = try? await backend.open(path: path, includeSplash: true, config: config) else { return }
         applySuggestedCrop(from: result, for: path)
         dirtyPaths.insert(path)
         scheduleDebouncedSave(for: path)
@@ -1815,7 +1826,7 @@ final class EngineSession {
             }
             let path = url.path
             let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
-            _ = try? await client.open(path: path, config: config)
+            _ = try? await backend.open(path: path, includeSplash: false, config: config)
         }
     }
 

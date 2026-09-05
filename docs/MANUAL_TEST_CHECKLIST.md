@@ -4,18 +4,18 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S13** is a separate track (see `PLAN.md` §14) and is **not** started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0** is done. **S1–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
 ```
-Date:
+Date: 2026-09-05
 macOS:
 NegPy tag:
 NegSwift commit:
 Machine: (Apple Silicon / Intel)
 Test scan path:
-Native-engine scan (local C-41 TIFF ≥16 MP, not sample.tif):
+Native-engine scan (local C-41 TIFF ≥16 MP, not sample.tif): /Users/gacevedo/Downloads/Kodak Portra Gold 120 K6500-008.TIFF
 ```
 
 `App/NegSwiftUITests/Fixtures/sample.tif` is a tiny CI fixture. Every **S0–S13** look gate uses the named local ≥16 MP C-41 path above. Prefer a full-bleed or already-cropped frame for S4/S5 so holder borders do not dominate normalize bounds.
@@ -289,12 +289,12 @@ Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contras
 
 ### S0 — Scaffold, A/B hook, harness
 
-- [ ] `Packages/NegSwiftEngine` builds for macOS and iOS
-- [ ] Preferences shows **Engine: Python | Swift**; Python is default
-- [ ] Switching backend restarts the session (workspace preserved)
-- [ ] MAE harness runs on `sample.tif` and writes a report (no look claim)
-- [ ] Header above names a local C-41 TIFF ≥16 MP
-- [ ] Still wrong: Swift may be blank or a stub JPEG
+- [x] `Packages/NegSwiftEngine` builds for macOS (`make test-native-engine`) and iOS Simulator (`make test-native-engine-ios`)
+- [x] Preferences shows **Engine: Python | Swift**; Python is default
+- [x] Switching backend restarts the session (workspace preserved)
+- [x] MAE harness runs on `/Users/gacevedo/Downloads/Kodak\ Portra\ Gold\ 120\ K6500-008.TIFF` and writes a report (no look claim) — `make compare-engines`
+- [x] Header above names a local C-41 TIFF ≥16 MP
+- [x] Still wrong: Swift preview is a gray stub JPEG (not a look claim)
 
 ### S1 — Decode + process-mode detect
 

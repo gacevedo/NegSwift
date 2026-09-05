@@ -66,10 +66,11 @@ struct EngineSheetView: View {
             HStack {
                 ProgressView()
                     .controlSize(.small)
-                Text("Starting negswift-engine…")
+                Text(session.activeEngineBackend == .swift ? "Starting Swift engine…" : "Starting negswift-engine…")
             }
         case let .ready(info):
             VStack(alignment: .leading, spacing: 8) {
+                statusRow("Backend", session.activeEngineBackend.label)
                 statusRow("NegSwift", info.negswiftVersion)
                 statusRow("NegPy", info.negpyVersion)
                 statusRow("Python", info.python)

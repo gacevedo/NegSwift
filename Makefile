@@ -1,4 +1,5 @@
-.PHONY: sync lint format test test-swift bench-engine bundle-engine build-app build-release \
+.PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
+	compare-engines bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -16,11 +17,24 @@ format:
 	cd Engine && uv run ruff format negswift_engine tests
 	cd Engine && uv run ruff check --fix negswift_engine tests
 
-test: sync test-swift
+test: sync test-native-engine test-swift
 	cd Engine && uv run pytest tests/ -v
 
 test-swift:
 	cd App && xcodebuild -scheme NegSwift -configuration Debug -destination 'platform=macOS' test -quiet
+
+test-native-engine:
+	cd Packages/NegSwiftEngine && swift test
+	cd Packages/NegSwiftEngine && swift build
+
+test-native-engine-ios:
+	cd Packages/NegSwiftEngine && xcodebuild -scheme NegSwiftEngine \
+		-destination 'generic/platform=iOS Simulator' \
+		-derivedDataPath .derived \
+		build
+
+compare-engines: sync
+	cd Engine && uv run python scripts/compare_engine_renders.py
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

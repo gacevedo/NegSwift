@@ -42,6 +42,8 @@ uv run pytest tests/ -v
 uv run pytest tests/test_render.py -v      # single test
 uv run pytest tests/test_perf.py -v        # M12 perf harness (synthetic)
 make bench-engine                          # from repo root — refresh perf_baseline.json
+make test-native-engine                    # SwiftPM NegSwiftEngine tests (S0+)
+make compare-engines                       # Python vs Swift MAE report (S0: no look claim)
 ```
 
 Never invoke `pytest` or `ruff` directly — use `uv run`.
@@ -91,9 +93,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
-| **S0–S13** | Native Swift engine — `Packages/NegSwiftEngine`; not started. Checklist § S0–S13 |
+| **S0–S13** | Native Swift engine — **S0 done** (stub). Next **S1** decode. Checklist § S0–S13 |
 
-**Current status (2026-09-05):** M0–M15 feature complete. **M12** code phases done — manual benchmarks remain. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Native engine (S0+) is a separate track; Python remains the default backend until S4a goldens pass.
+**Current status (2026-09-05):** M0–M15 feature complete. Native engine **S0** is in (`Packages/NegSwiftEngine`, Preferences A/B, MAE harness). Python remains the default. Next vertical is **S1** decode. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

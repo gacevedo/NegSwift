@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E5A100000000000000000003 /* NegSwiftEngine in Frameworks */ = {isa = PBXBuildFile; productRef = E5A100000000000000000002 /* NegSwiftEngine */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E59324AA3029766D006BBFFB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E5A100000000000000000003 /* NegSwiftEngine in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = NegSwift;
 			packageProductDependencies = (
+				E5A100000000000000000002 /* NegSwiftEngine */,
 			);
 			productName = NegSwift;
 			productReference = E593249A3029766B006BBFFB /* NegSwift.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = E59324913029766B006BBFFB;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E5A100000000000000000001 /* XCLocalSwiftPackageReference "../Packages/NegSwiftEngine" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E593249B3029766B006BBFFB /* Products */;
 			projectDirPath = "";
@@ -568,6 +577,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		E5A100000000000000000001 /* XCLocalSwiftPackageReference "../Packages/NegSwiftEngine" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/NegSwiftEngine;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E5A100000000000000000002 /* NegSwiftEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E5A100000000000000000001 /* XCLocalSwiftPackageReference "../Packages/NegSwiftEngine" */;
+			productName = NegSwiftEngine;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E59324923029766B006BBFFB /* Project object */;
 }

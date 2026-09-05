@@ -8,10 +8,12 @@ build/
 *.dSYM.zip
 *.dSYM
 
-# Swift Package Manager
+# Swift Package Manager build products (keep first-party Packages/NegSwiftEngine)
 .build/
-Packages/
+**/.build/
+**/.derived/
 Package.resolved
+**/Package.resolved
 
 # Python / uv
 Engine/.venv/

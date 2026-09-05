@@ -106,6 +106,25 @@ struct AppPreferencesTests {
         #expect(settings.preferGPU == false)
     }
 
+    @Test func engineBackendDefaultsToPythonWhenUnset() {
+        let suite = "NegSwiftTests.engineBackend.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
+        #expect(AppPreferencesStorage.engineBackend() == .python)
+    }
+
+    @Test func engineBackendStorageRoundTrip() {
+        let suite = "NegSwiftTests.engineBackendRoundTrip.\(UUID().uuidString)"
+        setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)
+        defer { unsetenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE") }
+
+        AppPreferencesStorage.setEngineBackend(.swift)
+        #expect(AppPreferencesStorage.engineBackend() == .swift)
+        AppPreferencesStorage.setEngineBackend(.python)
+        #expect(AppPreferencesStorage.engineBackend() == .python)
+    }
+
     @Test @MainActor func previewQualityChangeNotifiesListener() {
         let suite = "NegSwiftTests.notify.\(UUID().uuidString)"
         setenv("NEGSWIFT_UI_TEST_DEFAULTS_SUITE", suite, 1)

@@ -12,6 +12,13 @@ struct PreferencesView: View {
     var body: some View {
         Form {
             Section {
+                Picker("Engine", selection: $preferences.engineBackend) {
+                    ForEach(EngineBackendKind.allCases) { kind in
+                        Text(kind.label).tag(kind)
+                    }
+                }
+                .accessibilityIdentifier("negSwift.prefs.engineBackend")
+
                 Picker("Preview quality", selection: $preferences.previewQuality) {
                     ForEach(PreviewQuality.allCases) { quality in
                         Text(quality.label).tag(quality)
@@ -31,7 +38,9 @@ struct PreferencesView: View {
                 Text("Rendering")
             } footer: {
                 Text(
-                    "Lower preview quality renders faster. GPU falls back to CPU when unavailable. "
+                    "Python is the oracle. Swift is an in-progress native engine — S0 is a gray stub, not a look match. "
+                        + "Changing the engine restarts the session. "
+                        + "Lower preview quality renders faster. GPU falls back to CPU when unavailable. "
                         + "Auto-detect runs only on scans without a saved .negpy sidecar. "
                         + "Auto crop trims scanner bed borders on new scans; turn off to keep the full frame."
                 )

@@ -2,6 +2,8 @@
 
 Compares scene-linear decode + H&D + cast 0.5 + BPC + working OETF (no display
 transform, no Lab, autos off). Exit 0 when MAE <= --max-mae.
+
+S4b reuses ``compare_print`` with zone-offset and CMY-offset configs.
 """
 
 from __future__ import annotations
@@ -74,7 +76,7 @@ def _downsample_nearest(rgb: np.ndarray, max_edge: int) -> np.ndarray:
     return out
 
 
-def _python_print(path: Path, long_edge: int | None) -> np.ndarray:
+def _python_print(path: Path, long_edge: int | None, config: dict) -> np.ndarray:
     from negpy.domain.models import WorkspaceConfig
     from negpy.infrastructure.loaders.tiff_loader import TiffLoader
     from negpy.services.rendering.image_processor import ImageProcessor
@@ -84,11 +86,11 @@ def _python_print(path: Path, long_edge: int | None) -> np.ndarray:
         rgb = np.asarray(handle.data, dtype=np.float32)
     if long_edge is not None:
         rgb = _downsample_nearest(rgb, long_edge)
-    config = WorkspaceConfig.from_flat_dict(dict(S4A_PIN))
+    workspace = WorkspaceConfig.from_flat_dict(dict(config))
     result, _metrics = ImageProcessor().run_pipeline(
         rgb,
-        config,
-        "s4a-compare",
+        workspace,
+        "s4-compare",
         render_size_ref=float(max(rgb.shape[0], rgb.shape[1])),
         prefer_gpu=False,
         wants_uv_grid=False,
@@ -96,6 +98,80 @@ def _python_print(path: Path, long_edge: int | None) -> np.ndarray:
     if result.ndim == 3 and result.shape[2] >= 3:
         return np.asarray(result[:, :, :3], dtype=np.float32)
     return np.asarray(result, dtype=np.float32)
+
+
+def _swift_print(path: Path, long_edge: int | None, config: dict) -> np.ndarray:
+    root = _repo_root()
+    package_dir = root / "Packages" / "NegSwiftEngine"
+    with tempfile.TemporaryDirectory(prefix="negswift-s4-") as tmp:
+        raw = Path(tmp) / "swift.f32"
+        png = Path(tmp) / "swift.png"
+        cfg = Path(tmp) / "config.json"
+        cfg.write_text(json.dumps(config))
+        cmd = [
+            "swift",
+            "run",
+            "--package-path",
+            str(package_dir),
+            "negswift-engine-swift",
+            "render",
+            "--path",
+            str(path),
+            "--out",
+            str(png),
+            "--out-f32",
+            str(raw),
+            "--config-json",
+            str(cfg),
+        ]
+        if long_edge is not None:
+            cmd.extend(["--long-edge", str(long_edge)])
+        subprocess.run(cmd, check=True)
+        return np.fromfile(raw, dtype="<f4")
+
+
+def compare_print(
+    scan: Path,
+    long_edge: int | None,
+    config: dict,
+    milestone: str,
+    max_mae: float,
+    note: str,
+) -> dict:
+    python_rgb = _python_print(scan, long_edge, config)
+    swift_flat = _swift_print(scan, long_edge, config)
+    h, w = python_rgb.shape[:2]
+    expected = h * w * 3
+    if swift_flat.size != expected:
+        return {
+            "ok": False,
+            "error": "shape mismatch",
+            "milestone": milestone,
+            "python": [h, w, 3],
+            "swift_count": int(swift_flat.size),
+        }
+    swift_rgb = swift_flat.reshape(h, w, 3)
+    diff = np.abs(python_rgb - swift_rgb)
+    mae = float(np.mean(diff))
+    max_abs = float(np.max(diff))
+    p99 = float(np.quantile(diff, 0.99))
+    mse = float(np.mean((python_rgb - swift_rgb) ** 2))
+    psnr = 10.0 * math.log10(1.0 / mse) if mse > 0 else float("inf")
+    return {
+        "milestone": milestone,
+        "look_claim": True,
+        "scan": str(scan),
+        "long_edge_px": long_edge,
+        "width": w,
+        "height": h,
+        "mae": mae,
+        "p99_abs": p99,
+        "max_abs": max_abs,
+        "psnr_db": psnr,
+        "max_mae": max_mae,
+        "ok": mae <= max_mae,
+        "note": note,
+    }
 
 
 def main() -> None:
@@ -114,74 +190,14 @@ def main() -> None:
         print(f"scan not found: {scan}", file=sys.stderr)
         sys.exit(2)
 
-    root = _repo_root()
-    package_dir = root / "Packages" / "NegSwiftEngine"
-    python_rgb = _python_print(scan, args.long_edge)
-
-    with tempfile.TemporaryDirectory(prefix="negswift-s4a-") as tmp:
-        raw = Path(tmp) / "swift.f32"
-        png = Path(tmp) / "swift.png"
-        cmd = [
-            "swift",
-            "run",
-            "--package-path",
-            str(package_dir),
-            "negswift-engine-swift",
-            "render",
-            "--path",
-            str(scan),
-            "--out",
-            str(png),
-            "--out-f32",
-            str(raw),
-            "--density",
-            "1.0",
-            "--grade",
-            "115",
-        ]
-        if args.long_edge is not None:
-            cmd.extend(["--long-edge", str(args.long_edge)])
-        subprocess.run(cmd, check=True)
-        swift_flat = np.fromfile(raw, dtype="<f4")
-
-    h, w = python_rgb.shape[:2]
-    expected = h * w * 3
-    if swift_flat.size != expected:
-        print(
-            json.dumps(
-                {
-                    "ok": False,
-                    "error": "shape mismatch",
-                    "python": [h, w, 3],
-                    "swift_count": int(swift_flat.size),
-                },
-                indent=2,
-            )
-        )
-        sys.exit(1)
-
-    swift_rgb = swift_flat.reshape(h, w, 3)
-    diff = np.abs(python_rgb - swift_rgb)
-    mae = float(np.mean(diff))
-    max_abs = float(np.max(diff))
-    p99 = float(np.quantile(diff, 0.99))
-    mse = float(np.mean((python_rgb - swift_rgb) ** 2))
-    psnr = 10.0 * math.log10(1.0 / mse) if mse > 0 else float("inf")
-    report = {
-        "milestone": "S4a",
-        "look_claim": True,
-        "scan": str(scan),
-        "long_edge_px": args.long_edge,
-        "width": w,
-        "height": h,
-        "mae": mae,
-        "p99_abs": p99,
-        "max_abs": max_abs,
-        "psnr_db": psnr,
-        "max_mae": args.max_mae,
-        "ok": mae <= args.max_mae,
-        "note": "Working-space OETF at S4a pin (autos/Lab off). Gate is MAE; max-abs can spike on holder/edge pixels.",
-    }
+    report = compare_print(
+        scan,
+        args.long_edge,
+        dict(S4A_PIN),
+        "S4a",
+        args.max_mae,
+        "Working-space OETF at S4a pin (autos/Lab off). Gate is MAE; max-abs can spike on holder/edge pixels.",
+    )
     print(json.dumps(report, indent=2))
     if args.out:
         Path(args.out).write_text(json.dumps(report, indent=2) + "\n")

@@ -3,11 +3,11 @@ import Testing
 @testable import NegSwiftEngine
 
 struct NativePipelineTests {
-    @Test func infoReportsS4aIdentity() {
+    @Test func infoReportsS4bIdentity() {
         let info = NativePipeline().infoJSON()
         #expect(info["protocol_version"] as? String == EngineVersion.protocolVersion)
         #expect(info["negswift_version"] as? String == EngineVersion.packageVersion)
-        #expect(info["negpy_version"] as? String == "s4a-print")
+        #expect(info["negpy_version"] as? String == "s4b-zone-cmy")
         #expect(info["backend"] as? String == "swift")
         #expect(info["gpu_available"] as? Bool == false)
     }
@@ -70,6 +70,67 @@ struct NativePipelineTests {
         let center = pixel(normalized, x: 20, y: 16)
         let corner = pixel(normalized, x: 0, y: 0)
         #expect(center.0 < corner.0)
+    }
+
+    @Test func renderPrintAppliesZoneDensity() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        let pin = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s4aPin
+        )
+        let zone = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s4bZoneOffset
+        )
+        #expect(zone.pixels != pin.pixels)
+        #expect(zone.pixels.allSatisfy { $0 >= 0 && $0 <= 1 })
+    }
+
+    @Test func renderPrintAppliesCMY() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        let pin = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s4aPin
+        )
+        let cmy = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s4bCMYOffset
+        )
+        #expect(cmy.pixels != pin.pixels)
+        let pinMeans = channelMeans(pin)
+        let cmyMeans = channelMeans(cmy)
+        #expect(abs(cmyMeans.0 - pinMeans.0) > 1e-4 || abs(cmyMeans.2 - pinMeans.2) > 1e-4)
+    }
+
+    @Test func printConfigMergesNegPyFlatKeys() {
+        let merged = PrintConfig.s4aPin.merging([
+            "shadow_density": -0.4,
+            "highlight_density": 0.25,
+            "shadow_grade": -25,
+            "highlight_grade": 20,
+            "wb_cyan": 0.3,
+            "wb_magenta": -0.2,
+            "wb_yellow": 0.5,
+        ])
+        #expect(merged == PrintConfig.s4bZoneOffset.merging([
+            "wb_cyan": 0.3,
+            "wb_magenta": -0.2,
+            "wb_yellow": 0.5,
+        ]))
+        #expect(merged.wbCyan == 0.3)
+        #expect(merged.shadowDensity == -0.4)
     }
 
     @Test func renderPrintHonorsStoredCrop() throws {

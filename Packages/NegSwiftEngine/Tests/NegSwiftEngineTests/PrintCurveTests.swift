@@ -138,6 +138,164 @@ struct PrintCurveTests {
         #expect(meanShOut / Double(nSh) > meanShBase / Double(nSh))
     }
 
+    @Test func highlightBurnActsOnHighlightsSparesShadows() {
+        let (x, base) = curve()
+        let (_, out) = curve(highlightDensity: 0.5)
+        var dSh = 0.0, dHi = 0.0
+        var meanHiOut = 0.0, meanHiBase = 0.0, nHi = 0
+        for i in x.indices {
+            let d = abs(out[i] - base[i])
+            if x[i] > 0.8 { dSh = max(dSh, d) }
+            if x[i] < 0.3 {
+                dHi = max(dHi, d)
+                meanHiOut += out[i]
+                meanHiBase += base[i]
+                nHi += 1
+            }
+        }
+        #expect(dHi > 0.1)
+        #expect(dHi > 20 * dSh)
+        #expect(meanHiOut / Double(nHi) < meanHiBase / Double(nHi))
+    }
+
+    @Test func zoneOffsetsStayInsidePaperLimits() {
+        for (sd, hd) in [(0.9, 0.0), (0.0, -0.5)] {
+            let (_, out) = curve(shadowDensity: sd, highlightDensity: hd)
+            let d = out.map(outputToDensity)
+            #expect(d.max()! <= ExposureConstants.dMax + 1e-6)
+            #expect(d.min()! >= 0)
+            for i in 1..<out.count {
+                #expect(out[i] - out[i - 1] <= 1e-6, "zone offset broke monotonicity sd=\(sd) hd=\(hd)")
+            }
+        }
+    }
+
+    @Test func shadowGradeActsOnShadowsSparesMids() {
+        let (x, base) = curve()
+        let (_, out) = curve(shadowGrade: 30)
+        let dBase = base.map(outputToDensity)
+        let dOut = out.map(outputToDensity)
+        var dSh = 0.0, dHi = 0.0, dMid = 0.0
+        var meanShOut = 0.0, meanShBase = 0.0, nSh = 0
+        for i in x.indices {
+            let d = abs(dOut[i] - dBase[i])
+            if x[i] > 0.8 {
+                dSh = max(dSh, d)
+                meanShOut += dOut[i]
+                meanShBase += dBase[i]
+                nSh += 1
+            }
+            if x[i] < 0.2 { dHi = max(dHi, d) }
+            if x[i] > 0.35 && x[i] < 0.55 { dMid = max(dMid, d) }
+        }
+        #expect(dSh > 0.05)
+        #expect(dSh > 10 * dHi)
+        #expect(dSh > 3 * dMid)
+        #expect(meanShOut / Double(nSh) < meanShBase / Double(nSh))
+    }
+
+    @Test func highlightGradeActsOnHighlightsSparesShadows() {
+        let (x, base) = curve()
+        let (_, out) = curve(highlightGrade: 30)
+        let dBase = base.map(outputToDensity)
+        let dOut = out.map(outputToDensity)
+        var dSh = 0.0, dHi = 0.0
+        var meanHiOut = 0.0, meanHiBase = 0.0, nHi = 0
+        for i in x.indices {
+            let d = abs(dOut[i] - dBase[i])
+            if x[i] > 0.8 { dSh = max(dSh, d) }
+            if x[i] < 0.3 {
+                dHi = max(dHi, d)
+                meanHiOut += dOut[i]
+                meanHiBase += dBase[i]
+                nHi += 1
+            }
+        }
+        #expect(dHi > 0.03)
+        #expect(dHi > 10 * dSh)
+        #expect(meanHiOut / Double(nHi) > meanHiBase / Double(nHi))
+    }
+
+    @Test func stackedZoneAndSplitGradeStayMonotoneAndBounded() {
+        for grade in [50.0, 115.0, 180.0] {
+            for sg in [-50.0, 50.0] {
+                for hg in [-50.0, 50.0] {
+                    for (sd, hd) in [(0.0, 0.0), (-0.9, -0.5), (0.9, 0.5)] {
+                        let (_, out) = curve(
+                            grade: grade,
+                            shadowDensity: sd,
+                            highlightDensity: hd,
+                            shadowGrade: sg,
+                            highlightGrade: hg
+                        )
+                        for i in 1..<out.count {
+                            #expect(
+                                out[i] - out[i - 1] <= 1e-6,
+                                "non-monotone at grade=\(grade) sg=\(sg) hg=\(hg) sd=\(sd) hd=\(hd)"
+                            )
+                        }
+                        let d = out.map(outputToDensity)
+                        #expect(d.max()! <= ExposureConstants.dMax + 1e-6)
+                        #expect(d.min()! >= 0)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func filtrationOffsetsAreRangeInvariantDensity() {
+        let cmyMax = ExposureConstants.cmyMaxDensity
+        for rng in [0.8, 1.3, 2.2] {
+            let bounds = LogNegativeBounds(floors: (-rng, -rng, -rng), ceils: (0, 0, 0))
+            let off = PrintCurve.filtrationOffsets(cyan: 1, magenta: 0.5, yellow: 0, bounds: bounds)
+            #expect(abs(off.0 * rng - cmyMax) < 1e-6)
+            #expect(abs(off.1 * rng - 0.5 * cmyMax) < 1e-6)
+            #expect(off.2 == 0)
+        }
+    }
+
+    @Test func filtrationOffsetsNilBoundsUseUnitRange() {
+        let off = PrintCurve.filtrationOffsets(cyan: 1, magenta: 0, yellow: 0, bounds: nil)
+        #expect(abs(off.0 - ExposureConstants.cmyMaxDensity) < 1e-6)
+    }
+
+    @Test func filtrationOffsetsReversedBoundsKeepDirection() {
+        let fwd = PrintCurve.filtrationOffsets(
+            cyan: 1, magenta: 1, yellow: 1,
+            bounds: LogNegativeBounds(floors: (-1.5, -1.5, -1.5), ceils: (0, 0, 0))
+        )
+        let rev = PrintCurve.filtrationOffsets(
+            cyan: 1, magenta: 1, yellow: 1,
+            bounds: LogNegativeBounds(floors: (0, 0, 0), ceils: (-1.5, -1.5, -1.5))
+        )
+        #expect(fwd == rev)
+    }
+
+    @Test func yellowOffsetReducesBlueTransmittance() {
+        let img = LinearRGBBuffer(width: 10, height: 10, pixels: [Float](repeating: 0.5, count: 10 * 10 * 3))
+        let base = PrintCurve.apply(
+            img,
+            pivots: (0.5, 0.5, 0.5),
+            slopes: (1, 1, 1),
+            midtoneGamma: 0
+        )
+        let yellow = PrintCurve.apply(
+            img,
+            pivots: (0.5, 0.5, 0.5),
+            slopes: (1, 1, 1),
+            midtoneGamma: 0,
+            cmyOffsets: (0, 0, 0.5)
+        )
+        var baseB: Double = 0
+        var yellowB: Double = 0
+        let n = 10 * 10
+        for i in 0..<n {
+            baseB += Double(base.pixels[i * 3 + 2])
+            yellowB += Double(yellow.pixels[i * 3 + 2])
+        }
+        #expect(yellowB / Double(n) < baseB / Double(n))
+    }
+
     private func curve(
         toe: Double = 0,
         shoulder: Double = 0,

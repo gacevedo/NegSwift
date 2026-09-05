@@ -1,6 +1,6 @@
 import Foundation
 
-/// S4a photometric print: global density/grade + cast + BPC.
+/// Photometric print: H&D + density/grade + zone + CMY + cast + BPC.
 /// Auto Density / Auto Grade run when ``PrintConfig`` flags are on (app default).
 /// ``PrintConfig.s4aPin`` leaves them off for the MAE gate.
 public enum PhotometricPrint: Sendable {
@@ -107,6 +107,12 @@ public enum PhotometricPrint: Sendable {
             image = collapseToLuma(image)
         }
 
+        let cmyOffsets = PrintCurve.filtrationOffsets(
+            cyan: Double(config.wbCyan),
+            magenta: Double(config.wbMagenta),
+            yellow: Double(config.wbYellow),
+            bounds: bounds
+        )
         var printed = PrintCurve.apply(
             image,
             pivots: params.pivots,
@@ -122,7 +128,8 @@ public enum PhotometricPrint: Sendable {
             shadowDensity: Double(config.shadowDensity),
             highlightDensity: Double(config.highlightDensity) + highlightHold,
             shadowGradeDeltas: sg,
-            highlightGradeDeltas: hg
+            highlightGradeDeltas: hg,
+            cmyOffsets: cmyOffsets
         )
         if processMode == .bwNegative {
             printed = collapseToLuma(printed)

@@ -40,12 +40,17 @@ struct NegSwiftEngineCLI {
 
         Commands:
           info
-          render --path PATH --out PNG [--out-f32 FILE] [--long-edge N] [--density D] [--grade G]
+          render --path PATH --out PNG [--out-f32 FILE] [--long-edge N]
+                 [--density D] [--grade G]
+                 [--shadow-density D] [--highlight-density D]
+                 [--shadow-grade G] [--highlight-grade G]
+                 [--wb-cyan C] [--wb-magenta M] [--wb-yellow Y]
+                 [--config-json FILE]
           decode --path PATH --out-f32 FILE
           detect --path PATH
           oetf-ramp --out-dir DIR [--width N] [--height N]
 
-        S4a: render is H&D + cast 0.5 + BPC + OETF (autos/Lab off unless config says otherwise).
+        S4b: render is H&D + zone/CMY + cast 0.5 + BPC + OETF (autos/Lab off unless config says otherwise).
         """
         print(text)
     }
@@ -58,18 +63,36 @@ struct NegSwiftEngineCLI {
     private static func runRender(_ args: [String]) throws {
         let parsed = try parseRender(args)
         var config = PrintConfig.s4aPin
+        if let jsonPath = parsed.configJSON {
+            let data = try Data(contentsOf: URL(fileURLWithPath: jsonPath))
+            let obj = try JSONSerialization.jsonObject(with: data)
+            guard let dict = obj as? [String: Any] else {
+                throw CLIError.usage("--config-json must be a JSON object")
+            }
+            config = config.merging(dict)
+        }
         if let density = parsed.density { config.density = density }
         if let grade = parsed.grade { config.grade = grade }
+        if let v = parsed.shadowDensity { config.shadowDensity = v }
+        if let v = parsed.highlightDensity { config.highlightDensity = v }
+        if let v = parsed.shadowGrade { config.shadowGrade = v }
+        if let v = parsed.highlightGrade { config.highlightGrade = v }
+        if let v = parsed.wbCyan { config.wbCyan = v }
+        if let v = parsed.wbMagenta { config.wbMagenta = v }
+        if let v = parsed.wbYellow { config.wbYellow = v }
+        guard let path = parsed.path, let out = parsed.out else {
+            throw CLIError.usage("render requires --path and --out")
+        }
         let pipeline = NativePipeline()
         let (width, height) = try pipeline.renderPNG(
-            path: parsed.path,
+            path: path,
             longEdgePx: parsed.longEdge,
             config: config,
-            to: URL(fileURLWithPath: parsed.out)
+            to: URL(fileURLWithPath: out)
         )
         if let outF32 = parsed.outF32 {
             _ = try pipeline.writePrintF32(
-                path: parsed.path,
+                path: path,
                 longEdgePx: parsed.longEdge,
                 config: config,
                 to: URL(fileURLWithPath: outF32)
@@ -78,7 +101,7 @@ struct NegSwiftEngineCLI {
         try writeJSON([
             "width": width,
             "height": height,
-            "out": parsed.out,
+            "out": out,
             "print": true,
         ])
     }
@@ -182,57 +205,113 @@ struct NegSwiftEngineCLI {
         ])
     }
 
-    private static func parseRender(
-        _ args: [String]
-    ) throws -> (path: String, out: String, outF32: String?, longEdge: Int?, density: Float?, grade: Float?) {
-        var path: String?
-        var out: String?
-        var outF32: String?
-        var longEdge: Int?
-        var density: Float?
-        var grade: Float?
+    private static func parseRender(_ args: [String]) throws -> RenderArgs {
+        var parsed = RenderArgs()
         var i = 0
         while i < args.count {
             switch args[i] {
             case "--path":
                 i += 1
                 guard i < args.count else { throw CLIError.missingValue("--path") }
-                path = args[i]
+                parsed.path = args[i]
             case "--out":
                 i += 1
                 guard i < args.count else { throw CLIError.missingValue("--out") }
-                out = args[i]
+                parsed.out = args[i]
             case "--out-f32":
                 i += 1
                 guard i < args.count else { throw CLIError.missingValue("--out-f32") }
-                outF32 = args[i]
+                parsed.outF32 = args[i]
             case "--long-edge":
                 i += 1
                 guard i < args.count, let value = Int(args[i]) else {
                     throw CLIError.missingValue("--long-edge")
                 }
-                longEdge = value
+                parsed.longEdge = value
             case "--density":
                 i += 1
                 guard i < args.count, let value = Float(args[i]) else {
                     throw CLIError.missingValue("--density")
                 }
-                density = value
+                parsed.density = value
             case "--grade":
                 i += 1
                 guard i < args.count, let value = Float(args[i]) else {
                     throw CLIError.missingValue("--grade")
                 }
-                grade = value
+                parsed.grade = value
+            case "--shadow-density":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--shadow-density")
+                }
+                parsed.shadowDensity = value
+            case "--highlight-density":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--highlight-density")
+                }
+                parsed.highlightDensity = value
+            case "--shadow-grade":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--shadow-grade")
+                }
+                parsed.shadowGrade = value
+            case "--highlight-grade":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--highlight-grade")
+                }
+                parsed.highlightGrade = value
+            case "--wb-cyan":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--wb-cyan")
+                }
+                parsed.wbCyan = value
+            case "--wb-magenta":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--wb-magenta")
+                }
+                parsed.wbMagenta = value
+            case "--wb-yellow":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--wb-yellow")
+                }
+                parsed.wbYellow = value
+            case "--config-json":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--config-json") }
+                parsed.configJSON = args[i]
             default:
                 throw CLIError.unknownFlag(args[i])
             }
             i += 1
         }
-        guard let path, let out else {
+        guard parsed.path != nil, parsed.out != nil else {
             throw CLIError.usage("render requires --path and --out")
         }
-        return (path, out, outF32, longEdge, density, grade)
+        return parsed
+    }
+
+    private struct RenderArgs {
+        var path: String?
+        var out: String?
+        var outF32: String?
+        var longEdge: Int?
+        var density: Float?
+        var grade: Float?
+        var shadowDensity: Float?
+        var highlightDensity: Float?
+        var shadowGrade: Float?
+        var highlightGrade: Float?
+        var wbCyan: Float?
+        var wbMagenta: Float?
+        var wbYellow: Float?
+        var configJSON: String?
     }
 
     private static func parsePathOut(_ args: [String]) throws -> (path: String, out: String, longEdge: Int?) {

@@ -155,6 +155,28 @@ public enum PrintCurve: Sendable {
         return (triple(shadowGrade), triple(highlightGrade))
     }
 
+    /// WB sliders as normalized-space offsets. Slider · `cmy_max_density` is an
+    /// absolute density (1.0 = 20cc), divided by each channel's stretch range.
+    /// `abs(range)` keeps C-41 and E-6 slider direction the same. Unit range when
+    /// `bounds` is nil. Mirrors NegPy `filtration_offsets`.
+    public static func filtrationOffsets(
+        cyan: Double,
+        magenta: Double,
+        yellow: Double,
+        bounds: LogNegativeBounds?
+    ) -> (Double, Double, Double) {
+        let sliders = [cyan, magenta, yellow]
+        var out = [0.0, 0.0, 0.0]
+        for ch in 0..<3 {
+            var d = sliders[ch] * ExposureConstants.cmyMaxDensity
+            if let bounds {
+                d /= max(abs(bounds.ceil(ch) - bounds.floor(ch)), 1e-6)
+            }
+            out[ch] = d
+        }
+        return (out[0], out[1], out[2])
+    }
+
     public static func luminanceDensityRange(_ bounds: LogNegativeBounds) -> Double {
         let rr = abs(bounds.ceils.0 - bounds.floors.0)
         let rg = abs(bounds.ceils.1 - bounds.floors.1)

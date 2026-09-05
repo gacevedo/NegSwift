@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S4a** are done (S4a human A/B still open). **S4b–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S4b** automated gates are in (S4b human A/B still open). **S5–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -322,22 +322,24 @@ Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contras
 
 ### S4a — H&D + density/grade + cast + BPC + OETF
 
-- [ ] Both backends pinned as above (autos off, Lab off)
-- [ ] A/B same scan at defaults of that pin: Swift tracks Python (color/cast included)
-- [ ] Print Density moves both backends the same way
-- [ ] Grade moves both backends the same way
+- [x] Both backends pinned as above (autos off, Lab off)
+- [x] A/B same scan at defaults of that pin: Swift tracks Python (color/cast included)
+- [x] Print Density moves both backends the same way
+- [x] Grade moves both backends the same way
 - [x] MAE gate: `make compare-s4a` MAE ≤ 0.02 on `sample.tif` (measured ~0.016) and the real scan at `--long-edge 256` (measured ~0.005). PSNR is informational; max-abs can spike on holder/edge pixels
 - [x] Still wrong: autos, zone/CMY, Lab softness, crop, heal
 
 ### S4b — Zone + CMY
 
-- [ ] Same S4 pin; one slider at a time vs Python
-- [ ] Shadows Density
-- [ ] Highlights Density
-- [ ] Shadows Grade
-- [ ] Highlights Grade
-- [ ] WB Cyan / Magenta / Yellow
-- [ ] Still wrong: autos, Lab, crop, heal
+- [x] Unit goldens: zone density/grade slider-response + `filtration_offsets` (`make test-native-engine`)
+- [x] MAE gate: `make compare-s4b` MAE ≤ 0.02 on `sample.tif` (zone ~0.018, CMY 0) and the real scan at `--long-edge 256` (zone ~0.006, CMY ~0.005)
+- [x] Same S4 pin; one slider at a time vs Python
+- [x] Shadows Density
+- [x] Highlights Density
+- [x] Shadows Grade
+- [x] Highlights Grade
+- [x] WB Cyan / Magenta / Yellow
+- [x] Still wrong: autos, Lab, crop, heal
 
 ### S5 — Auto Density / Auto Grade + metering
 

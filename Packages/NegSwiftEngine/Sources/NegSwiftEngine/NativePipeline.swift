@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S4a: log-normalize → H&D print + cast + BPC → OETF.
+/// In-process pipeline. S4b: log-normalize → H&D + zone/CMY + cast + BPC → OETF.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -54,7 +54,7 @@ public struct NativePipeline: Sendable {
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
-    /// S4a print: normalize → H&D + cast + BPC → working OETF.
+    /// S4 print: normalize → H&D + zone/CMY + cast + BPC → working OETF.
     /// Autos follow ``PrintConfig``; ``s4aPin`` leaves them off.
     public func renderPrint(
         path: String,

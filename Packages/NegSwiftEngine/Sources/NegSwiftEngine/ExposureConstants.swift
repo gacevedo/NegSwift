@@ -1,4 +1,4 @@
-/// NegPy `EXPOSURE_CONSTANTS` used by the S4a print curve (Neutral paper).
+/// NegPy `EXPOSURE_CONSTANTS` used by the S4 print curve (Neutral paper).
 public enum ExposureConstants: Sendable {
     public static let densityMultiplier: Double = 0.2
     public static let anchorTargetDensity: Double = 0.75

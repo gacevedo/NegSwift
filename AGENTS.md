@@ -94,9 +94,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
-| **S0–S13** | Native Swift engine — **S1 done** (linear decode). Next **S2** log-normalize. Checklist § S0–S13 |
+| **S0–S13** | Native Swift engine — **S2 done** (log-normalize). Next **S3** OETF units. Checklist § S0–S13 |
 
-**Current status (2026-09-05):** M0–M15 feature complete. Native engine **S1** is in (linear TIFF/JPEG decode + process detect). Python remains the default. Next vertical is **S2** log-normalize. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-09-05):** M0–M15 feature complete. Native engine **S2** is in (log10 → block-median bounds → unclamped stretch). Python remains the default. Next vertical is **S3** working OETF (unit/synthetic only). **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

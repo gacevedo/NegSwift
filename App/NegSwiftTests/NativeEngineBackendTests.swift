@@ -14,12 +14,12 @@ struct NativeEngineBackendTests {
     @Test func infoReportsSwiftDecode() async throws {
         let backend = NativeEngineBackend()
         let info = try await backend.info()
-        #expect(info.negpyVersion == "s1-decode")
+        #expect(info.negpyVersion == "s2-log-normalize")
         #expect(info.gpuBackend == "swift")
         #expect(info.gpuAvailable == false)
     }
 
-    @Test func linearRenderReturnsJPEG() async throws {
+    @Test func normalizedRenderReturnsJPEG() async throws {
         let backend = NativeEngineBackend()
         let result = try await backend.render(
             path: sampleTIFFPath,

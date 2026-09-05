@@ -42,7 +42,7 @@ struct NegSwiftEngineCLI {
           decode --path PATH --out-f32 FILE
           detect --path PATH
 
-        S1: render shows unprocessed linear pixels (orange mask still orange).
+        S2: render is log-normalized (harsh positive; no H&D / autos / Lab).
         """
         print(text)
     }
@@ -63,7 +63,7 @@ struct NegSwiftEngineCLI {
             "width": width,
             "height": height,
             "out": parsed.out,
-            "linear": true,
+            "normalized": true,
         ])
     }
 

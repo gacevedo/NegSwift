@@ -204,14 +204,26 @@ actor NativeEngineBackend: EngineBackend {
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int
     ) async throws -> RenderResult {
-        _ = path
         _ = preferGPU
-        _ = config
         _ = cropPreviewFull
         _ = stripThumbnail
+        let processMode: FilmProcessMode?
+        let analysisBuffer: Float
+        if let config {
+            processMode = FilmProcessMode(rawValue: config.processMode.rawValue) ?? .colorNegative
+            analysisBuffer = Float(config.analysisBuffer)
+        } else {
+            processMode = nil
+            analysisBuffer = LogNormalization.defaultAnalysisBuffer
+        }
         let buffer: LinearRGBBuffer
         do {
-            buffer = try pipeline.decode(path: path, maxLongEdge: longEdgePx)
+            buffer = try pipeline.renderNormalized(
+                path: path,
+                longEdgePx: longEdgePx,
+                processMode: processMode,
+                analysisBuffer: analysisBuffer
+            )
         } catch let error as LinearDecodeError {
             throw Self.mapDecode(error)
         }

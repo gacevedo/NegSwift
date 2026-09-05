@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S1: linear decode + process detect. Normalize / print are later.
+/// In-process pipeline. S2: linear decode + process detect + log-normalize.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -31,8 +31,42 @@ public struct NativePipeline: Sendable {
         return .stub(width: edge, height: edge)
     }
 
-    public func renderPNG(path: String, longEdgePx: Int?, to outURL: URL) throws -> (width: Int, height: Int) {
-        let buffer = try LinearDecode.decode(path: path, maxLongEdge: longEdgePx)
+    public func normalize(
+        _ linear: LinearRGBBuffer,
+        processMode: FilmProcessMode,
+        analysisBuffer: Float = LogNormalization.defaultAnalysisBuffer
+    ) -> LinearRGBBuffer {
+        LogNormalization.process(
+            linear: linear,
+            processMode: processMode,
+            analysisBuffer: analysisBuffer
+        )
+    }
+
+    public func renderNormalized(
+        path: String,
+        longEdgePx: Int?,
+        processMode: FilmProcessMode? = nil,
+        analysisBuffer: Float = LogNormalization.defaultAnalysisBuffer
+    ) throws -> LinearRGBBuffer {
+        let linear = try LinearDecode.decode(path: path, maxLongEdge: longEdgePx)
+        let mode = processMode ?? ProcessDetect.detectLite(linear)
+        return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
+    }
+
+    public func renderPNG(
+        path: String,
+        longEdgePx: Int?,
+        processMode: FilmProcessMode? = nil,
+        analysisBuffer: Float = LogNormalization.defaultAnalysisBuffer,
+        to outURL: URL
+    ) throws -> (width: Int, height: Int) {
+        let buffer = try renderNormalized(
+            path: path,
+            longEdgePx: longEdgePx,
+            processMode: processMode,
+            analysisBuffer: analysisBuffer
+        )
         try FileManager.default.createDirectory(
             at: outURL.deletingLastPathComponent(),
             withIntermediateDirectories: true

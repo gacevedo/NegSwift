@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S1** are done. **S2–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S2** are done. **S3–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -307,10 +307,11 @@ Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contras
 
 ### S2 — Log-normalize (not invert)
 
-- [ ] C-41 reads as a **color positive**; orange mask gone
-- [ ] Image is harsh/flat vs Python at app defaults
-- [ ] No leftover “crude invert” path in the package
-- [ ] Still wrong: density, grade, WB, sharpness, crop. Not a full-pipeline MAE gate
+- [x] Ported `test_normalization_unclamped` numbers (`make test-native-engine`)
+- [x] C-41 reads as a **color positive**; orange mask gone
+- [x] Image is harsh/flat vs Python at app defaults
+- [x] No leftover “crude invert” path in the package
+- [x] Still wrong: density, grade, WB, sharpness, crop. Not a full-pipeline MAE gate
 
 ### S3 — Working OETF (unit / synthetic only)
 

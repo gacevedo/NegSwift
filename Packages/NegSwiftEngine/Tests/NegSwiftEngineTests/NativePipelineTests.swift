@@ -3,13 +3,29 @@ import Testing
 @testable import NegSwiftEngine
 
 struct NativePipelineTests {
-    @Test func infoReportsS2Identity() {
+    @Test func infoReportsS3Identity() {
         let info = NativePipeline().infoJSON()
         #expect(info["protocol_version"] as? String == EngineVersion.protocolVersion)
         #expect(info["negswift_version"] as? String == EngineVersion.packageVersion)
-        #expect(info["negpy_version"] as? String == "s2-log-normalize")
+        #expect(info["negpy_version"] as? String == "s3-oetf")
         #expect(info["backend"] as? String == "swift")
         #expect(info["gpu_available"] as? Bool == false)
+    }
+
+    @Test func renderNormalizedDoesNotApplyOETF() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        let linear = try pipeline.decode(path: url.path)
+        let normalized = try pipeline.renderNormalized(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative
+        )
+        let expected = pipeline.normalize(linear, processMode: .colorNegative)
+        #expect(normalized.pixels == expected.pixels)
+        let encoded = WorkingOETF.encode(expected)
+        #expect(normalized.pixels != encoded.pixels)
     }
 
     @Test func renderNormalizedTurnsC41MaskIntoUninvertedPositive() throws {

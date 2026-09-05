@@ -19,6 +19,8 @@ struct NegSwiftEngineCLI {
                 try runDecode(Array(args.dropFirst()))
             case "detect":
                 try runDetect(Array(args.dropFirst()))
+            case "oetf-ramp":
+                try runOETFRamp(Array(args.dropFirst()))
             case "-h", "--help":
                 printUsage()
             default:
@@ -41,8 +43,10 @@ struct NegSwiftEngineCLI {
           render --path PATH --out PNG [--long-edge N]
           decode --path PATH --out-f32 FILE
           detect --path PATH
+          oetf-ramp --out-dir DIR [--width N] [--height N]
 
         S2: render is log-normalized (harsh positive; no H&D / autos / Lab).
+        S3: OETF is unit/synthetic only — oetf-ramp writes linear vs encoded PNGs.
         """
         print(text)
     }
@@ -122,6 +126,47 @@ struct NegSwiftEngineCLI {
             "skipped": false,
             "detected_mode": mode.rawValue,
             "process_mode": mode.liteMode.rawValue,
+        ])
+    }
+
+    private static func runOETFRamp(_ args: [String]) throws {
+        var outDir: String?
+        var width = 512
+        var height = 64
+        var i = 0
+        while i < args.count {
+            switch args[i] {
+            case "--out-dir":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--out-dir") }
+                outDir = args[i]
+            case "--width":
+                i += 1
+                guard i < args.count, let value = Int(args[i]), value > 0 else {
+                    throw CLIError.missingValue("--width")
+                }
+                width = value
+            case "--height":
+                i += 1
+                guard i < args.count, let value = Int(args[i]), value > 0 else {
+                    throw CLIError.missingValue("--height")
+                }
+                height = value
+            default:
+                throw CLIError.unknownFlag(args[i])
+            }
+            i += 1
+        }
+        guard let outDir else {
+            throw CLIError.usage("oetf-ramp requires --out-dir")
+        }
+        let directory = URL(fileURLWithPath: outDir, isDirectory: true)
+        try NativePipeline().writeOETFRampPNGs(to: directory, width: width, height: height)
+        try writeJSON([
+            "linear": directory.appendingPathComponent("oetf-linear.png").path,
+            "encoded": directory.appendingPathComponent("oetf-encoded.png").path,
+            "width": width,
+            "height": height,
         ])
     }
 

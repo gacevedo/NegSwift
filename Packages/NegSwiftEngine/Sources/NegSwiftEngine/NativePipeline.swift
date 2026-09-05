@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S2: linear decode + process detect + log-normalize.
+/// In-process pipeline. S2 log-normalize on scans. S3 OETF is a function only; S4a applies it.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -88,5 +88,14 @@ public struct NativePipeline: Sendable {
 
     public func probeSource(at path: String) -> (width: Int, height: Int)? {
         ImageCoding.probeDimensions(at: URL(fileURLWithPath: path))
+    }
+
+    /// Synthetic linear vs encoded ramp PNGs. Not used by scan preview (S4a wires encode).
+    public func writeOETFRampPNGs(to directory: URL, width: Int = 512, height: Int = 64) throws {
+        let linear = WorkingOETF.linearRamp(width: width, height: height)
+        let encoded = WorkingOETF.encode(linear)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try ImageCoding.writePNG(linear, to: directory.appendingPathComponent("oetf-linear.png"))
+        try ImageCoding.writePNG(encoded, to: directory.appendingPathComponent("oetf-encoded.png"))
     }
 }

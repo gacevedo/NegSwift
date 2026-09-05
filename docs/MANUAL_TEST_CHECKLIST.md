@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S2** are done. **S3–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S3** are done. **S4a–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -315,10 +315,10 @@ Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contras
 
 ### S3 — Working OETF (unit / synthetic only)
 
-- [ ] Swift OETF unit tests / ramp goldens pass (563/256, no linear segment)
-- [ ] Optional: linear vs encoded ramp PNGs look like a power curve
-- [ ] **Do not** A/B a scan against Python for this vertical
-- [ ] Still wrong: scan preview unchanged until S4a applies encode
+- [x] Swift OETF unit tests / ramp goldens pass (563/256, no linear segment)
+- [ ] Optional: linear vs encoded ramp PNGs look like a power curve (`negswift-engine-swift oetf-ramp --out-dir DIR`)
+- [x] **Do not** A/B a scan against Python for this vertical
+- [x] Still wrong: scan preview unchanged until S4a applies encode
 
 ### S4a — H&D + density/grade + cast + BPC + OETF
 

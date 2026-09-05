@@ -22,6 +22,7 @@ final class EngineSession {
     private(set) var state: State = .idle
     private(set) var previewImage: NSImage?
     private(set) var isRenderingPreview = false
+    private(set) var isDetectingProcessMode = false
     private(set) var previewError: String?
     private(set) var currentPath: String?
     private(set) var frames: [ScanFrame] = []
@@ -320,7 +321,11 @@ final class EngineSession {
 
     func autodetectProcessModeForSelectedFrame() async {
         guard let path = selectedFramePath else { return }
-        guard let detected = await detectProcessMode(path: path, force: true) else { return }
+        isDetectingProcessMode = true
+        defer { isDetectingProcessMode = false }
+        previewError = nil
+        guard let detected = await detectProcessMode(path: path, force: true, reportError: true) else { return }
+        guard currentEdit.processMode != detected else { return }
         updateEdit { $0.processMode = detected }
         thumbnailGeneration += 1
         await refreshThumbnail(for: path, generation: thumbnailGeneration)
@@ -1383,7 +1388,7 @@ final class EngineSession {
         }
     }
 
-    private func detectProcessMode(path: String, force: Bool) async -> ProcessMode? {
+    private func detectProcessMode(path: String, force: Bool, reportError: Bool = false) async -> ProcessMode? {
         guard preferences.autodetectProcessMode || force else { return nil }
         guard engineReady,
               let frame = frames.first(where: { $0.path == path })
@@ -1401,6 +1406,9 @@ final class EngineSession {
             guard !result.skipped, let mode = result.processMode else { return nil }
             return ProcessMode.fromFlatValue(mode)
         } catch {
+            if reportError {
+                previewError = "Could not detect process mode: \(error.localizedDescription)"
+            }
             return nil
         }
     }

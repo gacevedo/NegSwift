@@ -7,20 +7,22 @@ import Foundation
 import Testing
 @testable import NegSwift
 
+private let sampleTIFFPath = "/Users/gacevedo/Development/NegSwift/App/NegSwiftUITests/Fixtures/sample.tif"
+
 @Suite(.serialized)
 struct NativeEngineBackendTests {
-    @Test func infoReportsSwiftStub() async throws {
+    @Test func infoReportsSwiftDecode() async throws {
         let backend = NativeEngineBackend()
         let info = try await backend.info()
-        #expect(info.negpyVersion == "s0-stub")
+        #expect(info.negpyVersion == "s1-decode")
         #expect(info.gpuBackend == "swift")
         #expect(info.gpuAvailable == false)
     }
 
-    @Test func stubRenderReturnsJPEG() async throws {
+    @Test func linearRenderReturnsJPEG() async throws {
         let backend = NativeEngineBackend()
         let result = try await backend.render(
-            path: "/tmp/missing.tif",
+            path: sampleTIFFPath,
             longEdgePx: 64,
             preferGPU: false,
             config: nil,
@@ -29,10 +31,24 @@ struct NativeEngineBackendTests {
             previewFormat: .jpeg,
             jpegQuality: 90
         )
-        #expect(result.width == 64)
-        #expect(result.height == 64)
+        #expect(result.width > 0)
+        #expect(result.height > 0)
         #expect(result.imageData != nil)
         #expect(!(result.imageData?.isEmpty ?? true))
+    }
+
+    @Test func detectC41OnSampleTIFF() async throws {
+        let backend = NativeEngineBackend()
+        let result = try await backend.detectProcessMode(path: sampleTIFFPath, force: true)
+        #expect(result.skipped == false)
+        #expect(result.processMode == "Color Negative")
+    }
+
+    @Test func detectSkipsWhenSidecarPresent() async throws {
+        let backend = NativeEngineBackend()
+        let result = try await backend.detectProcessMode(path: sampleTIFFPath, force: false)
+        #expect(result.skipped == true)
+        #expect(result.reason == "has_sidecar")
     }
 
     @Test func factoryDefaultIsPython() {

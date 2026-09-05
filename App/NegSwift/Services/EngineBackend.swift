@@ -209,7 +209,12 @@ actor NativeEngineBackend: EngineBackend {
         _ = config
         _ = cropPreviewFull
         _ = stripThumbnail
-        let buffer = pipeline.stubPreview(longEdgePx: longEdgePx)
+        let buffer: LinearRGBBuffer
+        do {
+            buffer = try pipeline.decode(path: path, maxLongEdge: longEdgePx)
+        } catch let error as LinearDecodeError {
+            throw Self.mapDecode(error)
+        }
         let data: Data
         let format: String
         switch previewFormat {
@@ -242,14 +247,25 @@ actor NativeEngineBackend: EngineBackend {
     }
 
     func detectProcessMode(path: String, force: Bool) async throws -> DetectProcessModeResult {
-        _ = path
-        _ = force
-        return DetectProcessModeResult(
-            skipped: true,
-            reason: "s0-stub",
-            detectedMode: nil,
-            processMode: nil
-        )
+        if !force, SidecarLocator.exists(forScanPath: path) {
+            return DetectProcessModeResult(
+                skipped: true,
+                reason: "has_sidecar",
+                detectedMode: nil,
+                processMode: nil
+            )
+        }
+        do {
+            let mode = try pipeline.detectProcessMode(path: path)
+            return DetectProcessModeResult(
+                skipped: false,
+                reason: nil,
+                detectedMode: mode.rawValue,
+                processMode: mode.liteMode.rawValue
+            )
+        } catch let error as LinearDecodeError {
+            throw Self.mapDecode(error)
+        }
     }
 
     func saveConfig(path: String, config: FrameEditState) async throws -> SaveConfigResult {
@@ -343,5 +359,14 @@ actor NativeEngineBackend: EngineBackend {
 
     private static func notImplemented(_ message: String) -> EngineClientError {
         .engine(EngineErrorPayload(code: "NOT_IMPLEMENTED", message: message))
+    }
+
+    private static func mapDecode(_ error: LinearDecodeError) -> EngineClientError {
+        switch error {
+        case .fileNotFound:
+            .engine(EngineErrorPayload(code: "NOT_FOUND", message: error.localizedDescription))
+        case .unsupported, .decodeFailed:
+            .engine(EngineErrorPayload(code: "DECODE_FAILED", message: error.localizedDescription))
+        }
     }
 }

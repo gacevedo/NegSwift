@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0** is done. **S1–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S1** are done. **S2–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -298,11 +298,12 @@ Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contras
 
 ### S1 — Decode + process-mode detect
 
-- [ ] Swift backend, real scan: **orange mask still orange** (unprocessed linear)
-- [ ] Untagged 16-bit TIFF is not sRGB-decoded (no crushed/dark orange)
-- [ ] Process-mode detect / wand agrees with Python on this C-41
-- [ ] (If available) a B&W scan detects as B&W on both backends
-- [ ] Still wrong: not a positive; sliders do nothing useful yet
+- [x] 16-bit untagged TIFF stays linear (`make test-native-engine`; `make compare-linear-decode` MAE 0 on `sample.tif`)
+- [x] Swift backend, real scan: **orange mask still orange** (unprocessed linear)
+- [x] Untagged 16-bit TIFF is not sRGB-decoded (no crushed/dark orange)
+- [x] Process-mode detect / wand agrees with Python on this C-41
+- [x] (If available) a B&W scan detects as B&W on both backends — `/Users/gacevedo/Downloads/Ilford HP5 Plus 135W-004.TIFF`
+- [x] Still wrong: not a positive; sliders do nothing useful yet
 
 ### S2 — Log-normalize (not invert)
 

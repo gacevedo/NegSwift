@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S0 is a stub (gray buffer). Decode, normalize, and print land in later verticals.
+/// In-process pipeline. S1: linear decode + process detect. Normalize / print are later.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -16,20 +16,39 @@ public struct NativePipeline: Sendable {
         ]
     }
 
-    /// S0: ignore pixels; emit a gray preview so the CLI and app can write a PNG.
+    public func decode(path: String, maxLongEdge: Int? = nil) throws -> LinearRGBBuffer {
+        try LinearDecode.decode(path: path, maxLongEdge: maxLongEdge)
+    }
+
+    public func detectProcessMode(path: String) throws -> FilmProcessMode {
+        let buffer = try LinearDecode.decode(path: path, maxLongEdge: ProcessDetect.detectDecodeLongEdge)
+        return ProcessDetect.detectLite(buffer)
+    }
+
+    /// Mid-gray placeholder used by S0 tests.
     public func stubPreview(longEdgePx: Int?) -> LinearRGBBuffer {
         let edge = max(32, min(longEdgePx ?? 256, 512))
         return .stub(width: edge, height: edge)
     }
 
     public func renderPNG(path: String, longEdgePx: Int?, to outURL: URL) throws -> (width: Int, height: Int) {
-        _ = path
-        let buffer = stubPreview(longEdgePx: longEdgePx)
+        let buffer = try LinearDecode.decode(path: path, maxLongEdge: longEdgePx)
         try FileManager.default.createDirectory(
             at: outURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
         try ImageCoding.writePNG(buffer, to: outURL)
+        return (buffer.width, buffer.height)
+    }
+
+    public func writeLinearF32(path: String, to outURL: URL) throws -> (width: Int, height: Int) {
+        let buffer = try LinearDecode.decode(path: path)
+        let data = buffer.pixels.withUnsafeBufferPointer { Data(buffer: $0) }
+        try FileManager.default.createDirectory(
+            at: outURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: outURL, options: .atomic)
         return (buffer.width, buffer.height)
     }
 

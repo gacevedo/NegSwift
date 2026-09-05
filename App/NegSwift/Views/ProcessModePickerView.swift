@@ -26,11 +26,16 @@ struct ProcessModePickerView: View {
                 Button {
                     Task { await session.autodetectProcessModeForSelectedFrame() }
                 } label: {
-                    Image(systemName: "wand.and.stars")
+                    if session.isDetectingProcessMode {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "wand.and.stars")
+                    }
                 }
                 .buttonStyle(.borderless)
                 .help("Detect C-41 or B&W from the scan")
-                .disabled(session.selectedFrameID == nil)
+                .disabled(session.selectedFrameID == nil || session.isDetectingProcessMode)
                 .accessibilityLabel("Detect process mode")
             }
         }

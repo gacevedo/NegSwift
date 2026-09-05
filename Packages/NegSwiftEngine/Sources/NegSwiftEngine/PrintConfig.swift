@@ -1,19 +1,19 @@
 import Foundation
 
 public struct NormalizedCropRect: Sendable, Equatable {
-    public var x1: Float
-    public var y1: Float
-    public var x2: Float
-    public var y2: Float
+    public var x1: Double
+    public var y1: Double
+    public var x2: Double
+    public var y2: Double
 
-    public init(x1: Float, y1: Float, x2: Float, y2: Float) {
+    public init(x1: Double, y1: Double, x2: Double, y2: Double) {
         self.x1 = x1
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
     }
 
-    public var tuple: (Float, Float, Float, Float) { (x1, y1, x2, y2) }
+    public var tuple: (Double, Double, Double, Double) { (x1, y1, x2, y2) }
 }
 
 /// S4 print-curve settings. Zone density/grade and CMY are S4b.
@@ -37,8 +37,16 @@ public struct PrintConfig: Sendable, Equatable {
     public var wbMagenta: Float
     public var wbYellow: Float
     public var analysisBuffer: Float
-    /// Stored crop in post-orientation space. Nil is full frame.
+    /// NegSwift `auto_density_uses_crop` — remap crop → `analysis_rect` when true.
+    public var autoDensityUsesCrop: Bool
+    /// Wire `analysis_rect` after remap (or a direct NegPy override).
+    public var analysisRect: NormalizedCropRect?
+    /// Stored crop in post-orientation space. Meters on the full frame; pixels crop when ``applyPixelCrop``.
     public var cropRect: NormalizedCropRect?
+    public var cropFromAuto: Bool
+    public var autoCropEnabled: Bool
+    /// False for crop-tool preview (`crop_preview_full`); output stays full-bleed.
+    public var applyPixelCrop: Bool
     public var rotation: Int
     public var flipHorizontal: Bool
     public var flipVertical: Bool
@@ -63,7 +71,12 @@ public struct PrintConfig: Sendable, Equatable {
         wbMagenta: Float = 0,
         wbYellow: Float = 0,
         analysisBuffer: Float = LogNormalization.defaultAnalysisBuffer,
+        autoDensityUsesCrop: Bool = true,
+        analysisRect: NormalizedCropRect? = nil,
         cropRect: NormalizedCropRect? = nil,
+        cropFromAuto: Bool = false,
+        autoCropEnabled: Bool = false,
+        applyPixelCrop: Bool = true,
         rotation: Int = 0,
         flipHorizontal: Bool = false,
         flipVertical: Bool = false
@@ -87,7 +100,12 @@ public struct PrintConfig: Sendable, Equatable {
         self.wbMagenta = wbMagenta
         self.wbYellow = wbYellow
         self.analysisBuffer = analysisBuffer
+        self.autoDensityUsesCrop = autoDensityUsesCrop
+        self.analysisRect = analysisRect
         self.cropRect = cropRect
+        self.cropFromAuto = cropFromAuto
+        self.autoCropEnabled = autoCropEnabled
+        self.applyPixelCrop = applyPixelCrop
         self.rotation = rotation
         self.flipHorizontal = flipHorizontal
         self.flipVertical = flipVertical
@@ -109,6 +127,12 @@ public struct PrintConfig: Sendable, Equatable {
         wbCyan: 0.3,
         wbMagenta: -0.2,
         wbYellow: 0.5
+    )
+
+    /// S5 pin: autos on, Lab still off, identity geometry.
+    public static let s5Pin = PrintConfig(
+        autoExposure: true,
+        autoNormalizeContrast: true
     )
 
     public var bpc: Bool { !paperBlack }
@@ -136,19 +160,72 @@ public struct PrintConfig: Sendable, Equatable {
         if let v = Self.floatValue(overrides["wb_magenta"]) { copy.wbMagenta = v }
         if let v = Self.floatValue(overrides["wb_yellow"]) { copy.wbYellow = v }
         if let v = Self.floatValue(overrides["analysis_buffer"]) { copy.analysisBuffer = v }
+        if let v = Self.boolValue(overrides["auto_density_uses_crop"]) { copy.autoDensityUsesCrop = v }
+        if let v = MeteringRemap.asRect(overrides["analysis_rect"]) { copy.analysisRect = v }
+        if let v = MeteringRemap.asRect(overrides["crop_rect"]) ?? MeteringRemap.asRect(overrides["manual_crop_rect"]) {
+            copy.cropRect = v
+        }
+        if let v = Self.boolValue(overrides["crop_from_auto"]) { copy.cropFromAuto = v }
+        if let v = Self.boolValue(overrides["auto_crop_enabled"]) { copy.autoCropEnabled = v }
         if let v = Self.intValue(overrides["rotation"]) { copy.rotation = v }
         if let v = Self.boolValue(overrides["flip_horizontal"]) { copy.flipHorizontal = v }
         if let v = Self.boolValue(overrides["flip_vertical"]) { copy.flipVertical = v }
+        return copy.applyingMeteringRemap(from: overrides)
+    }
+
+    /// Meter region after `metering.py` remap. Pixel crop is applied after print.
+    public func resolvedAnalysisRegion() -> AnalysisRegion {
+        if let analysisRect {
+            return AnalysisRegion(buffer: 0, rect: analysisRect)
+        }
+        if let cropRect, cropFromAuto {
+            return AnalysisRegion(buffer: analysisBuffer, rect: cropRect)
+        }
+        return AnalysisRegion(buffer: analysisBuffer, rect: nil)
+    }
+
+    /// Apply `negpy_flat_for_pipeline` when crop / toggle keys are present; keep a
+    /// direct `analysis_rect` when those keys are absent (MAE / NegPy wire override).
+    public func applyingMeteringRemap(from overrides: [String: Any]? = nil) -> PrintConfig {
+        var copy = self
+        let keys = overrides ?? [:]
+        let hasCropKeys = keys["crop_rect"] != nil || keys["manual_crop_rect"] != nil
+            || cropRect != nil
+        let hasToggle = keys["auto_density_uses_crop"] != nil
+        if keys["analysis_rect"] != nil, keys["crop_rect"] == nil, keys["manual_crop_rect"] == nil {
+            return copy
+        }
+        if !hasCropKeys, !hasToggle {
+            return copy
+        }
+        var flat: [String: Any] = [
+            "auto_density_uses_crop": autoDensityUsesCrop,
+            "analysis_buffer": analysisBuffer,
+            "crop_from_auto": cropFromAuto,
+            "auto_crop_enabled": autoCropEnabled,
+        ]
+        if let cropRect {
+            if cropFromAuto {
+                flat["crop_rect"] = cropRect.arrayValue
+            } else {
+                flat["manual_crop_rect"] = cropRect.arrayValue
+            }
+        }
+        copy.analysisRect = MeteringRemap.pipelineAnalysisRect(flat)
         return copy
     }
 
-    private static func floatValue(_ value: Any?) -> Float? {
+    static func floatValue(_ value: Any?) -> Float? {
+        doubleValue(value).map(Float.init)
+    }
+
+    static func doubleValue(_ value: Any?) -> Double? {
         switch value {
-        case let f as Float: f
-        case let d as Double: Float(d)
-        case let i as Int: Float(i)
-        case let n as NSNumber: n.floatValue
-        case let s as String: Float(s)
+        case let d as Double: d
+        case let f as Float: Double(f)
+        case let i as Int: Double(i)
+        case let n as NSNumber: n.doubleValue
+        case let s as String: Double(s)
         default: nil
         }
     }
@@ -163,9 +240,10 @@ public struct PrintConfig: Sendable, Equatable {
         }
     }
 
-    private static func boolValue(_ value: Any?) -> Bool? {
+    static func boolValue(_ value: Any?) -> Bool? {
         switch value {
         case let b as Bool: b
+        case let n as NSNumber: n.boolValue
         case let s as String:
             switch s.lowercased() {
             case "true", "1", "yes": true

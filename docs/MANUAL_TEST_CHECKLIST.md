@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S4b** automated gates are in (S4b human A/B still open). **S5–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S5** automated gates are in (S5 human A/B still open). **S6–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -287,6 +287,8 @@ Python remains the default backend. A/B means Preferences **Engine: Python | Swi
 
 Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contrast=false`, Lab off (`sharpen=0`, `skin_protection=0`, `saturation=1`), identity geometry, no heal/dust, `cast_removal_strength=0.5` (C-41), Neutral paper, BPC on (`paper_black=false`).
 
+Pinned S5 config (both backends): S4 pin with `auto_exposure=true`, `auto_normalize_contrast=true`; Lab still off; identity geometry unless testing **Apply Auto Density while cropping**.
+
 ### S0 — Scaffold, A/B hook, harness
 
 - [x] `Packages/NegSwiftEngine` builds for macOS (`make test-native-engine`) and iOS Simulator (`make test-native-engine-ios`)
@@ -343,11 +345,12 @@ Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contras
 
 ### S5 — Auto Density / Auto Grade + metering
 
-- [ ] Autos on, Lab still off; A/B closer to current NegSwift
+- [x] MAE gate: `make compare-s5` MAE ≤ 0.02 on `sample.tif` (measured ~0.0006) and the real scan at `--long-edge 256` (measured ~0.011)
+- [x] Autos on, Lab still off; A/B closer to current NegSwift
 - [ ] Analysis Buffer changes the look on a full-frame scan
 - [ ] **Apply Auto Density while cropping** off: crop drag does not re-meter
 - [ ] Same toggle on: crop drag re-meters (debounced)
-- [ ] Still wrong: Lab softness; stored-crop overlay polish (S6)
+- [x] Still wrong: Lab softness; stored-crop overlay polish (S6)
 
 ### S6 — Stored geometry
 

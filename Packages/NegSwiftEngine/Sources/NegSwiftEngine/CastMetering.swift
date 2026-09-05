@@ -11,12 +11,11 @@ public struct NeutralAxisRefs: Sendable {
 public enum CastMetering: Sendable {
     public static func analysisGrid(
         linear: LinearRGBBuffer,
-        analysisBuffer: Float
+        analysisBuffer: Float,
+        analysisRect: NormalizedCropRect? = nil
     ) -> LinearRGBBuffer {
         var imgLog = LogNormalization.toLogDensity(linear)
-        if analysisBuffer > 0 {
-            imgLog = imgLog.analysisCenterCrop(bufferRatio: analysisBuffer)
-        }
+        imgLog = imgLog.applyingAnalysis(buffer: analysisBuffer, rect: analysisRect)
         return LogNormalization.blockMedianGrid(imgLog)
     }
 

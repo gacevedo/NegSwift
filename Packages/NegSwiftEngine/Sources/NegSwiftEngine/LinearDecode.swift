@@ -25,7 +25,16 @@ public enum LinearDecodeError: Error, LocalizedError, Sendable {
 /// Untagged 16-bit TIFF stays linear (`/ 65535`). Untagged 8-bit and JPEG apply IEC 61966-2-1
 /// sRGB → linear. IR / ExtraSamples are dropped (S1).
 public enum LinearDecode: Sendable {
-    public static func decode(url: URL, maxLongEdge: Int? = nil) throws -> LinearRGBBuffer {
+    /// Decode, then nearest-neighbor to `maxLongEdge`.
+    ///
+    /// ``analysisOversample`` loads a sharper ImageIO thumbnail (at least 4096 / 2× the
+    /// requested edge) before the nearest shrink. A thumbnail at the preview long edge
+    /// blurs film/holder boundaries so Analysis Buffer barely moves Auto Density.
+    public static func decode(
+        url: URL,
+        maxLongEdge: Int? = nil,
+        analysisOversample: Bool = false
+    ) throws -> LinearRGBBuffer {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw LinearDecodeError.fileNotFound(url)
         }
@@ -39,10 +48,19 @@ public enum LinearDecode: Sendable {
         let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
         let uti = CGImageSourceGetType(source) as String?
         let sourceDepth = sourceBitsPerComponent(properties: props)
-        guard var image = try loadImage(source: source, options: options, maxLongEdge: maxLongEdge) else {
+        let sampleEdge: Int?
+        if analysisOversample, let maxLongEdge, maxLongEdge > 0 {
+            sampleEdge = analysisSampleLongEdge(
+                requested: maxLongEdge,
+                sourceLongEdge: sourceLongEdge(properties: props)
+            )
+        } else {
+            sampleEdge = maxLongEdge
+        }
+        guard var image = try loadImage(source: source, options: options, maxLongEdge: sampleEdge) else {
             throw LinearDecodeError.decodeFailed
         }
-        image = constrain(image, maxLongEdge: maxLongEdge) ?? image
+        image = constrain(image, maxLongEdge: sampleEdge) ?? image
         // Transfer function follows the *file*, not the thumbnail. An 8-bit ImageIO
         // thumbnail of a 16-bit untagged TIFF must stay linear (`/ 255`), not sRGB.
         let transferDepth = sourceDepth ?? image.bitsPerComponent
@@ -56,8 +74,19 @@ public enum LinearDecode: Sendable {
         return buffer
     }
 
-    public static func decode(path: String, maxLongEdge: Int? = nil) throws -> LinearRGBBuffer {
-        try decode(url: URL(fileURLWithPath: path), maxLongEdge: maxLongEdge)
+    public static func decode(
+        path: String,
+        maxLongEdge: Int? = nil,
+        analysisOversample: Bool = false
+    ) throws -> LinearRGBBuffer {
+        try decode(url: URL(fileURLWithPath: path), maxLongEdge: maxLongEdge, analysisOversample: analysisOversample)
+    }
+
+    /// Intermediate thumbnail long edge so meters still see film/holder boundaries.
+    public static func analysisSampleLongEdge(requested: Int, sourceLongEdge: Int?) -> Int {
+        let sample = max(requested * 2, 4096)
+        guard let sourceLongEdge, sourceLongEdge > 0 else { return sample }
+        return min(sourceLongEdge, sample)
     }
 
     /// IEC 61966-2-1 sRGB electro-optical transfer (encoded → linear).
@@ -128,6 +157,18 @@ public enum LinearDecode: Sendable {
         ctx.interpolationQuality = .medium
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
         return ctx.makeImage()
+    }
+
+    private static func sourceLongEdge(properties: [CFString: Any]) -> Int? {
+        func intValue(_ key: CFString) -> Int? {
+            if let value = properties[key] as? Int, value > 0 { return value }
+            if let value = properties[key] as? NSNumber { return value.intValue }
+            return nil
+        }
+        guard let width = intValue(kCGImagePropertyPixelWidth),
+              let height = intValue(kCGImagePropertyPixelHeight)
+        else { return nil }
+        return max(width, height)
     }
 
     private static func sourceBitsPerComponent(properties: [CFString: Any]) -> Int? {

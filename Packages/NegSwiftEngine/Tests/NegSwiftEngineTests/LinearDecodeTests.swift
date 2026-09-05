@@ -77,6 +77,13 @@ struct LinearDecodeTests {
         }
     }
 
+    @Test func analysisSampleLongEdgeOversamplesPreview() {
+        #expect(LinearDecode.analysisSampleLongEdge(requested: 1600, sourceLongEdge: 8256) == 4096)
+        #expect(LinearDecode.analysisSampleLongEdge(requested: 1200, sourceLongEdge: 8256) == 4096)
+        #expect(LinearDecode.analysisSampleLongEdge(requested: 2400, sourceLongEdge: 8256) == 4800)
+        #expect(LinearDecode.analysisSampleLongEdge(requested: 1600, sourceLongEdge: 2000) == 2000)
+    }
+
     @Test func srgbToLinearMatchesIEC61966() {
         #expect(LinearDecode.srgbToLinear(0) == 0)
         #expect(abs(LinearDecode.srgbToLinear(0.04045) - 0.04045 / 12.92) < 1e-7)

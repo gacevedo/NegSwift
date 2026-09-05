@@ -3,11 +3,11 @@ import Testing
 @testable import NegSwiftEngine
 
 struct NativePipelineTests {
-    @Test func infoReportsS4bIdentity() {
+    @Test func infoReportsS5Identity() {
         let info = NativePipeline().infoJSON()
         #expect(info["protocol_version"] as? String == EngineVersion.protocolVersion)
         #expect(info["negswift_version"] as? String == EngineVersion.packageVersion)
-        #expect(info["negpy_version"] as? String == "s4b-zone-cmy")
+        #expect(info["negpy_version"] as? String == "s5-auto-metering")
         #expect(info["backend"] as? String == "swift")
         #expect(info["gpu_available"] as? Bool == false)
     }
@@ -133,7 +133,7 @@ struct NativePipelineTests {
         #expect(merged.shadowDensity == -0.4)
     }
 
-    @Test func renderPrintHonorsStoredCrop() throws {
+    @Test func renderPrintAppliesStoredCrop() throws {
         let url = try writeOrangeMaskTIFF(width: 40, height: 32)
         defer { try? FileManager.default.removeItem(at: url) }
         let pipeline = NativePipeline()
@@ -141,9 +141,9 @@ struct NativePipelineTests {
             path: url.path,
             longEdgePx: nil,
             processMode: .colorNegative,
-            config: .s4aPin
+            config: .s5Pin
         )
-        var cropped = PrintConfig.s4aPin
+        var cropped = PrintConfig.s5Pin
         cropped.cropRect = NormalizedCropRect(x1: 0.25, y1: 0.25, x2: 0.75, y2: 0.75)
         let interior = try pipeline.renderPrint(
             path: url.path,
@@ -153,6 +153,73 @@ struct NativePipelineTests {
         )
         #expect(interior.width < full.width)
         #expect(interior.height < full.height)
+    }
+
+    @Test func renderPrintMetersCropWhenPixelCropDisabled() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        let full = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s5Pin
+        )
+        var metered = PrintConfig.s5Pin
+        metered.cropRect = NormalizedCropRect(x1: 0.25, y1: 0.25, x2: 0.75, y2: 0.75)
+        metered.autoDensityUsesCrop = true
+        metered.applyPixelCrop = false
+        let preview = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: metered
+        )
+        #expect(preview.width == full.width)
+        #expect(preview.height == full.height)
+        #expect(preview.pixels != full.pixels)
+    }
+
+    @Test func renderPrintHonorsAnalysisBuffer() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        var tight = PrintConfig.s5Pin
+        tight.analysisBuffer = 0
+        var loose = PrintConfig.s5Pin
+        loose.analysisBuffer = 0.25
+        let a = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: tight
+        )
+        let b = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: loose
+        )
+        #expect(a.pixels != b.pixels)
+    }
+
+    @Test func renderPrintS5PinDiffersFromS4AutosOff() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        let pin = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s4aPin
+        )
+        let autos = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s5Pin
+        )
+        #expect(autos.pixels != pin.pixels)
     }
 
     @Test func writeLinearF32MatchesDecodeShape() throws {

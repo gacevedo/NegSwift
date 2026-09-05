@@ -130,14 +130,13 @@ public enum LogNormalization: Sendable {
         linear: LinearRGBBuffer,
         processMode: FilmProcessMode = .colorNegative,
         analysisBuffer: Float = defaultAnalysisBuffer,
+        analysisRect: NormalizedCropRect? = nil,
         lumaRangeClip: Double = defaultLumaRangeClip,
         colorRangeClip: Double = defaultColorRangeClip,
         e6Normalize: Bool = true
     ) -> LogNegativeBounds {
         var imgLog = toLogDensity(linear)
-        if analysisBuffer > 0 {
-            imgLog = imgLog.analysisCenterCrop(bufferRatio: analysisBuffer)
-        }
+        imgLog = imgLog.applyingAnalysis(buffer: analysisBuffer, rect: analysisRect)
         imgLog = blockMedianGrid(imgLog)
         return analyzeFromLogGrid(
             imgLog,
@@ -153,6 +152,7 @@ public enum LogNormalization: Sendable {
         linear: LinearRGBBuffer,
         processMode: FilmProcessMode = .colorNegative,
         analysisBuffer: Float = defaultAnalysisBuffer,
+        analysisRect: NormalizedCropRect? = nil,
         lumaRangeClip: Double = defaultLumaRangeClip,
         colorRangeClip: Double = defaultColorRangeClip,
         bounds: LogNegativeBounds? = nil
@@ -161,6 +161,7 @@ public enum LogNormalization: Sendable {
             linear: linear,
             processMode: processMode,
             analysisBuffer: analysisBuffer,
+            analysisRect: analysisRect,
             lumaRangeClip: lumaRangeClip,
             colorRangeClip: colorRangeClip
         )

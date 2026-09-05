@@ -102,6 +102,12 @@ struct ExposureMeteringTests {
         #expect(PrintConfig.s4aPin.autoNormalizeContrast == false)
     }
 
+    @Test func s5PinTurnsAutosOn() {
+        #expect(PrintConfig.s5Pin.autoExposure == true)
+        #expect(PrintConfig.s5Pin.autoNormalizeContrast == true)
+        #expect(PrintConfig.s5Pin.autoDensityUsesCrop == true)
+    }
+
     @Test func autoExposureShiftsPrintVsPin() throws {
         let url = try writeMeteredTIFF()
         defer { try? FileManager.default.removeItem(at: url) }

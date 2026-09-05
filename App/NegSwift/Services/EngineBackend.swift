@@ -208,15 +208,12 @@ actor NativeEngineBackend: EngineBackend {
         jpegQuality: Int
     ) async throws -> RenderResult {
         _ = preferGPU
-        _ = cropPreviewFull
         _ = stripThumbnail
         let generation = workGeneration
         let mapped = Self.printInputs(from: config)
-        let applyCrop = !cropPreviewFull
         var printConfig = mapped.printConfig
-        if !applyCrop {
-            printConfig.cropRect = nil
-        }
+        // Crop-tool preview stays full-bleed; stored crop still remaps to analysis_rect.
+        printConfig.applyPixelCrop = !cropPreviewFull
         let result: RenderResult
         do {
             result = try await withCheckedThrowingContinuation { continuation in
@@ -375,17 +372,21 @@ actor NativeEngineBackend: EngineBackend {
         printConfig.analysisBuffer = Float(config.analysisBuffer)
         printConfig.autoExposure = config.autoExposure
         printConfig.autoNormalizeContrast = config.autoNormalizeContrast
+        printConfig.autoDensityUsesCrop = config.autoDensityUsesCrop
+        printConfig.cropFromAuto = config.cropFromAuto
+        printConfig.autoCropEnabled = config.autoCropEnabled
         printConfig.rotation = config.rotation
         printConfig.flipHorizontal = config.flipHorizontal
         printConfig.flipVertical = config.flipVertical
         if let crop = config.manualCropRect {
             printConfig.cropRect = NormalizedCropRect(
-                x1: Float(crop.x1),
-                y1: Float(crop.y1),
-                x2: Float(crop.x2),
-                y2: Float(crop.y2)
+                x1: crop.x1,
+                y1: crop.y1,
+                x2: crop.x2,
+                y2: crop.y2
             )
         }
+        printConfig = printConfig.applyingMeteringRemap()
         let processMode = FilmProcessMode(rawValue: config.processMode.rawValue) ?? .colorNegative
         return (processMode, printConfig)
     }

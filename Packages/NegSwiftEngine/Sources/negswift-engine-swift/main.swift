@@ -50,7 +50,7 @@ struct NegSwiftEngineCLI {
           detect --path PATH
           oetf-ramp --out-dir DIR [--width N] [--height N]
 
-        S4b: render is H&D + zone/CMY + cast 0.5 + BPC + OETF (autos/Lab off unless config says otherwise).
+        S5: render is H&D + autos/metering + zone/CMY + cast + BPC + OETF (Lab still off).
         """
         print(text)
     }

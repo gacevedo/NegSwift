@@ -173,12 +173,51 @@ public struct LinearRGBBuffer: Sendable, Equatable {
         return LinearRGBBuffer(width: width, height: height, pixels: out)
     }
 
+    /// Apply NegPy `resolve_analysis_region`: optional normalized ROI, then center buffer.
+    public func applyingAnalysis(buffer: Float, rect: NormalizedCropRect?) -> LinearRGBBuffer {
+        var out = self
+        if let rect {
+            out = out.croppedToAnalysisROI(normalized: rect.tuple)
+        }
+        if buffer > 0 {
+            out = out.analysisCenterCrop(bufferRatio: buffer)
+        }
+        return out
+    }
+
+    /// NegPy `resolve_analysis_region` pixel ROI (`int(y * h)`, ignore if either span < 2).
+    public func croppedToAnalysisROI(normalized rect: (Double, Double, Double, Double)) -> LinearRGBBuffer {
+        let y1 = Int(min(rect.1, rect.3) * Double(height))
+        let y2 = Int(max(rect.1, rect.3) * Double(height))
+        let x1 = Int(min(rect.0, rect.2) * Double(width))
+        let x2 = Int(max(rect.0, rect.2) * Double(width))
+        if y2 - y1 < 2 || x2 - x1 < 2 { return self }
+        let x0 = min(max(x1, 0), width)
+        let y0 = min(max(y1, 0), height)
+        let x1i = min(max(x2, x0), width)
+        let y1i = min(max(y2, y0), height)
+        let newW = x1i - x0
+        let newH = y1i - y0
+        if newW <= 0 || newH <= 0 || (newW == width && newH == height) { return self }
+        var out = [Float](repeating: 0, count: newW * newH * 3)
+        for y in 0..<newH {
+            for x in 0..<newW {
+                let src = ((y0 + y) * width + (x0 + x)) * 3
+                let dst = (y * newW + x) * 3
+                out[dst] = pixels[src]
+                out[dst + 1] = pixels[src + 1]
+                out[dst + 2] = pixels[src + 2]
+            }
+        }
+        return LinearRGBBuffer(width: newW, height: newH, pixels: out)
+    }
+
     /// Normalized crop `[x1, y1, x2, y2]` in current-buffer space (after orientation).
-    public func cropped(normalized rect: (Float, Float, Float, Float)) -> LinearRGBBuffer {
-        let x1 = min(max(Double(rect.0), 0), 1)
-        let y1 = min(max(Double(rect.1), 0), 1)
-        let x2 = min(max(Double(rect.2), 0), 1)
-        let y2 = min(max(Double(rect.3), 0), 1)
+    public func cropped(normalized rect: (Double, Double, Double, Double)) -> LinearRGBBuffer {
+        let x1 = min(max(rect.0, 0), 1)
+        let y1 = min(max(rect.1, 0), 1)
+        let x2 = min(max(rect.2, 0), 1)
+        let y2 = min(max(rect.3, 0), 1)
         let left = min(x1, x2)
         let top = min(y1, y2)
         let right = max(x1, x2)

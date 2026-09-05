@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S4b: log-normalize → H&D + zone/CMY + cast + BPC → OETF.
+/// In-process pipeline. S5: log-normalize → H&D + autos/metering + zone/CMY + cast + BPC → OETF.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -18,6 +18,37 @@ public struct NativePipeline: Sendable {
 
     public func decode(path: String, maxLongEdge: Int? = nil) throws -> LinearRGBBuffer {
         try LinearDecode.decode(path: path, maxLongEdge: maxLongEdge)
+    }
+
+    /// Last canvas-size decode. Analysis Buffer drags reuse it so the 4096-px sample is not reloaded.
+    private static let decodeLock = NSLock()
+    nonisolated(unsafe) private static var lastPrintDecode: (key: String, buffer: LinearRGBBuffer)?
+
+    private func decodeForPrint(path: String, longEdgePx: Int?) throws -> LinearRGBBuffer {
+        let key = "\(path)|\(longEdgePx ?? 0)|\(Self.fileStamp(path))"
+        Self.decodeLock.lock()
+        if let last = Self.lastPrintDecode, last.key == key {
+            let buffer = last.buffer
+            Self.decodeLock.unlock()
+            return buffer
+        }
+        Self.decodeLock.unlock()
+        let buffer = try LinearDecode.decode(
+            path: path,
+            maxLongEdge: longEdgePx,
+            analysisOversample: (longEdgePx ?? 0) >= 800
+        )
+        Self.decodeLock.lock()
+        Self.lastPrintDecode = (key, buffer)
+        Self.decodeLock.unlock()
+        return buffer
+    }
+
+    private static func fileStamp(_ path: String) -> String {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: path)
+        let size = attrs?[.size] as? NSNumber ?? 0
+        let modified = attrs?[.modificationDate] as? Date ?? .distantPast
+        return "\(size.intValue)|\(modified.timeIntervalSince1970)"
     }
 
     public func detectProcessMode(path: String) throws -> FilmProcessMode {
@@ -49,30 +80,33 @@ public struct NativePipeline: Sendable {
         processMode: FilmProcessMode? = nil,
         analysisBuffer: Float = LogNormalization.defaultAnalysisBuffer
     ) throws -> LinearRGBBuffer {
-        let linear = try LinearDecode.decode(path: path, maxLongEdge: longEdgePx)
+        let linear = try decodeForPrint(path: path, longEdgePx: longEdgePx)
         let mode = processMode ?? ProcessDetect.detectLite(linear)
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
-    /// S4 print: normalize → H&D + zone/CMY + cast + BPC → working OETF.
-    /// Autos follow ``PrintConfig``; ``s4aPin`` leaves them off.
+    /// S5 print: normalize → H&D + autos/metering + zone/CMY + cast + BPC → working OETF.
+    /// Meters on the oriented full frame (`analysis_rect` / buffer), then crops pixels unless
+    /// ``PrintConfig.applyPixelCrop`` is false (crop-tool preview). Preview-size decodes
+    /// oversample so Analysis Buffer still sees film/holder edges.
     public func renderPrint(
         path: String,
         longEdgePx: Int?,
         processMode: FilmProcessMode? = nil,
         config: PrintConfig = .s4aPin
     ) throws -> LinearRGBBuffer {
-        var linear = try LinearDecode.decode(path: path, maxLongEdge: longEdgePx)
+        var linear = try decodeForPrint(path: path, longEdgePx: longEdgePx)
         linear = linear.oriented(
             rotation: config.rotation,
             flipHorizontal: config.flipHorizontal,
             flipVertical: config.flipVertical
         )
-        if let crop = config.cropRect {
-            linear = linear.cropped(normalized: crop.tuple)
-        }
         let mode = processMode ?? ProcessDetect.detectLite(linear)
-        return PhotometricPrint.process(linear: linear, processMode: mode, config: config)
+        var printed = PhotometricPrint.process(linear: linear, processMode: mode, config: config)
+        if config.applyPixelCrop, let crop = config.cropRect {
+            printed = printed.cropped(normalized: crop.tuple)
+        }
+        return printed
     }
 
     public func writePrintF32(

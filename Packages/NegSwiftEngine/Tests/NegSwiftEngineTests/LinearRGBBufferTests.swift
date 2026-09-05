@@ -56,6 +56,15 @@ struct LinearRGBBufferTests {
         #expect(buffer.downsampled(toLongEdge: 40).width == 40)
     }
 
+    @Test func croppedToAnalysisROIMatchesNegPyIntSlice() {
+        let buffer = LinearRGBBuffer.stub(width: 100, height: 50)
+        let roi = buffer.croppedToAnalysisROI(normalized: (0.1, 0.2, 0.8, 0.9))
+        #expect(roi.width == Int(0.8 * 100) - Int(0.1 * 100))
+        #expect(roi.height == Int(0.9 * 50) - Int(0.2 * 50))
+        #expect(buffer.croppedToAnalysisROI(normalized: (0, 0, 1, 1)).width == 100)
+        #expect(buffer.croppedToAnalysisROI(normalized: (0.5, 0.5, 0.5, 0.51)).width == 100)
+    }
+
     @Test func croppedNormalizedTakesInterior() {
         var pixels = [Float](repeating: 0, count: 10 * 10 * 3)
         pixels[(5 * 10 + 5) * 3] = 1

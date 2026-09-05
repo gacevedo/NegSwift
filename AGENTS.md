@@ -47,6 +47,7 @@ make compare-engines                       # Python vs Swift display MAE (inform
 make compare-linear-decode                 # S1: Python vs Swift linear RGB MAE on sample.tif
 make compare-s4a                           # S4a: working-space OETF MAE at pinned print config
 make compare-s4b                           # S4b: MAE at one zone-offset and one CMY-offset config
+make compare-s5                            # S5: MAE with autos on, Lab off
 ```
 
 Never invoke `pytest` or `ruff` directly — use `uv run`.

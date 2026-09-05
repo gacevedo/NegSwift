@@ -1,8 +1,8 @@
 import Foundation
 
 /// Photometric print: H&D + density/grade + zone + CMY + cast + BPC.
-/// Auto Density / Auto Grade run when ``PrintConfig`` flags are on (app default).
-/// ``PrintConfig.s4aPin`` leaves them off for the MAE gate.
+/// Auto Density / Auto Grade run when ``PrintConfig`` flags are on (S5 / app default).
+/// ``PrintConfig.s4aPin`` leaves them off; ``s5Pin`` turns them on. Lab is still off.
 public enum PhotometricPrint: Sendable {
     public struct CurveParams: Sendable {
         public var slopes: (Double, Double, Double)
@@ -15,18 +15,22 @@ public enum PhotometricPrint: Sendable {
         processMode: FilmProcessMode,
         config: PrintConfig = .s4aPin
     ) -> LinearRGBBuffer {
+        let resolved = config.applyingMeteringRemap()
+        let region = resolved.resolvedAnalysisRegion()
         let bounds = LogNormalization.analyzeBounds(
             linear: linear,
             processMode: processMode,
-            analysisBuffer: config.analysisBuffer
+            analysisBuffer: region.buffer,
+            analysisRect: region.rect
         )
         let normalized = LogNormalization.process(
             linear: linear,
             processMode: processMode,
-            analysisBuffer: config.analysisBuffer,
+            analysisBuffer: region.buffer,
+            analysisRect: region.rect,
             bounds: bounds
         )
-        return applyPrint(normalized: normalized, linear: linear, bounds: bounds, processMode: processMode, config: config)
+        return applyPrint(normalized: normalized, linear: linear, bounds: bounds, processMode: processMode, config: resolved)
     }
 
     public static func applyPrint(
@@ -37,7 +41,12 @@ public enum PhotometricPrint: Sendable {
         config: PrintConfig
     ) -> LinearRGBBuffer {
         let lumRange = PrintCurve.luminanceDensityRange(bounds)
-        let grid = CastMetering.analysisGrid(linear: linear, analysisBuffer: config.analysisBuffer)
+        let region = config.resolvedAnalysisRegion()
+        let grid = CastMetering.analysisGrid(
+            linear: linear,
+            analysisBuffer: region.buffer,
+            analysisRect: region.rect
+        )
         var strength = Double(config.castRemovalStrength)
         var shadowNorm: (Double, Double, Double)?
         var axis: NeutralAxisRefs?

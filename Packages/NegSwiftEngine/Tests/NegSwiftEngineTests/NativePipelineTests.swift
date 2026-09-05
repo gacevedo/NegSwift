@@ -3,13 +3,34 @@ import Testing
 @testable import NegSwiftEngine
 
 struct NativePipelineTests {
-    @Test func infoReportsS3Identity() {
+    @Test func infoReportsS4aIdentity() {
         let info = NativePipeline().infoJSON()
         #expect(info["protocol_version"] as? String == EngineVersion.protocolVersion)
         #expect(info["negswift_version"] as? String == EngineVersion.packageVersion)
-        #expect(info["negpy_version"] as? String == "s3-oetf")
+        #expect(info["negpy_version"] as? String == "s4a-print")
         #expect(info["backend"] as? String == "swift")
         #expect(info["gpu_available"] as? Bool == false)
+    }
+
+    @Test func renderPrintAppliesCurveAndOETF() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        let normalized = try pipeline.renderNormalized(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative
+        )
+        let printed = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s4aPin
+        )
+        #expect(printed.pixels != normalized.pixels)
+        #expect(printed.pixels.allSatisfy { $0 >= 0 && $0 <= 1 })
+        let encodedOnly = WorkingOETF.encode(normalized)
+        #expect(printed.pixels != encodedOnly.pixels)
     }
 
     @Test func renderNormalizedDoesNotApplyOETF() throws {
@@ -49,6 +70,28 @@ struct NativePipelineTests {
         let center = pixel(normalized, x: 20, y: 16)
         let corner = pixel(normalized, x: 0, y: 0)
         #expect(center.0 < corner.0)
+    }
+
+    @Test func renderPrintHonorsStoredCrop() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        let full = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s4aPin
+        )
+        var cropped = PrintConfig.s4aPin
+        cropped.cropRect = NormalizedCropRect(x1: 0.25, y1: 0.25, x2: 0.75, y2: 0.75)
+        let interior = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: cropped
+        )
+        #expect(interior.width < full.width)
+        #expect(interior.height < full.height)
     }
 
     @Test func writeLinearF32MatchesDecodeShape() throws {

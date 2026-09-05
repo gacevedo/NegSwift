@@ -14,9 +14,31 @@ struct NativeEngineBackendTests {
     @Test func infoReportsSwiftDecode() async throws {
         let backend = NativeEngineBackend()
         let info = try await backend.info()
-        #expect(info.negpyVersion == "s3-oetf")
+        #expect(info.negpyVersion == "s4a-print")
         #expect(info.gpuBackend == "swift")
         #expect(info.gpuAvailable == false)
+    }
+
+    @Test func stopDoesNotWaitForInFlightRender() async throws {
+        let backend = NativeEngineBackend()
+        let render = Task {
+            try await backend.render(
+                path: sampleTIFFPath,
+                longEdgePx: 64,
+                preferGPU: false,
+                config: nil,
+                cropPreviewFull: false,
+                stripThumbnail: false,
+                previewFormat: .jpeg,
+                jpegQuality: 90
+            )
+        }
+        await backend.stop()
+        do {
+            _ = try await render.value
+        } catch is CancellationError {
+            return
+        }
     }
 
     @Test func normalizedRenderReturnsJPEG() async throws {

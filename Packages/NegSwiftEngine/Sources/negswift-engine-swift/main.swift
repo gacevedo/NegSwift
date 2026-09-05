@@ -40,13 +40,12 @@ struct NegSwiftEngineCLI {
 
         Commands:
           info
-          render --path PATH --out PNG [--long-edge N]
+          render --path PATH --out PNG [--out-f32 FILE] [--long-edge N] [--density D] [--grade G]
           decode --path PATH --out-f32 FILE
           detect --path PATH
           oetf-ramp --out-dir DIR [--width N] [--height N]
 
-        S2: render is log-normalized (harsh positive; no H&D / autos / Lab).
-        S3: OETF is unit/synthetic only — oetf-ramp writes linear vs encoded PNGs.
+        S4a: render is H&D + cast 0.5 + BPC + OETF (autos/Lab off unless config says otherwise).
         """
         print(text)
     }
@@ -57,17 +56,30 @@ struct NegSwiftEngineCLI {
     }
 
     private static func runRender(_ args: [String]) throws {
-        let parsed = try parsePathOut(args)
-        let (width, height) = try NativePipeline().renderPNG(
+        let parsed = try parseRender(args)
+        var config = PrintConfig.s4aPin
+        if let density = parsed.density { config.density = density }
+        if let grade = parsed.grade { config.grade = grade }
+        let pipeline = NativePipeline()
+        let (width, height) = try pipeline.renderPNG(
             path: parsed.path,
             longEdgePx: parsed.longEdge,
+            config: config,
             to: URL(fileURLWithPath: parsed.out)
         )
+        if let outF32 = parsed.outF32 {
+            _ = try pipeline.writePrintF32(
+                path: parsed.path,
+                longEdgePx: parsed.longEdge,
+                config: config,
+                to: URL(fileURLWithPath: outF32)
+            )
+        }
         try writeJSON([
             "width": width,
             "height": height,
             "out": parsed.out,
-            "normalized": true,
+            "print": true,
         ])
     }
 
@@ -168,6 +180,59 @@ struct NegSwiftEngineCLI {
             "width": width,
             "height": height,
         ])
+    }
+
+    private static func parseRender(
+        _ args: [String]
+    ) throws -> (path: String, out: String, outF32: String?, longEdge: Int?, density: Float?, grade: Float?) {
+        var path: String?
+        var out: String?
+        var outF32: String?
+        var longEdge: Int?
+        var density: Float?
+        var grade: Float?
+        var i = 0
+        while i < args.count {
+            switch args[i] {
+            case "--path":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--path") }
+                path = args[i]
+            case "--out":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--out") }
+                out = args[i]
+            case "--out-f32":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--out-f32") }
+                outF32 = args[i]
+            case "--long-edge":
+                i += 1
+                guard i < args.count, let value = Int(args[i]) else {
+                    throw CLIError.missingValue("--long-edge")
+                }
+                longEdge = value
+            case "--density":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--density")
+                }
+                density = value
+            case "--grade":
+                i += 1
+                guard i < args.count, let value = Float(args[i]) else {
+                    throw CLIError.missingValue("--grade")
+                }
+                grade = value
+            default:
+                throw CLIError.unknownFlag(args[i])
+            }
+            i += 1
+        }
+        guard let path, let out else {
+            throw CLIError.usage("render requires --path and --out")
+        }
+        return (path, out, outF32, longEdge, density, grade)
     }
 
     private static func parsePathOut(_ args: [String]) throws -> (path: String, out: String, longEdge: Int?) {

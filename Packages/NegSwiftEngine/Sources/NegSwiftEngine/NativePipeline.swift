@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S2 log-normalize on scans. S3 OETF is a function only; S4a applies it.
+/// In-process pipeline. S4a: log-normalize → H&D print + cast + BPC → OETF.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -54,18 +54,64 @@ public struct NativePipeline: Sendable {
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
+    /// S4a print: normalize → H&D + cast + BPC → working OETF.
+    /// Autos follow ``PrintConfig``; ``s4aPin`` leaves them off.
+    public func renderPrint(
+        path: String,
+        longEdgePx: Int?,
+        processMode: FilmProcessMode? = nil,
+        config: PrintConfig = .s4aPin
+    ) throws -> LinearRGBBuffer {
+        var linear = try LinearDecode.decode(path: path, maxLongEdge: longEdgePx)
+        linear = linear.oriented(
+            rotation: config.rotation,
+            flipHorizontal: config.flipHorizontal,
+            flipVertical: config.flipVertical
+        )
+        if let crop = config.cropRect {
+            linear = linear.cropped(normalized: crop.tuple)
+        }
+        let mode = processMode ?? ProcessDetect.detectLite(linear)
+        return PhotometricPrint.process(linear: linear, processMode: mode, config: config)
+    }
+
+    public func writePrintF32(
+        path: String,
+        longEdgePx: Int?,
+        processMode: FilmProcessMode? = nil,
+        config: PrintConfig = .s4aPin,
+        to outURL: URL
+    ) throws -> (width: Int, height: Int) {
+        let buffer = try renderPrint(
+            path: path,
+            longEdgePx: longEdgePx,
+            processMode: processMode,
+            config: config
+        )
+        let data = buffer.pixels.withUnsafeBufferPointer { Data(buffer: $0) }
+        try FileManager.default.createDirectory(
+            at: outURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: outURL, options: .atomic)
+        return (buffer.width, buffer.height)
+    }
+
     public func renderPNG(
         path: String,
         longEdgePx: Int?,
         processMode: FilmProcessMode? = nil,
         analysisBuffer: Float = LogNormalization.defaultAnalysisBuffer,
+        config: PrintConfig = .s4aPin,
         to outURL: URL
     ) throws -> (width: Int, height: Int) {
-        let buffer = try renderNormalized(
+        var printConfig = config
+        printConfig.analysisBuffer = analysisBuffer
+        let buffer = try renderPrint(
             path: path,
             longEdgePx: longEdgePx,
             processMode: processMode,
-            analysisBuffer: analysisBuffer
+            config: printConfig
         )
         try FileManager.default.createDirectory(
             at: outURL.deletingLastPathComponent(),

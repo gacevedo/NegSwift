@@ -156,12 +156,15 @@ actor PythonEngineBackend: EngineBackend {
 }
 
 actor NativeEngineBackend: EngineBackend {
-    private let pipeline = NativePipeline()
     private static let scanExtensions: Set<String> = ["tif", "tiff", "jpg", "jpeg"]
+    /// Bumped on ``stop`` so an in-flight detached render is discarded.
+    private var workGeneration = 0
 
     func start() async throws {}
 
-    func stop() async {}
+    func stop() async {
+        workGeneration += 1
+    }
 
     func ping() async throws {}
 
@@ -179,7 +182,7 @@ actor NativeEngineBackend: EngineBackend {
     func open(path: String, includeSplash: Bool, config: FrameEditState?) async throws -> OpenResult {
         _ = includeSplash
         _ = config
-        let dims = pipeline.probeSource(at: path) ?? (1, 1)
+        let dims = NativePipeline().probeSource(at: path) ?? (1, 1)
         return OpenResult(
             path: path,
             hash: Self.fileToken(path),
@@ -207,45 +210,37 @@ actor NativeEngineBackend: EngineBackend {
         _ = preferGPU
         _ = cropPreviewFull
         _ = stripThumbnail
-        let processMode: FilmProcessMode?
-        let analysisBuffer: Float
-        if let config {
-            processMode = FilmProcessMode(rawValue: config.processMode.rawValue) ?? .colorNegative
-            analysisBuffer = Float(config.analysisBuffer)
-        } else {
-            processMode = nil
-            analysisBuffer = LogNormalization.defaultAnalysisBuffer
+        let generation = workGeneration
+        let mapped = Self.printInputs(from: config)
+        let applyCrop = !cropPreviewFull
+        var printConfig = mapped.printConfig
+        if !applyCrop {
+            printConfig.cropRect = nil
         }
-        let buffer: LinearRGBBuffer
+        let result: RenderResult
         do {
-            buffer = try pipeline.renderNormalized(
-                path: path,
-                longEdgePx: longEdgePx,
-                processMode: processMode,
-                analysisBuffer: analysisBuffer
-            )
+            result = try await withCheckedThrowingContinuation { continuation in
+                Self.workQueue.async {
+                    do {
+                        let rendered = try Self.performRender(
+                            path: path,
+                            longEdgePx: longEdgePx,
+                            processMode: mapped.processMode,
+                            printConfig: printConfig,
+                            previewFormat: previewFormat,
+                            jpegQuality: jpegQuality
+                        )
+                        continuation.resume(returning: rendered)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
         } catch let error as LinearDecodeError {
             throw Self.mapDecode(error)
         }
-        let data: Data
-        let format: String
-        switch previewFormat {
-        case .jpeg:
-            data = try ImageCoding.jpegData(from: buffer, quality: Double(jpegQuality) / 100)
-            format = PreviewTransportFormat.jpeg.rawValue
-        case .png:
-            data = try ImageCoding.pngData(from: buffer)
-            format = PreviewTransportFormat.png.rawValue
-        }
-        let encoded = data.base64EncodedString()
-        return RenderResult(
-            width: buffer.width,
-            height: buffer.height,
-            previewFormat: format,
-            pngBase64: previewFormat == .png ? encoded : nil,
-            jpegBase64: previewFormat == .jpeg ? encoded : nil,
-            metrics: nil
-        )
+        guard generation == workGeneration else { throw CancellationError() }
+        return result
     }
 
     func loadConfig(path: String) async throws -> LoadConfigResult {
@@ -268,7 +263,9 @@ actor NativeEngineBackend: EngineBackend {
             )
         }
         do {
-            let mode = try pipeline.detectProcessMode(path: path)
+            let mode = try await Task.detached(priority: .userInitiated) {
+                try NativePipeline().detectProcessMode(path: path)
+            }.value
             return DetectProcessModeResult(
                 skipped: false,
                 reason: nil,
@@ -356,6 +353,82 @@ actor NativeEngineBackend: EngineBackend {
 
     func cancel(jobID: String) async throws {
         _ = jobID
+    }
+
+    private static func printInputs(from config: FrameEditState?) -> (
+        processMode: FilmProcessMode?,
+        printConfig: PrintConfig
+    ) {
+        var printConfig = PrintConfig.s4aPin
+        guard let config else {
+            return (nil, printConfig)
+        }
+        printConfig.density = Float(config.density)
+        printConfig.grade = Float(config.grade)
+        printConfig.shadowDensity = Float(config.shadowDensity)
+        printConfig.highlightDensity = Float(config.highlightDensity)
+        printConfig.shadowGrade = Float(config.shadowGrade)
+        printConfig.highlightGrade = Float(config.highlightGrade)
+        printConfig.wbCyan = Float(config.wbCyan)
+        printConfig.wbMagenta = Float(config.wbMagenta)
+        printConfig.wbYellow = Float(config.wbYellow)
+        printConfig.analysisBuffer = Float(config.analysisBuffer)
+        printConfig.autoExposure = config.autoExposure
+        printConfig.autoNormalizeContrast = config.autoNormalizeContrast
+        printConfig.rotation = config.rotation
+        printConfig.flipHorizontal = config.flipHorizontal
+        printConfig.flipVertical = config.flipVertical
+        if let crop = config.manualCropRect {
+            printConfig.cropRect = NormalizedCropRect(
+                x1: Float(crop.x1),
+                y1: Float(crop.y1),
+                x2: Float(crop.x2),
+                y2: Float(crop.y2)
+            )
+        }
+        let processMode = FilmProcessMode(rawValue: config.processMode.rawValue) ?? .colorNegative
+        return (processMode, printConfig)
+    }
+
+    private static let workQueue = DispatchQueue(
+        label: "negswift.native-engine.render",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
+
+    private static func performRender(
+        path: String,
+        longEdgePx: Int?,
+        processMode: FilmProcessMode?,
+        printConfig: PrintConfig,
+        previewFormat: PreviewTransportFormat,
+        jpegQuality: Int
+    ) throws -> RenderResult {
+        let buffer = try NativePipeline().renderPrint(
+            path: path,
+            longEdgePx: longEdgePx,
+            processMode: processMode,
+            config: printConfig
+        )
+        let data: Data
+        let format: String
+        switch previewFormat {
+        case .jpeg:
+            data = try ImageCoding.jpegData(from: buffer, quality: Double(jpegQuality) / 100)
+            format = PreviewTransportFormat.jpeg.rawValue
+        case .png:
+            data = try ImageCoding.pngData(from: buffer)
+            format = PreviewTransportFormat.png.rawValue
+        }
+        let encoded = data.base64EncodedString()
+        return RenderResult(
+            width: buffer.width,
+            height: buffer.height,
+            previewFormat: format,
+            pngBase64: previewFormat == .png ? encoded : nil,
+            jpegBase64: previewFormat == .jpeg ? encoded : nil,
+            metrics: nil
+        )
     }
 
     private static func isSupportedScan(_ path: String) -> Bool {

@@ -33,15 +33,16 @@ public enum LinearDecode: Sendable {
             throw LinearDecodeError.decodeFailed
         }
         let options: [CFString: Any] = [
-            kCGImageSourceShouldAllowFloat: true,
-            kCGImageSourceShouldCache: true,
+            kCGImageSourceShouldAllowFloat: false,
+            kCGImageSourceShouldCache: false,
         ]
         let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
         let uti = CGImageSourceGetType(source) as String?
         let sourceDepth = sourceBitsPerComponent(properties: props)
-        guard let image = try loadImage(source: source, options: options, maxLongEdge: maxLongEdge) else {
+        guard var image = try loadImage(source: source, options: options, maxLongEdge: maxLongEdge) else {
             throw LinearDecodeError.decodeFailed
         }
+        image = constrain(image, maxLongEdge: maxLongEdge) ?? image
         // Transfer function follows the *file*, not the thumbnail. An 8-bit ImageIO
         // thumbnail of a 16-bit untagged TIFF must stay linear (`/ 255`), not sRGB.
         let transferDepth = sourceDepth ?? image.bitsPerComponent
@@ -89,16 +90,44 @@ public enum LinearDecode: Sendable {
     ) throws -> CGImage? {
         if let maxLongEdge, maxLongEdge > 0 {
             let thumbOptions: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
                 kCGImageSourceThumbnailMaxPixelSize: maxLongEdge,
-                kCGImageSourceShouldAllowFloat: true,
+                kCGImageSourceShouldAllowFloat: false,
+                kCGImageSourceShouldCache: false,
             ]
             if let thumb = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary) {
                 return thumb
             }
         }
         return CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary)
+    }
+
+    /// ImageIO sometimes ignores thumbnail max size on Photoshop TIFFs. Draw down
+    /// before extract so a 45 MP scan never becomes a 500 MB float buffer.
+    private static func constrain(_ image: CGImage, maxLongEdge: Int?) -> CGImage? {
+        guard let maxLongEdge, maxLongEdge > 0 else { return image }
+        let longest = max(image.width, image.height)
+        guard longest > maxLongEdge else { return image }
+        let scale = Double(maxLongEdge) / Double(longest)
+        let width = max(1, Int((Double(image.width) * scale).rounded()))
+        let height = max(1, Int((Double(image.height) * scale).rounded()))
+        let space = image.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: space,
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else {
+            return image
+        }
+        ctx.interpolationQuality = .medium
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return ctx.makeImage()
     }
 
     private static func sourceBitsPerComponent(properties: [CFString: Any]) -> Int? {

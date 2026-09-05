@@ -1,8 +1,8 @@
 """Python-vs-Swift preview MAE report.
 
-S2/S3: Swift writes a log-normalized PNG (harsh positive; no H&D / autos / Lab).
-S3 OETF is unit-only and is not applied to scan preview. Python still runs the
-full lite look. This is not a full-pipeline MAE gate.
+S4a: Swift writes H&D + cast + BPC + OETF (autos/Lab off). Python still runs
+the full lite look unless --config is the S4a pin. For the S4a gate use
+compare_s4a_renders.py (working-space MAE).
 Exit 0 when both renders write a PNG and a report is printed.
 """
 

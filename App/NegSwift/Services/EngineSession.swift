@@ -974,6 +974,7 @@ final class EngineSession {
         guard case .idle = state else { return }
         state = .starting
         do {
+            try await backend.start()
             let info = try await backend.info()
             state = .ready(info)
         } catch {
@@ -987,6 +988,8 @@ final class EngineSession {
 
     func restartEnginePreservingWorkspace(clearWorkspace: Bool = false) async {
         isRestartingEngine = true
+        previewGeneration += 1
+        thumbnailGeneration += 1
         defer { isRestartingEngine = false }
 
         await flushPendingSaves()
@@ -1033,11 +1036,14 @@ final class EngineSession {
               let frame = frames.first(where: { $0.id == id })
         else { return }
 
-        previewGeneration += 1
+        // Overlay clears when this function returns. Do not wait for a 45 MP
+        // preview or the film-strip — that looked like the switch never finished.
         let generation = previewGeneration
-        await renderPreview(at: frame.url, generation: generation)
-        thumbnailGeneration += 1
-        await loadMissingThumbnails()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.renderPreview(at: frame.url, generation: generation)
+            await self.loadMissingThumbnails()
+        }
     }
 
     /// Re-render after preview quality or GPU preference changes (no engine restart).

@@ -56,6 +56,27 @@ struct LinearRGBBufferTests {
         #expect(buffer.downsampled(toLongEdge: 40).width == 40)
     }
 
+    @Test func croppedNormalizedTakesInterior() {
+        var pixels = [Float](repeating: 0, count: 10 * 10 * 3)
+        pixels[(5 * 10 + 5) * 3] = 1
+        let buffer = LinearRGBBuffer(width: 10, height: 10, pixels: pixels)
+        let cropped = buffer.cropped(normalized: (0.4, 0.4, 0.7, 0.7))
+        #expect(cropped.width == 3)
+        #expect(cropped.height == 3)
+        #expect(cropped.pixels.contains(where: { $0 == 1 }))
+    }
+
+    @Test func rotate180MovesCornerToOpposite() {
+        var pixels = [Float](repeating: 0, count: 4 * 2 * 3)
+        pixels[0] = 1
+        let buffer = LinearRGBBuffer(width: 4, height: 2, pixels: pixels)
+        let rotated = buffer.oriented(rotation: 2, flipHorizontal: false, flipVertical: false)
+        #expect(rotated.width == 4)
+        #expect(rotated.height == 2)
+        #expect(rotated.pixels[(2 * 4 - 1) * 3] == 1)
+        #expect(rotated.pixels[0] == 0)
+    }
+
     @Test func stridedDownsampleUsesCeilStep() {
         let buffer = LinearRGBBuffer.stub(width: 300, height: 200)
         let down = buffer.stridedDownsample(maxDim: 256)

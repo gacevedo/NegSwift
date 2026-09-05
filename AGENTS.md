@@ -45,6 +45,7 @@ make bench-engine                          # from repo root — refresh perf_bas
 make test-native-engine                    # SwiftPM NegSwiftEngine tests (S0+)
 make compare-engines                       # Python vs Swift display MAE (informational)
 make compare-linear-decode                 # S1: Python vs Swift linear RGB MAE on sample.tif
+make compare-s4a                           # S4a: working-space OETF MAE at pinned print config
 ```
 
 Never invoke `pytest` or `ruff` directly — use `uv run`.
@@ -94,9 +95,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
-| **S0–S13** | Native Swift engine — **S3 done** (OETF units). Next **S4a** H&D + encode. Checklist § S0–S13 |
+| **S0–S13** | Native Swift engine — **S4a done** (H&D + encode). Next **S4b** zone/CMY. Checklist § S0–S13 |
 
-**Current status (2026-09-05):** M0–M15 feature complete. Native engine **S3** is in (Adobe RGB 563/256 OETF, unit/synthetic only — not applied to scan preview). Python remains the default. Next vertical is **S4a** (H&D + cast + BPC + OETF encode). **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-09-05):** M0–M15 feature complete. Native engine **S4a** is in (H&D + density/grade + cast 0.5 + BPC + working OETF). Python remains the default. Next vertical is **S4b** (zone + CMY). **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

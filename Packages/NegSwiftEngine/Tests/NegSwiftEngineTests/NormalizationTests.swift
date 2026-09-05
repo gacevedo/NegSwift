@@ -106,6 +106,126 @@ struct NormalizationTests {
         #expect(abs(mid.0 - 0.27545845) < 1e-5)
     }
 
+    @Test func e6SwapsPolaritySoHighlightsStayBright() {
+        var pixels = [Float](repeating: 0.1, count: 2 * 1 * 3)
+        pixels[3] = 0.9
+        pixels[4] = 0.9
+        pixels[5] = 0.9
+        let linear = LinearRGBBuffer(width: 2, height: 1, pixels: pixels)
+        let bounds = LogNormalization.analyzeBounds(
+            linear: linear,
+            processMode: .transparency,
+            analysisBuffer: 0,
+            lumaRangeClip: 0,
+            colorRangeClip: 0
+        )
+        #expect(abs(bounds.floors.0 - (-0.045)) < 0.1)
+        #expect(abs(bounds.ceils.0 - (-1.0)) < 0.1)
+
+        let res = LogNormalization.process(
+            linear: linear,
+            processMode: .transparency,
+            analysisBuffer: 0,
+            lumaRangeClip: 0,
+            colorRangeClip: 0,
+            bounds: bounds
+        )
+        #expect(abs(res.pixels[3] - 0) < 0.05)
+        #expect(abs(res.pixels[0] - 1) < 0.05)
+    }
+
+    @Test func bwKeepsChannelsEqual() {
+        var pixels = [Float](repeating: 0, count: 32 * 32 * 3)
+        for i in 0..<(32 * 32) {
+            let g = 0.05 + 0.9 * Float(i) / Float(32 * 32 - 1)
+            pixels[i * 3] = g
+            pixels[i * 3 + 1] = g
+            pixels[i * 3 + 2] = g
+        }
+        let linear = LinearRGBBuffer(width: 32, height: 32, pixels: pixels)
+        let res = LogNormalization.process(linear: linear, processMode: .bwNegative, analysisBuffer: 0)
+        for i in 0..<(32 * 32) {
+            #expect(abs(res.pixels[i * 3] - res.pixels[i * 3 + 1]) < 1e-5)
+            #expect(abs(res.pixels[i * 3 + 1] - res.pixels[i * 3 + 2]) < 1e-5)
+        }
+        #expect(res.pixels[0] < res.pixels[(32 * 32 - 1) * 3])
+    }
+
+    @Test func analysisBufferZeroReadsFullFrame() {
+        var pixels = [Float](repeating: 0.2, count: 40 * 40 * 3)
+        for y in 0..<40 {
+            for x in 0..<40 {
+                let i = (y * 40 + x) * 3
+                let border = y < 6 || y >= 34 || x < 6 || x >= 34
+                if border {
+                    pixels[i] = 0.95
+                    pixels[i + 1] = 0.95
+                    pixels[i + 2] = 0.95
+                }
+            }
+        }
+        let linear = LinearRGBBuffer(width: 40, height: 40, pixels: pixels)
+        let full = LogNormalization.analyzeBounds(linear: linear, analysisBuffer: 0, colorRangeClip: 0)
+        let inset = LogNormalization.analyzeBounds(linear: linear, analysisBuffer: 0.2, colorRangeClip: 0)
+        #expect(abs(full.ceils.0 - inset.ceils.0) > 1e-4)
+    }
+
+    @Test func logDensityClampsHighAndSanitizesNonFinite() {
+        var pixels = [Float](repeating: 0.5, count: 8 * 1 * 3)
+        pixels[0] = .nan
+        pixels[3] = .infinity
+        pixels[6] = -.infinity
+        pixels[9] = 0
+        pixels[12] = 1
+        pixels[15] = 2
+        pixels[18] = -5
+        pixels[21] = 1e30
+        let linear = LinearRGBBuffer(width: 8, height: 1, pixels: pixels)
+        let clamped = LogNormalization.toLogDensity(linear)
+        let openHigh = LogNormalization.toLogDensityUnclampedHigh(linear)
+        let clampedFinite = clamped.pixels.allSatisfy { $0.isFinite }
+        let openHighFinite = openHigh.pixels.allSatisfy { $0.isFinite }
+        #expect(clampedFinite)
+        #expect(openHighFinite)
+        #expect(abs(clamped.pixels[15] - 0) < 1e-6)
+        #expect(openHigh.pixels[15] > 0)
+    }
+
+    @Test func nearZeroDenomDoesNotNaN() {
+        let bounds = LogNegativeBounds(floors: (-0.5, -0.5, -0.5), ceils: (-0.5, -0.5, -0.5))
+        let linear = filled(width: 2, height: 2, value: 0.3)
+        let res = LogNormalization.process(linear: linear, bounds: bounds)
+        let finite = res.pixels.allSatisfy { $0.isFinite }
+        #expect(finite)
+    }
+
+    @Test func blockMedianGeneralPathAndIdentityBelowGrid() {
+        var pixels = [Float](repeating: 0, count: 8 * 8 * 3)
+        for y in 0..<8 {
+            for x in 0..<8 {
+                let i = (y * 8 + x) * 3
+                let v = Float(y * 8 + x)
+                pixels[i] = v
+                pixels[i + 1] = v
+                pixels[i + 2] = v
+            }
+        }
+        let img = LinearRGBBuffer(width: 8, height: 8, pixels: pixels)
+        let grid = LogNormalization.blockMedianGrid(img, analysisGrid: 2)
+        #expect(grid.width == 2)
+        #expect(grid.height == 2)
+        #expect(abs(grid.pixels[0] - 13.5) < 1e-5)
+
+        let small = LogNormalization.blockMedianGrid(img, analysisGrid: 1024)
+        #expect(small.width == 8)
+        #expect(small.pixels == img.pixels)
+    }
+
+    @Test func percentileEmptyAndSingleton() {
+        #expect(LogNormalization.percentileFromSorted([], q: 50) == 0)
+        #expect(LogNormalization.percentileFromSorted([7], q: 99) == 7)
+    }
+
     private func filled(width: Int, height: Int, value: Float) -> LinearRGBBuffer {
         LinearRGBBuffer(
             width: width,

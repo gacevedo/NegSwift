@@ -1,6 +1,7 @@
 """Python-vs-Swift preview MAE report.
 
-S0: the Swift CLI writes a gray stub. This script does not claim look match.
+S2: Swift writes a log-normalized PNG (harsh positive; no H&D / autos / Lab).
+Python still runs the full lite look. This is not a full-pipeline MAE gate.
 Exit 0 when both renders write a PNG and a report is printed.
 """
 
@@ -41,7 +42,7 @@ def _mae(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Python vs Swift render MAE (S0 report, no look claim)")
+    parser = argparse.ArgumentParser(description="Python vs Swift render MAE (S2 report, no look claim)")
     parser.add_argument(
         "--path",
         default=str(_repo_root() / "App/NegSwiftUITests/Fixtures/sample.tif"),
@@ -105,14 +106,14 @@ def main() -> None:
 
         report = {
             "look_claim": False,
-            "milestone": "S0",
+            "milestone": "S2",
             "scan": str(scan),
             "long_edge_px": args.long_edge,
             "python": {"width": int(python_rgb.shape[1]), "height": int(python_rgb.shape[0])},
-            "swift": {"width": int(swift_rgb.shape[1]), "height": int(swift_rgb.shape[0]), "stub": True},
+            "swift": {"width": int(swift_rgb.shape[1]), "height": int(swift_rgb.shape[0]), "normalized": True},
             "resized_swift_to_python": resized,
             "mae": mae,
-            "note": "S0 Swift render is a gray stub. MAE is informational only.",
+            "note": "S2 Swift is log-normalize only. Not a full-pipeline MAE gate.",
         }
         text = json.dumps(report, indent=2)
         print(text)

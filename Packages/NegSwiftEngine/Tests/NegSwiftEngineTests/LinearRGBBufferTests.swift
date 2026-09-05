@@ -29,4 +29,38 @@ struct LinearRGBBufferTests {
         #expect(buffer.width == 512)
         #expect(buffer.height == 512)
     }
+
+    @Test func jpegDataIsNonEmptySOI() throws {
+        let data = try ImageCoding.jpegData(from: .stub(width: 8, height: 8), quality: 0.9)
+        #expect(data.count > 16)
+        #expect(data[0] == 0xFF)
+        #expect(data[1] == 0xD8)
+    }
+
+    @Test func analysisCenterCropMatchesNegPyInset() {
+        let buffer = LinearRGBBuffer.stub(width: 200, height: 100)
+        let cropped = buffer.analysisCenterCrop(bufferRatio: 0.12)
+        #expect(cropped.width == 200 - 2 * 24)
+        #expect(cropped.height == 100 - 2 * 12)
+        #expect(buffer.analysisCenterCrop(bufferRatio: 0).width == 200)
+        let clamped = buffer.analysisCenterCrop(bufferRatio: 0.9)
+        #expect(clamped.width == 200 - 2 * 60)
+        #expect(clamped.height == 100 - 2 * 30)
+    }
+
+    @Test func downsampledCapsLongEdgeAndIsIdentityWhenSmall() {
+        let buffer = LinearRGBBuffer.stub(width: 40, height: 20)
+        let small = buffer.downsampled(toLongEdge: 10)
+        #expect(small.width == 10)
+        #expect(small.height == 5)
+        #expect(buffer.downsampled(toLongEdge: 40).width == 40)
+    }
+
+    @Test func stridedDownsampleUsesCeilStep() {
+        let buffer = LinearRGBBuffer.stub(width: 300, height: 200)
+        let down = buffer.stridedDownsample(maxDim: 256)
+        #expect(down.width == 150)
+        #expect(down.height == 100)
+        #expect(buffer.stridedDownsample(maxDim: 300).width == 300)
+    }
 }

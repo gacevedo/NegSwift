@@ -31,6 +31,11 @@ struct ProcessDetectTests {
         #expect(ProcessDetect.detect(nil) == .colorNegative)
     }
 
+    @Test func detectUsesHardcodedCenterCropNotBorder() {
+        #expect(ProcessDetect.detect(orangeBorderGrayCenter()) == .bwNegative)
+        #expect(ProcessDetect.detect(grayBorderOrangeCenter()) == .colorNegative)
+    }
+
     @Test func detectFromOrangeMaskTIFF() throws {
         var samples = [UInt16](repeating: 0, count: 32 * 32 * 3)
         for i in 0..<(32 * 32) {
@@ -119,6 +124,40 @@ struct ProcessDetectTests {
     }
 
     private func clamp(_ x: Float) -> Float { min(1, max(0, x)) }
+
+    /// Orange only in the 0.12 inset that detect must drop — remaining centre is B&W.
+    private func orangeBorderGrayCenter() -> LinearRGBBuffer {
+        framedScan(borderOrange: true)
+    }
+
+    /// Orange only inside the 0.12 analysis crop — detect must still see C-41.
+    private func grayBorderOrangeCenter() -> LinearRGBBuffer {
+        framedScan(borderOrange: false)
+    }
+
+    private func framedScan(borderOrange: Bool) -> LinearRGBBuffer {
+        let n = 128
+        let cut = Int(Float(n) * ProcessDetect.analysisBuffer)
+        var pixels = [Float](repeating: 0, count: n * n * 3)
+        for y in 0..<n {
+            for x in 0..<n {
+                let i = (y * n + x) * 3
+                let inBorder = y < cut || y >= n - cut || x < cut || x >= n - cut
+                let orange = borderOrange ? inBorder : !inBorder
+                if orange {
+                    pixels[i] = 0.75
+                    pixels[i + 1] = 0.40
+                    pixels[i + 2] = 0.20
+                } else {
+                    let g = 0.1 + 0.8 * Float(y * n + x) / Float(n * n - 1)
+                    pixels[i] = g
+                    pixels[i + 1] = g
+                    pixels[i + 2] = g
+                }
+            }
+        }
+        return LinearRGBBuffer(width: n, height: n, pixels: pixels)
+    }
 }
 
 /// Deterministic RNG so detect goldens stay stable (not numpy's Generator).

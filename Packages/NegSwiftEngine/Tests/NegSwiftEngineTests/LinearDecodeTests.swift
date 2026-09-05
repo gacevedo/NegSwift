@@ -1,5 +1,8 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import NegSwiftEngine
 
 struct LinearDecodeTests {
@@ -72,5 +75,77 @@ struct LinearDecodeTests {
         #expect(throws: LinearDecodeError.self) {
             _ = try LinearDecode.decode(path: "/no/such/scan.tif")
         }
+    }
+
+    @Test func srgbToLinearMatchesIEC61966() {
+        #expect(LinearDecode.srgbToLinear(0) == 0)
+        #expect(abs(LinearDecode.srgbToLinear(0.04045) - 0.04045 / 12.92) < 1e-7)
+        #expect(abs(LinearDecode.srgbToLinear(1) - 1) < 1e-6)
+        let mid = Foundation.pow((0.5 + 0.055) / 1.055, 2.4)
+        #expect(abs(LinearDecode.srgbToLinear(0.5) - Float(mid)) < 1e-6)
+    }
+
+    @Test func transferPolicyFollowsBitDepthAndJPEG() {
+        #expect(LinearDecode.shouldApplySRGBToLinear(uti: "public.jpeg", bitsPerComponent: 8, properties: [:]))
+        #expect(LinearDecode.shouldApplySRGBToLinear(uti: "public.tiff", bitsPerComponent: 8, properties: [:]))
+        #expect(!LinearDecode.shouldApplySRGBToLinear(uti: "public.tiff", bitsPerComponent: 16, properties: [:]))
+        #expect(
+            LinearDecode.shouldApplySRGBToLinear(
+                uti: "public.tiff",
+                bitsPerComponent: 16,
+                properties: [kCGImagePropertyProfileName: "sRGB IEC61966-2.1"]
+            )
+        )
+    }
+
+    @Test func jpegAppliesSRGBToLinear() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s1-jpeg-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try writeSolidJPEG(gray: 128, width: 8, height: 8, to: url)
+
+        let buffer = try LinearDecode.decode(url: url)
+        let encoded = Float(128) / 255
+        let expected = LinearDecode.srgbToLinear(encoded)
+        #expect(abs(buffer.pixels[0] - expected) < 0.03)
+        #expect(abs(buffer.pixels[0] - encoded) > 0.04)
+    }
+}
+
+private func writeSolidJPEG(gray: UInt8, width: Int, height: Int, to url: URL) throws {
+    var rgba = [UInt8](repeating: 255, count: width * height * 4)
+    for i in 0..<(width * height) {
+        rgba[i * 4] = gray
+        rgba[i * 4 + 1] = gray
+        rgba[i * 4 + 2] = gray
+    }
+    let data = Data(rgba)
+    guard let provider = CGDataProvider(data: data as CFData),
+          let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let image = CGImage(
+              width: width,
+              height: height,
+              bitsPerComponent: 8,
+              bitsPerPixel: 32,
+              bytesPerRow: width * 4,
+              space: space,
+              bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+              provider: provider,
+              decode: nil,
+              shouldInterpolate: false,
+              intent: .defaultIntent
+          ),
+          let destination = CGImageDestinationCreateWithURL(
+              url as CFURL,
+              UTType.jpeg.identifier as CFString,
+              1,
+              nil
+          )
+    else {
+        throw LinearDecodeError.decodeFailed
+    }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+        throw LinearDecodeError.decodeFailed
     }
 }

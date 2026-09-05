@@ -294,7 +294,7 @@ Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contras
 - [x] Switching backend restarts the session (workspace preserved)
 - [x] MAE harness runs on `/Users/gacevedo/Downloads/Kodak\ Portra\ Gold\ 120\ K6500-008.TIFF` and writes a report (no look claim) — `make compare-engines`
 - [x] Header above names a local C-41 TIFF ≥16 MP
-- [x] Still wrong: Swift preview is a gray stub JPEG (not a look claim)
+- [x] Still wrong at S0: Swift preview was a gray stub. From S2 it is a log-normalized positive (harsh/flat vs Python; not a look claim)
 
 ### S1 — Decode + process-mode detect
 

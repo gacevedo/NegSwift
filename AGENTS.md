@@ -104,9 +104,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
-| **S0–S13** | Native Swift engine — **S10b done** (optical dust toggle). Next **S11** autocrop. Checklist § S0–S13 |
+| **S0–S13** | Native Swift engine — **S11 done** (autocrop detect-once). Next **S12** Metal (optional). Checklist § S0–S13 |
 
-**Current status (2026-09-06):** M0–M15 feature complete. Native engine **S10b** is in (optical dust Preferences toggle + preview-res bake before geometry). Python remains the default. Next vertical is **S11**. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-09-06):** M0–M15 feature complete. Native engine **S11** is in (autocrop detect-once; freeze `crop_rect` / `crop_detect_key`). Python remains the default. Next vertical is **S12** (optional). **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

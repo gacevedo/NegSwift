@@ -1,7 +1,7 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
-	compare-s8 compare-s9 compare-s10b \
-	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio bench-engine bundle-engine build-app build-release \
+	compare-s8 compare-s9 compare-s10b compare-s11 \
+	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -81,6 +81,14 @@ compare-s10b: sync
 test-s10b-stdio: test-native-engine
 	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
 		cd Engine && uv run pytest tests/test_config.py -k 'dust' -v
+
+compare-s11: sync
+	cd Engine && uv run python scripts/compare_s11_renders.py
+
+# S11: autocrop detect-once against Swift serve --stdio.
+test-s11-stdio: test-native-engine
+	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
+		cd Engine && uv run pytest tests/test_autocrop.py tests/test_crop.py tests/test_render.py -k 'autocrop or crop_preview_full or detect' -v
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

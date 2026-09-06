@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S10b** automated gates are in (S5–S6 / S8 / S9 / S10a / S10b human A/B still worth a pass). **S11–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S11** automated gates are in (S5–S6 / S8 / S9 / S10a / S10b / S11 human A/B still worth a pass). **S12–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -410,10 +410,11 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 
 ### S11 — Autocrop detect
 
-- [ ] Holder scan auto-crops; rect stored (`crop_from_auto`, `crop_detect_key`)
-- [ ] Second render with no edit does **not** change the rect
-- [ ] Preview and export share the same crop
-- [ ] Still wrong: keystone / k1 (unused in lite)
+- [x] Holder scan auto-crops; rect stored (`crop_from_auto`, `crop_detect_key`) (`make compare-s11` + Swift `AutocropTests`)
+- [x] Second render with no edit does **not** change the rect (`make test-s11-stdio`)
+- [x] Preview and export share the same crop
+- [x] Human: holder scan auto-crops; sidecar freeze; preview and export share the same rect
+- [x] Still wrong: keystone / k1 (unused in lite)
 
 ### S12 — Metal (optional) / S13 — iOS (later)
 

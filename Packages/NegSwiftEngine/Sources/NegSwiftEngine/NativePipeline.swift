@@ -14,19 +14,25 @@ public struct RenderPrintResult: Sendable {
     }
 }
 
-/// In-process pipeline. S11: autocrop detect-once, then dust / heal / Lab / crop / OETF.
+/// In-process pipeline. S12: optional Metal for used WGSL stages after CPU goldens.
 public struct NativePipeline: Sendable {
-    public init() {}
+    public var pixelBackend: PixelBackend
+
+    public init(pixelBackend: PixelBackend = .cpu) {
+        self.pixelBackend = pixelBackend
+    }
 
     public func infoJSON() -> [String: Any] {
-        [
+        let gpu = MetalDevice.isAvailable
+        return [
             "protocol_version": EngineVersion.protocolVersion,
             "negswift_version": EngineVersion.packageVersion,
             "negpy_version": EngineVersion.oracleLabel,
             "python": "n/a",
-            "gpu_available": false,
-            "gpu_backend": NSNull(),
+            "gpu_available": gpu,
+            "gpu_backend": gpu ? MetalDevice.backendName : NSNull(),
             "backend": EngineVersion.backendName,
+            "pixel_backend": pixelBackend.resolved().rawValue,
         ]
     }
 
@@ -99,8 +105,8 @@ public struct NativePipeline: Sendable {
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
-    /// S11 print: optical dust + heal on decoded linear → detect-once autocrop → orient →
-    /// normalize → H&D + autos → Lab → crop → OETF.
+    /// S12 print: optical dust + heal on decoded linear → detect-once autocrop → orient →
+    /// normalize → H&D + autos → Lab → crop → OETF. Pixel stages may run on Metal.
     /// Matches NegPy `DarkroomEngine` order (dust/heals before geometry; Lab before pixel crop).
     /// Autocrop runs on the pre-geometry buffer and freezes `crop_rect` so preview and export
     /// share one rect. Meters on the oriented full frame, then crops pixels unless
@@ -139,6 +145,19 @@ public struct NativePipeline: Sendable {
             fineRotation: printConfig.fineRotation
         )
         let mode = processMode ?? ProcessDetect.detectLite(linear)
+        if pixelBackend.resolved() == .metal,
+           let gpu = MetalPrint.process(linear: linear, processMode: mode, config: printConfig)
+        {
+            var printed = gpu
+            if printConfig.applyPixelCrop, let crop = printConfig.cropRect {
+                printed = applyStoredCrop(printed, rect: crop, offsetPx: printConfig.autocropOffset)
+            }
+            return RenderPrintResult(
+                buffer: printed,
+                resolvedAutocrop: armed.resolved,
+                cropRect: printConfig.cropRect
+            )
+        }
         var printed = PhotometricPrint.process(linear: linear, processMode: mode, config: printConfig)
         printed = PhotoLab.process(printed, config: printConfig)
         if printConfig.applyPixelCrop, let crop = printConfig.cropRect {

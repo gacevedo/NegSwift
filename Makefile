@@ -1,6 +1,6 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
-	compare-s8 compare-s9 compare-s10b compare-s11 \
+	compare-s8 compare-s9 compare-s10b compare-s11 compare-s12 \
 	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
@@ -89,6 +89,10 @@ compare-s11: sync
 test-s11-stdio: test-native-engine
 	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
 		cd Engine && uv run pytest tests/test_autocrop.py tests/test_crop.py tests/test_render.py -k 'autocrop or crop_preview_full or detect' -v
+
+# S12: CPU-vs-Metal MAE (used WGSL stages). Skips if Metal is unavailable.
+compare-s12:
+	cd Packages/NegSwiftEngine && swift test --filter MetalParityTests
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

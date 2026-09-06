@@ -29,9 +29,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 | **M14** Batch export | **Done** | Sheet scope + tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
-| **S0–S13** Native Swift engine | **S11 done** | Autocrop detect-once. Next: S12 Metal (optional). See §14 |
+| **S0–S13** Native Swift engine | **S12 done** | Optional Metal for used WGSL stages. Next: S13 iOS host (later). See §14 |
 
-**Resume here:** Native engine **S12** (optional Metal) or leftover M12 benches. S11 autocrop detect-once is in. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Resume here:** Native engine **S13** (later iOS host) or leftover M12 benches. S12 Metal is in. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -985,7 +985,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 3. **M15:** Wire zone tone sliders (shadows/highlights density + ISO-R split grade) per §7 M15. — **Done**
 4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
-5. **Native engine S12 (optional):** Metal for used WGSL stages. S11 autocrop detect-once is in — see §14.
+5. **Native engine S13 (later):** iOS harness. S12 Metal is in — see §14.
 
 ---
 
@@ -1011,7 +1011,7 @@ Full cards (goal, pinned config, automated gate, human procedure, still-wrong, e
 | **S10a** | Heal mapping + preview inpaint | ⇧S / ⌘Z on a rotated frame |
 | **S10b** | Optical dust | Preferences toggle vs Python |
 | **S11** | Autocrop detect-once | **Done** — holder fixture + detect-once stdio; human holder-scan A/B still open |
-| **S12** | Metal (optional) | After CPU goldens; not a look gate |
+| **S12** | Metal (optional) | **Done** — CPU-vs-Metal MAE on used WGSL stages (`make compare-s12`). Not a look gate. |
 | **S13** | iOS harness (later) | After S4a; not an App Store product |
 
 Do not start S12 or S13 before S4a. Do not start S11 before S6. Do not compare Swift-at-S4 to Python-at-app-defaults.

@@ -7,9 +7,12 @@ struct NativePipelineTests {
         let info = NativePipeline().infoJSON()
         #expect(info["protocol_version"] as? String == EngineVersion.protocolVersion)
         #expect(info["negswift_version"] as? String == EngineVersion.packageVersion)
-        #expect(info["negpy_version"] as? String == "s11-autocrop")
+        #expect(info["negpy_version"] as? String == "s12-metal")
         #expect(info["backend"] as? String == "swift")
-        #expect(info["gpu_available"] as? Bool == false)
+        #expect(info["gpu_available"] as? Bool == MetalDevice.isAvailable)
+        if MetalDevice.isAvailable {
+            #expect(info["gpu_backend"] as? String == "metal")
+        }
     }
 
     @Test func renderPrintAppliesCurveAndOETF() throws {

@@ -347,7 +347,7 @@ actor NativeEngineBackend: EngineBackend {
             result = try await withCheckedThrowingContinuation { continuation in
                 Self.workQueue.async {
                     do {
-                        let exported = try NativePipeline().export(
+                        let exported = try NativePipeline(pixelBackend: .auto).export(
                             path: path,
                             destDir: destDir,
                             processMode: mapped.processMode,
@@ -445,7 +445,7 @@ actor NativeEngineBackend: EngineBackend {
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int
     ) throws -> RenderResult {
-        let buffer = try NativePipeline().renderPrint(
+        let buffer = try NativePipeline(pixelBackend: .auto).renderPrint(
             path: path,
             longEdgePx: longEdgePx,
             processMode: processMode,

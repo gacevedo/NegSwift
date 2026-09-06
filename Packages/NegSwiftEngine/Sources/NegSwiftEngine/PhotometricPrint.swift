@@ -10,6 +10,25 @@ public enum PhotometricPrint: Sendable {
         public var curvatures: (Double, Double, Double)
     }
 
+    /// Per-pixel print-curve inputs. Analysis stays on CPU; S12 Metal applies these.
+    public struct PixelParams: Sendable {
+        public var processMode: FilmProcessMode
+        public var pivots: (Double, Double, Double)
+        public var slopes: (Double, Double, Double)
+        public var curvatures: (Double, Double, Double)
+        public var toe: Double
+        public var toeWidth: Double
+        public var shoulder: Double
+        public var shoulderWidth: Double
+        public var dMin: Double
+        public var bpc: Bool
+        public var shadowDensity: Double
+        public var highlightDensity: Double
+        public var shadowGradeDeltas: (Double, Double, Double)
+        public var highlightGradeDeltas: (Double, Double, Double)
+        public var cmyOffsets: (Double, Double, Double)
+    }
+
     public static func process(
         linear: LinearRGBBuffer,
         processMode: FilmProcessMode,
@@ -33,13 +52,12 @@ public enum PhotometricPrint: Sendable {
         return applyPrint(normalized: normalized, linear: linear, bounds: bounds, processMode: processMode, config: resolved)
     }
 
-    public static func applyPrint(
-        normalized: LinearRGBBuffer,
+    public static func resolvePixelParams(
         linear: LinearRGBBuffer,
         bounds: LogNegativeBounds,
         processMode: FilmProcessMode,
         config: PrintConfig
-    ) -> LinearRGBBuffer {
+    ) -> PixelParams {
         let lumRange = PrintCurve.luminanceDensityRange(bounds)
         let region = config.resolvedAnalysisRegion()
         let grid = CastMetering.analysisGrid(
@@ -110,20 +128,8 @@ public enum PhotometricPrint: Sendable {
         } else {
             highlightHold = 0
         }
-
-        var image = normalized
-        if processMode == .bwNegative {
-            image = collapseToLuma(image)
-        }
-
-        let cmyOffsets = PrintCurve.filtrationOffsets(
-            cyan: Double(config.wbCyan),
-            magenta: Double(config.wbMagenta),
-            yellow: Double(config.wbYellow),
-            bounds: bounds
-        )
-        var printed = PrintCurve.apply(
-            image,
+        return PixelParams(
+            processMode: processMode,
             pivots: params.pivots,
             slopes: params.slopes,
             curvatures: params.curvatures,
@@ -132,15 +138,59 @@ public enum PhotometricPrint: Sendable {
             shoulder: shEff,
             shoulderWidth: Double(config.shoulderWidth),
             dMin: config.dMin,
-            midtoneGamma: ExposureConstants.paperMidtoneGamma,
             bpc: config.bpc,
             shadowDensity: Double(config.shadowDensity),
             highlightDensity: Double(config.highlightDensity) + highlightHold,
             shadowGradeDeltas: sg,
             highlightGradeDeltas: hg,
-            cmyOffsets: cmyOffsets
+            cmyOffsets: PrintCurve.filtrationOffsets(
+                cyan: Double(config.wbCyan),
+                magenta: Double(config.wbMagenta),
+                yellow: Double(config.wbYellow),
+                bounds: bounds
+            )
         )
-        if processMode == .bwNegative {
+    }
+
+    public static func applyPrint(
+        normalized: LinearRGBBuffer,
+        linear: LinearRGBBuffer,
+        bounds: LogNegativeBounds,
+        processMode: FilmProcessMode,
+        config: PrintConfig
+    ) -> LinearRGBBuffer {
+        apply(normalized: normalized, params: resolvePixelParams(
+            linear: linear,
+            bounds: bounds,
+            processMode: processMode,
+            config: config
+        ))
+    }
+
+    public static func apply(normalized: LinearRGBBuffer, params: PixelParams) -> LinearRGBBuffer {
+        var image = normalized
+        if params.processMode == .bwNegative {
+            image = collapseToLuma(image)
+        }
+        var printed = PrintCurve.apply(
+            image,
+            pivots: params.pivots,
+            slopes: params.slopes,
+            curvatures: params.curvatures,
+            toe: params.toe,
+            toeWidth: params.toeWidth,
+            shoulder: params.shoulder,
+            shoulderWidth: params.shoulderWidth,
+            dMin: params.dMin,
+            midtoneGamma: ExposureConstants.paperMidtoneGamma,
+            bpc: params.bpc,
+            shadowDensity: params.shadowDensity,
+            highlightDensity: params.highlightDensity,
+            shadowGradeDeltas: params.shadowGradeDeltas,
+            highlightGradeDeltas: params.highlightGradeDeltas,
+            cmyOffsets: params.cmyOffsets
+        )
+        if params.processMode == .bwNegative {
             printed = collapseToLuma(printed)
         }
         return printed

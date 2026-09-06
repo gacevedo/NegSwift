@@ -26,6 +26,18 @@ public struct LinearRGBBuffer: Sendable, Equatable {
 
     public var sampleCount: Int { pixels.count }
 
+    /// Mean absolute error vs another buffer of the same size. `infinity` on a size mismatch.
+    public func meanAbsoluteError(against other: LinearRGBBuffer) -> Float {
+        guard width == other.width, height == other.height, pixels.count == other.pixels.count else {
+            return .infinity
+        }
+        var sum: Float = 0
+        for i in pixels.indices {
+            sum += abs(pixels[i] - other.pixels[i])
+        }
+        return sum / Float(pixels.count)
+    }
+
     /// Nearest-neighbor downsample so the long edge is at most `maxEdge`.
     public func downsampled(toLongEdge maxEdge: Int) -> LinearRGBBuffer {
         let longest = max(width, height)

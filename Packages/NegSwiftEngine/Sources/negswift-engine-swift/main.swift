@@ -49,7 +49,7 @@ struct NegSwiftEngineCLI {
                  [--shadow-density D] [--highlight-density D]
                  [--shadow-grade G] [--highlight-grade G]
                  [--wb-cyan C] [--wb-magenta M] [--wb-yellow Y]
-                 [--crop-preview-full]
+                 [--crop-preview-full] [--pixel-backend cpu|metal|auto]
                  [--config-json FILE]
           decode --path PATH --out-f32 FILE
           detect --path PATH
@@ -58,7 +58,7 @@ struct NegSwiftEngineCLI {
                  [--config-json FILE]
           serve --stdio
 
-        S11: autocrop detect-once + optical dust + heal. serve --stdio speaks the Python NDJSON contract.
+        S12: optional Metal for used WGSL stages. serve --stdio stays CPU (oracle).
         """
         print(text)
     }
@@ -92,7 +92,7 @@ struct NegSwiftEngineCLI {
         guard let path = parsed.path, let out = parsed.out else {
             throw CLIError.usage("render requires --path and --out")
         }
-        let pipeline = NativePipeline()
+        let pipeline = NativePipeline(pixelBackend: parsed.pixelBackend)
         let (width, height) = try pipeline.renderPNG(
             path: path,
             longEdgePx: parsed.longEdge,
@@ -372,6 +372,12 @@ struct NegSwiftEngineCLI {
                 i += 1
                 guard i < args.count else { throw CLIError.missingValue("--config-json") }
                 parsed.configJSON = args[i]
+            case "--pixel-backend":
+                i += 1
+                guard i < args.count, let value = PixelBackend(rawValue: args[i]) else {
+                    throw CLIError.usage("--pixel-backend must be cpu, metal, or auto")
+                }
+                parsed.pixelBackend = value
             default:
                 throw CLIError.unknownFlag(args[i])
             }
@@ -399,6 +405,7 @@ struct NegSwiftEngineCLI {
         var wbYellow: Float?
         var cropPreviewFull = false
         var configJSON: String?
+        var pixelBackend: PixelBackend = .cpu
     }
 
     private static func parsePathOut(_ args: [String]) throws -> (path: String, out: String, longEdge: Int?) {

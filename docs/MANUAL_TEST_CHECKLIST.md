@@ -419,7 +419,7 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 ### S12 — Metal (optional) / S13 — iOS (later)
 
 - [x] S12: CPU-vs-Metal MAE on used WGSL stages (`make compare-s12` + Swift `MetalParityTests`). App Swift backend uses Metal when available; CLI/stdio stay CPU
-- [ ] S12 human: slider drag stays interactive on a ~20 MP scan (Swift backend)
+- [x] S12 human: slider drag stays interactive on a ~20 MP scan (Swift backend)
 - [ ] S13: tiny in-process harness only — not an App Store product; do not start before S4a
 
 ---

@@ -1,3 +1,4 @@
+import Accelerate
 import Foundation
 
 /// Saturation, skin-chroma rein, and L* USM. Mirrors NegPy `PhotoLabProcessor`
@@ -26,20 +27,33 @@ public enum PhotoLab: Sendable {
     public static let skinCeilAtFull: Float = 22
     public static let skinKneeStartFrac: Float = 0.6
 
+    @_optimize(speed)
     public static func process(_ image: LinearRGBBuffer, config: PrintConfig) -> LinearRGBBuffer {
-        var img = image
-        if config.saturation != 1 || config.skinProtection > 0 {
-            img = applySaturation(img, saturation: config.saturation, skinProtection: config.skinProtection)
+        let needsSat = config.saturation != 1 || config.skinProtection > 0
+        let needsSharpen = config.sharpen > 0
+        if !needsSat, !needsSharpen {
+            return clip01(image)
         }
-        if config.sharpen > 0 {
-            img = applyOutputSharpening(
-                img,
+        // One RGB↔Lab hop for sat + skin + USM. Intermediate clip after sat is a no-op
+        // at NegSwift defaults (sat 1, skin only pulls chroma in).
+        var lab = WorkingLab.rgbToLab(image)
+        if needsSat {
+            if config.saturation != 1 {
+                lab = gamutAwareChromaScale(lab, saturation: config.saturation)
+            }
+            if config.skinProtection > 0 {
+                lab = skinChromaRein(lab, strength: config.skinProtection)
+            }
+        }
+        if needsSharpen {
+            lab = sharpenLab(
+                lab,
                 amount: config.sharpen,
                 radius: config.sharpenRadius,
                 masking: config.sharpenMasking
             )
         }
-        return clip01(img)
+        return clip01(WorkingLab.labToRgb(lab))
     }
 
     public static func applySaturation(
@@ -67,7 +81,22 @@ public enum PhotoLab: Sendable {
         masking: Float = 0
     ) -> LinearRGBBuffer {
         if amount <= 0 { return image }
-        let lab = WorkingLab.rgbToLab(image)
+        let lab = sharpenLab(
+            WorkingLab.rgbToLab(image),
+            amount: amount,
+            radius: radius,
+            masking: masking
+        )
+        return clip01(WorkingLab.labToRgb(lab))
+    }
+
+    @_optimize(speed)
+    private static func sharpenLab(
+        _ lab: LinearRGBBuffer,
+        amount: Float,
+        radius: Float,
+        masking: Float
+    ) -> LinearRGBBuffer {
         let width = lab.width
         let height = lab.height
         let count = width * height
@@ -105,7 +134,7 @@ public enum PhotoLab: Sendable {
             outLab[i * 3 + 1] = aChan[i]
             outLab[i * 3 + 2] = bChan[i]
         }
-        return clip01(WorkingLab.labToRgb(LinearRGBBuffer(width: width, height: height, pixels: outLab)))
+        return LinearRGBBuffer(width: width, height: height, pixels: outLab)
     }
 
     public static func gaussianKernel1D(sigma: Float) -> [Float] {
@@ -125,6 +154,7 @@ public enum PhotoLab: Sendable {
         return k
     }
 
+    @_optimize(speed)
     public static func skinWeight(l: Float, a: Float, b: Float) -> Float {
         let chroma = hypot(a, b)
         if chroma < 2 { return 0 }
@@ -139,6 +169,7 @@ public enum PhotoLab: Sendable {
         return wHue * wChroma * wLight
     }
 
+    @_optimize(speed)
     public static func skinChromaRein(_ lab: LinearRGBBuffer, strength: Float) -> LinearRGBBuffer {
         if strength <= 0 { return lab }
         let ceiling = skinCeilAtFull / strength
@@ -210,9 +241,7 @@ public enum PhotoLab: Sendable {
 
     public static func clip01(_ image: LinearRGBBuffer) -> LinearRGBBuffer {
         var pixels = image.pixels
-        for i in pixels.indices {
-            pixels[i] = min(max(pixels[i], 0), 1)
-        }
+        vDSP.clip(pixels, to: 0...1, result: &pixels)
         return LinearRGBBuffer(width: image.width, height: image.height, pixels: pixels)
     }
 
@@ -227,6 +256,7 @@ public enum PhotoLab: Sendable {
         return rounded
     }
 
+    @_optimize(speed)
     private static func sepFilter2D(_ src: [Float], width: Int, height: Int, kernel: [Float]) -> [Float] {
         let radius = kernel.count / 2
         var tmp = [Float](repeating: 0, count: src.count)
@@ -277,13 +307,38 @@ public enum PhotoLab: Sendable {
         neighborhoodExtrema(src, width: width, height: height, wantMin: false)
     }
 
+    @_optimize(speed)
     private static func neighborhoodExtrema(
         _ src: [Float],
         width: Int,
         height: Int,
         wantMin: Bool
     ) -> [Float] {
+        var input = src
         var out = [Float](repeating: 0, count: src.count)
+        let err = input.withUnsafeMutableBufferPointer { srcPtr in
+            out.withUnsafeMutableBufferPointer { dstPtr in
+                var srcBuf = vImage_Buffer(
+                    data: srcPtr.baseAddress,
+                    height: vImagePixelCount(height),
+                    width: vImagePixelCount(width),
+                    rowBytes: width * MemoryLayout<Float>.stride
+                )
+                var dstBuf = vImage_Buffer(
+                    data: dstPtr.baseAddress,
+                    height: vImagePixelCount(height),
+                    width: vImagePixelCount(width),
+                    rowBytes: width * MemoryLayout<Float>.stride
+                )
+                if wantMin {
+                    return vImageMin_PlanarF(&srcBuf, &dstBuf, nil, 0, 0, 3, 3, vImage_Flags(kvImageEdgeExtend))
+                }
+                return vImageMax_PlanarF(&srcBuf, &dstBuf, nil, 0, 0, 3, 3, vImage_Flags(kvImageEdgeExtend))
+            }
+        }
+        if err == kvImageNoError {
+            return out
+        }
         for y in 0..<height {
             for x in 0..<width {
                 var extremum = wantMin ? Float.greatestFiniteMagnitude : -Float.greatestFiniteMagnitude

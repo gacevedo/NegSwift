@@ -180,6 +180,7 @@ public enum ImageCoding: Sendable {
         return LinearRGBBuffer(width: width, height: height, pixels: pixels)
     }
 
+    @_optimize(speed)
     private static func cgImage8(from buffer: LinearRGBBuffer, colorSpace: CGColorSpace) -> CGImage? {
         let bytesPerPixel = 4
         let bytesPerRow = buffer.width * bytesPerPixel
@@ -210,6 +211,7 @@ public enum ImageCoding: Sendable {
         )
     }
 
+    @_optimize(speed)
     private static func cgImage16(from buffer: LinearRGBBuffer, colorSpace: CGColorSpace) -> CGImage? {
         let bytesPerPixel = 8
         let bytesPerRow = buffer.width * bytesPerPixel
@@ -240,11 +242,13 @@ public enum ImageCoding: Sendable {
         )
     }
 
+    @_optimize(speed)
     private static func quantize8(_ sample: Float) -> UInt8 {
         let clamped = min(1, max(0, sample))
         return UInt8((clamped * 255).rounded())
     }
 
+    @_optimize(speed)
     private static func quantize16(_ sample: Float) -> UInt16 {
         let clamped = min(1, max(0, sample))
         return UInt16((clamped * 65_535).rounded())

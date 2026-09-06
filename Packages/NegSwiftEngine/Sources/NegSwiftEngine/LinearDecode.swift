@@ -241,6 +241,7 @@ public enum LinearDecode: Sendable {
         }
     }
 
+    @_optimize(speed)
     private static func extractUInt16(
         ptr: UnsafePointer<UInt8>,
         width: Int,
@@ -278,6 +279,7 @@ public enum LinearDecode: Sendable {
         }
     }
 
+    @_optimize(speed)
     private static func extractUInt8(
         ptr: UnsafePointer<UInt8>,
         width: Int,

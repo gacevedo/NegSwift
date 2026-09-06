@@ -15,7 +15,12 @@ let package = Package(
     targets: [
         .target(
             name: "NegSwiftEngine",
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            swiftSettings: [
+                // Local package only — Xcode rejects unsafeFlags on remote deps.
+                // Debug -Onone is ~9 min for a 45 MP export; -O is ~25 s.
+                .unsafeFlags(["-O"], .when(configuration: .debug)),
+            ]
         ),
         .executableTarget(
             name: "negswift-engine-swift",

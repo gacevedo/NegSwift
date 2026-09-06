@@ -1,3 +1,4 @@
+import Accelerate
 import Foundation
 
 /// Per-channel log-density D-min / D-max. Unclamped stretch; rolloff is S4.
@@ -109,6 +110,7 @@ public enum LogNormalization: Sendable {
         return LinearRGBBuffer(width: outW, height: outH, pixels: out)
     }
 
+    @_optimize(speed)
     public static func normalizeLogImage(_ imgLog: LinearRGBBuffer, bounds: LogNegativeBounds) -> LinearRGBBuffer {
         var out = imgLog.pixels
         let n = imgLog.width * imgLog.height
@@ -135,8 +137,8 @@ public enum LogNormalization: Sendable {
         colorRangeClip: Double = defaultColorRangeClip,
         e6Normalize: Bool = true
     ) -> LogNegativeBounds {
-        var imgLog = toLogDensity(linear)
-        imgLog = imgLog.applyingAnalysis(buffer: analysisBuffer, rect: analysisRect)
+        // Crop first, then log — same bounds (log is pointwise) and avoids a 45 MP log.
+        var imgLog = toLogDensity(linear.applyingAnalysis(buffer: analysisBuffer, rect: analysisRect))
         imgLog = blockMedianGrid(imgLog)
         return analyzeFromLogGrid(
             imgLog,
@@ -227,6 +229,7 @@ public enum LogNormalization: Sendable {
         )
     }
 
+    @_optimize(speed)
     private static func log10(_ image: LinearRGBBuffer, clampHigh: Bool) -> LinearRGBBuffer {
         var pixels = image.pixels
         let eps = epsilon
@@ -237,14 +240,16 @@ public enum LogNormalization: Sendable {
             } else if v.isInfinite && v > 0 {
                 v = 1
             }
-            if v < eps { v = eps }
-            if clampHigh, v > 1 { v = 1 }
             pixels[i] = v
         }
-        for i in pixels.indices {
-            pixels[i] = Darwin.log10(pixels[i])
+        if clampHigh {
+            vDSP.clip(pixels, to: eps...1, result: &pixels)
+        } else {
+            vDSP.threshold(pixels, to: eps, with: .clampToThreshold, result: &pixels)
         }
-        return LinearRGBBuffer(width: image.width, height: image.height, pixels: pixels)
+        var out = [Float](repeating: 0, count: pixels.count)
+        vForce.log10(pixels, result: &out)
+        return LinearRGBBuffer(width: image.width, height: image.height, pixels: out)
     }
 
     private static func sortedChannelGrid(_ img: LinearRGBBuffer) -> [[Double]] {

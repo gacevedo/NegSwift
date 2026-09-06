@@ -1007,7 +1007,7 @@ Full cards (goal, pinned config, automated gate, human procedure, still-wrong, e
 | **S6** | Stored crop / 90° / flip / fine rot | Overlay + export dims |
 | **S7** | `.negpy` + `serve --stdio` | Quit/reopen; desktop NegPy opens sidecar |
 | **S8** | Lab sat + sharpen 0.25 + skin 0.5 | Default look lock |
-| **S9** | sRGB JPEG/TIFF export | Preview.app dims match Python |
+| **S9** | sRGB JPEG/TIFF export | Preview.app dims match Python. Engine Debug is `-O` (~24 s / 45 MP); app UI stays `-Onone`. |
 | **S10a** | Heal mapping + preview inpaint | ⇧S / ⌘Z on a rotated frame |
 | **S10b** | Optical dust | Preferences toggle vs Python |
 | **S11** | Autocrop detect-once | Holder scan; preview = export rect |

@@ -106,7 +106,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
 | **S0–S13** | Native Swift engine — **S9 done** (sRGB JPEG/TIFF export). Next **S10a** heal. Checklist § S0–S13 |
 
-**Current status (2026-09-05):** M0–M15 feature complete. Native engine **S9** is in (sRGB JPEG/TIFF export + preview display transform). Python remains the default. Next vertical is **S10a**. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-09-06):** M0–M15 feature complete. Native engine **S9** is in (sRGB JPEG/TIFF export + preview display transform). Engine Debug compiles `-O` so full-res export is ~24 s on 45 MP, not ~9 min; app UI stays `-Onone`. Python remains the default. Next vertical is **S10a**. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

@@ -31,6 +31,7 @@ public enum PrintCurve: Sendable {
         return log(expm1(max(y, 1e-12)))
     }
 
+    @_optimize(speed)
     public static func softplus(_ x: Double) -> Double {
         if x > 0 {
             return x + log1p(exp(-x))
@@ -38,6 +39,7 @@ public enum PrintCurve: Sendable {
         return log1p(exp(x))
     }
 
+    @_optimize(speed)
     public static func fastSigmoid(_ x: Double) -> Double {
         if x >= 0 {
             let z = exp(-x)
@@ -185,6 +187,7 @@ public enum PrintCurve: Sendable {
     }
 
     /// Scene-linear reflectance after the H&D curve. OETF is applied by the caller.
+    @_optimize(speed)
     public static func apply(
         _ image: LinearRGBBuffer,
         pivots: (Double, Double, Double),
@@ -228,6 +231,7 @@ public enum PrintCurve: Sendable {
         )
     }
 
+    @_optimize(speed)
     static func applyKernel(
         _ image: LinearRGBBuffer,
         pivots: (Double, Double, Double),
@@ -308,10 +312,11 @@ public enum PrintCurve: Sendable {
 
         var out = image.pixels
         let n = image.width * image.height
+        let src = image.pixels
         for i in 0..<n {
-            var dens = [Double](repeating: 0, count: 3)
+            let base = i * 3
             for ch in 0..<3 {
-                let val = Double(image.pixels[i * 3 + ch]) + cmyA[ch]
+                let val = Double(src[base + ch]) + cmyA[ch]
                 var v = slopeA[ch] * (val - pivotA[ch]) + curvA[ch] * val * val
                 if gammaA[ch] != 0 {
                     v += gammaA[ch] * gammaWidth * tanh((v - vStar) / gammaWidth)
@@ -327,16 +332,14 @@ public enum PrintCurve: Sendable {
                     v += shadowDensity * wZsh + highlightDensity * wZhi
                 }
                 let v1 = dMinEff[ch] + softplus(aHL[ch] * (v - dMinEff[ch])) / aHL[ch]
-                dens[ch] = dMaxEff[ch] - softplus(aSH[ch] * (dMaxEff[ch] - v1)) / aSH[ch]
-            }
-            for ch in 0..<3 {
-                var t = pow(10, -dens[ch])
+                let dens = dMaxEff[ch] - softplus(aSH[ch] * (dMaxEff[ch] - v1)) / aSH[ch]
+                var t = pow(10, -dens)
                 if bpc {
                     t = (t - bpcBlack[ch]) / (1 - bpcBlack[ch])
                 }
                 if t < 0 { t = 0 }
                 if t > 1 { t = 1 }
-                out[i * 3 + ch] = Float(t)
+                out[base + ch] = Float(t)
             }
         }
         return LinearRGBBuffer(width: image.width, height: image.height, pixels: out)

@@ -55,6 +55,7 @@ public enum WorkingOETF: Sendable {
         return LinearRGBBuffer(width: width, height: height, pixels: pixels)
     }
 
+    @_optimize(speed)
     private static func applyPower(_ pixels: [Float], exponent: Float, clampHigh: Bool) -> [Float] {
         var x = pixels
         if clampHigh {

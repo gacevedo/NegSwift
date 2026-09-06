@@ -23,6 +23,7 @@ public enum WorkingLab: Sendable {
     public static let kappa: Float = 7.787
     public static let linearOffset: Float = 16.0 / 116.0
 
+    @_optimize(speed)
     public static func rgbToLab(_ buffer: LinearRGBBuffer) -> LinearRGBBuffer {
         var out = buffer.pixels
         let n = buffer.width * buffer.height
@@ -42,6 +43,7 @@ public enum WorkingLab: Sendable {
         return LinearRGBBuffer(width: buffer.width, height: buffer.height, pixels: out)
     }
 
+    @_optimize(speed)
     public static func labToRgb(_ lab: LinearRGBBuffer) -> LinearRGBBuffer {
         var out = lab.pixels
         let n = lab.width * lab.height
@@ -73,6 +75,7 @@ public enum WorkingLab: Sendable {
             && rgb.2 >= -tol && rgb.2 <= 1 + tol
     }
 
+    @_optimize(speed)
     private static func rgbToLab(
         r: Float,
         g: Float,
@@ -88,6 +91,7 @@ public enum WorkingLab: Sendable {
         return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
     }
 
+    @_optimize(speed)
     private static func labToRgb(
         l: Float,
         a: Float,
@@ -106,10 +110,12 @@ public enum WorkingLab: Sendable {
         return (max(r, 0), max(g, 0), max(bl, 0))
     }
 
+    @_optimize(speed)
     private static func labF(_ t: Float) -> Float {
         t > eps ? cbrt(t) : kappa * t + linearOffset
     }
 
+    @_optimize(speed)
     private static func labFInv(_ f: Float) -> Float {
         let f3 = f * f * f
         return f3 > eps ? f3 : (f - linearOffset) / kappa

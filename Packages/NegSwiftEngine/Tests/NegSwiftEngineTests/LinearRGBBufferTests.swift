@@ -56,6 +56,20 @@ struct LinearRGBBufferTests {
         #expect(buffer.downsampled(toLongEdge: 40).width == 40)
     }
 
+    @Test func areaDownsampledAveragesPinholes() {
+        var pixels = [Float](repeating: 0.2, count: 4 * 4 * 3)
+        pixels[0] = 0
+        pixels[1] = 0
+        pixels[2] = 0
+        let buffer = LinearRGBBuffer(width: 4, height: 4, pixels: pixels)
+        let nearest = buffer.downsampled(toLongEdge: 2)
+        let area = buffer.areaDownsampled(toLongEdge: 2)
+        #expect(area.width == 2)
+        #expect(area.height == 2)
+        #expect(nearest.pixels[0] == 0)
+        #expect(area.pixels[0] > 0.1)
+    }
+
     @Test func croppedToAnalysisROIMatchesNegPyIntSlice() {
         let buffer = LinearRGBBuffer.stub(width: 100, height: 50)
         let roi = buffer.croppedToAnalysisROI(normalized: (0.1, 0.2, 0.8, 0.9))

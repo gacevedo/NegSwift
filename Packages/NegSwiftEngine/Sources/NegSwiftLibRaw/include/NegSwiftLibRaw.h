@@ -15,6 +15,8 @@ typedef struct NegSwiftRawBuffer {
     int orientation;
     float *pixels;
     size_t count;
+    /// 1 when LibRaw `half_size` ran (Bayer 2×2 bin). 0 for full-size or X-Trans.
+    int used_half_size;
 } NegSwiftRawBuffer;
 
 /// 1 when this build linked LibRaw on macOS.
@@ -23,7 +25,8 @@ int negswift_raw_available(void);
 /// Identify without unpack. Writes unrotated output size (`iwidth`/`iheight`) and flip.
 int negswift_raw_probe(const char *path, int *width, int *height, int *orientation);
 
-int negswift_raw_decode(const char *path, NegSwiftRawBuffer *out, char *err, size_t err_len);
+/// `half_size` requests NegPy's preview/thumb path (LINEAR + 2×2 bin). X-Trans ignores it.
+int negswift_raw_decode(const char *path, int half_size, NegSwiftRawBuffer *out, char *err, size_t err_len);
 
 void negswift_raw_free(NegSwiftRawBuffer *buf);
 

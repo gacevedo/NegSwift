@@ -163,6 +163,7 @@ actor NativeEngineBackend: EngineBackend {
 
     func stop() async {
         workGeneration += 1
+        Self.bumpSupersedeEpoch()
     }
 
     func ping() async throws {}
@@ -179,9 +180,35 @@ actor NativeEngineBackend: EngineBackend {
     }
 
     func open(path: String, includeSplash: Bool, config: FrameEditState?) async throws -> OpenResult {
-        _ = includeSplash
-        _ = config
         let dims = NativePipeline().probeSource(at: path) ?? (1, 1)
+        var suggestedCropRect: [Double]?
+        var cropDetectKey: String?
+        // Prefetch uses includeSplash: false — keep that path a cheap probe so a folder
+        // of RAWs does not queue LibRaw decodes behind the selected-frame preview.
+        if includeSplash {
+            let printConfig = Self.printInputs(from: config).printConfig
+            if Autocrop.isArmed(printConfig), printConfig.cropRect == nil {
+                do {
+                    let generation = workGeneration
+                    let resolved = try await Self.performOnWorkQueue(stripJob: false) {
+                        let preview = try NativePipeline().decode(
+                            path: path,
+                            maxLongEdge: Autocrop.detectResolution
+                        )
+                        return Autocrop.resolveRect(preview, config: printConfig)
+                    }
+                    guard generation == workGeneration else {
+                        throw CancellationError()
+                    }
+                    if let rect = resolved {
+                        suggestedCropRect = rect.arrayValue
+                        cropDetectKey = Autocrop.detectionKey(printConfig)
+                    }
+                } catch let error as LinearDecodeError {
+                    throw Self.mapDecode(error)
+                }
+            }
+        }
         return OpenResult(
             path: path,
             hash: Self.fileToken(path),
@@ -191,8 +218,8 @@ actor NativeEngineBackend: EngineBackend {
             splashWidth: nil,
             splashHeight: nil,
             splashJPEGBase64: nil,
-            suggestedCropRect: nil,
-            cropDetectKey: nil
+            suggestedCropRect: suggestedCropRect,
+            cropDetectKey: cropDetectKey
         )
     }
 
@@ -207,7 +234,6 @@ actor NativeEngineBackend: EngineBackend {
         jpegQuality: Int
     ) async throws -> RenderResult {
         _ = preferGPU
-        _ = stripThumbnail
         let generation = workGeneration
         let mapped = Self.printInputs(from: config)
         var printConfig = mapped.printConfig
@@ -215,22 +241,15 @@ actor NativeEngineBackend: EngineBackend {
         printConfig.applyPixelCrop = !cropPreviewFull
         let result: RenderResult
         do {
-            result = try await withCheckedThrowingContinuation { continuation in
-                Self.workQueue.async {
-                    do {
-                        let rendered = try Self.performRender(
-                            path: path,
-                            longEdgePx: longEdgePx,
-                            processMode: mapped.processMode,
-                            printConfig: printConfig,
-                            previewFormat: previewFormat,
-                            jpegQuality: jpegQuality
-                        )
-                        continuation.resume(returning: rendered)
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
+            result = try await Self.performOnWorkQueue(stripJob: stripThumbnail) {
+                try Self.performRender(
+                    path: path,
+                    longEdgePx: longEdgePx,
+                    processMode: mapped.processMode,
+                    printConfig: printConfig,
+                    previewFormat: previewFormat,
+                    jpegQuality: jpegQuality
+                )
             }
         } catch let error as LinearDecodeError {
             throw Self.mapDecode(error)
@@ -254,9 +273,11 @@ actor NativeEngineBackend: EngineBackend {
             )
         }
         do {
-            let mode = try await Task.detached(priority: .userInitiated) {
+            let generation = workGeneration
+            let mode = try await Self.performOnWorkQueue(stripJob: false) {
                 try NativePipeline().detectProcessMode(path: path)
-            }.value
+            }
+            guard generation == workGeneration else { throw CancellationError() }
             return DetectProcessModeResult(
                 skipped: false,
                 reason: nil,
@@ -343,28 +364,20 @@ actor NativeEngineBackend: EngineBackend {
         )
         let result: ExportResult
         do {
-            result = try await withCheckedThrowingContinuation { continuation in
-                Self.workQueue.async {
-                    do {
-                        let exported = try NativePipeline(pixelBackend: .auto).export(
-                            path: path,
-                            destDir: destDir,
-                            processMode: mapped.processMode,
-                            config: mapped.printConfig,
-                            settings: nativeSettings
-                        )
-                        continuation.resume(
-                            returning: ExportResult(
-                                outputPath: exported.url.path,
-                                width: exported.width,
-                                height: exported.height,
-                                format: exported.format
-                            )
-                        )
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
+            result = try await Self.performOnWorkQueue(stripJob: false) {
+                let exported = try NativePipeline(pixelBackend: .auto).export(
+                    path: path,
+                    destDir: destDir,
+                    processMode: mapped.processMode,
+                    config: mapped.printConfig,
+                    settings: nativeSettings
+                )
+                return ExportResult(
+                    outputPath: exported.url.path,
+                    width: exported.width,
+                    height: exported.height,
+                    format: exported.format
+                )
             }
         } catch let error as LinearDecodeError {
             throw Self.mapDecode(error)
@@ -430,11 +443,49 @@ actor NativeEngineBackend: EngineBackend {
         return (processMode, printConfig)
     }
 
+    /// One worker — LibRaw/OpenMP and Metal encode are not safe under parallel RAW decodes.
+    /// Canvas / detect / export bump ``supersedeEpoch`` so queued strip thumbs no-op.
     private static let workQueue = DispatchQueue(
         label: "negswift.native-engine.render",
-        qos: .userInitiated,
-        attributes: .concurrent
+        qos: .userInitiated
     )
+    private static let epochLock = NSLock()
+    private static var supersedeEpoch = 0
+
+    @discardableResult
+    private static func bumpSupersedeEpoch() -> Int {
+        epochLock.lock()
+        supersedeEpoch += 1
+        let value = supersedeEpoch
+        epochLock.unlock()
+        return value
+    }
+
+    private static func currentSupersedeEpoch() -> Int {
+        epochLock.lock()
+        defer { epochLock.unlock() }
+        return supersedeEpoch
+    }
+
+    private static func performOnWorkQueue<T: Sendable>(
+        stripJob: Bool,
+        operation: @escaping @Sendable () throws -> T
+    ) async throws -> T {
+        let epoch = stripJob ? currentSupersedeEpoch() : bumpSupersedeEpoch()
+        return try await withCheckedThrowingContinuation { continuation in
+            workQueue.async {
+                if stripJob, epoch != currentSupersedeEpoch() {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                do {
+                    continuation.resume(returning: try operation())
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
 
     private static func performRender(
         path: String,

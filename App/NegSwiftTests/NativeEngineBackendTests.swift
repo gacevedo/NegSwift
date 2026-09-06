@@ -138,6 +138,19 @@ struct NativeEngineBackendTests {
         #expect(result.width > 0)
         #expect(result.height > 0)
         #expect(result.path == sampleTIFFPath)
+        #expect(result.suggestedCropRect == nil)
+    }
+
+    @Test func openWithSplashSuggestsArmedAutocrop() async throws {
+        let url = try writeFrameTIFF(width: 160, height: 120)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let backend = NativeEngineBackend()
+        var edit = FrameEditState()
+        edit.autoCropEnabled = true
+        edit.cropFromAuto = true
+        let result = try await backend.open(path: url.path, includeSplash: true, config: edit)
+        #expect(result.suggestedCropRect?.count == 4)
+        #expect(result.cropDetectKey?.isEmpty == false)
     }
 
     @Test func detectMissingFileIsNotFound() async {
@@ -282,4 +295,25 @@ struct NativeEngineBackendTests {
         #expect(result.pngBase64 == nil)
         #expect(result.pngData == nil)
     }
+}
+
+/// Bright bed + dark frame — same fixture as NegSwiftEngine `AutocropTests`.
+private func writeFrameTIFF(width: Int, height: Int) throws -> URL {
+    var samples = [UInt16](repeating: 65535, count: width * height * 3)
+    let y1 = Int((0.12 * Double(height)).rounded())
+    let y2 = Int((0.88 * Double(height)).rounded())
+    let x1 = Int((0.10 * Double(width)).rounded())
+    let x2 = Int((0.90 * Double(width)).rounded())
+    for y in y1..<y2 {
+        for x in x1..<x2 {
+            let i = (y * width + x) * 3
+            samples[i] = 3277
+            samples[i + 1] = 3277
+            samples[i + 2] = 3277
+        }
+    }
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("negswift-native-open-\(UUID().uuidString).tif")
+    try UncompressedTIFF.writeRGB16(width: width, height: height, samples: samples, to: url)
+    return url
 }

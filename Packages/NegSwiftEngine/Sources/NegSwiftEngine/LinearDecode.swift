@@ -31,11 +31,15 @@ public enum LinearDecodeError: Error, LocalizedError, Sendable {
 /// Untagged 16-bit TIFF stays linear (`/ 65535`). Untagged 8-bit and JPEG apply IEC 61966-2-1
 /// sRGB → linear. IR / ExtraSamples are dropped (S1).
 public enum LinearDecode: Sendable {
-    /// Decode, then nearest-neighbor to `maxLongEdge`.
+    /// Decode, then shrink to `maxLongEdge` (ImageIO thumbnail + nearest, or RAW area).
     ///
     /// ``analysisOversample`` loads a sharper ImageIO thumbnail (at least 4096 / 2× the
     /// requested edge) before the nearest shrink. A thumbnail at the preview long edge
     /// blurs film/holder boundaries so Analysis Buffer barely moves Auto Density.
+    ///
+    /// Camera RAW with a long-edge cap uses LibRaw `half_size` (Bayer) then box-average
+    /// shrink — nearest-neighbor keeps demosaic pinholes that crush Auto Density once
+    /// the lightbox is cropped. Export leaves `maxLongEdge` nil and stays full-size AHD.
     public static func decode(
         url: URL,
         maxLongEdge: Int? = nil,
@@ -45,9 +49,10 @@ public enum LinearDecode: Sendable {
             throw LinearDecodeError.fileNotFound(url)
         }
         if ScanFormat.isCameraRaw(url.path) {
-            var buffer = try RawDecode.decode(url: url)
+            let halfSize = (maxLongEdge ?? 0) > 0
+            var buffer = try RawDecode.decode(url: url, halfSize: halfSize)
             if let maxLongEdge, maxLongEdge > 0 {
-                buffer = buffer.downsampled(toLongEdge: maxLongEdge)
+                buffer = buffer.areaDownsampled(toLongEdge: maxLongEdge)
             }
             return buffer
         }

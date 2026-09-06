@@ -136,7 +136,6 @@ public enum Autocrop: Sendable {
         let rh = tmp.height
         let rw = tmp.width
         if rh < 2 || rw < 2 { return nil }
-        guard hasDetectableFrame(tmp) else { return nil }
         let roi = autocropCoords(
             tmp,
             offsetPx: 0,
@@ -395,48 +394,305 @@ public enum Autocrop: Sendable {
         return PixelROI(y1: ny1, y2: ny2, x1: nx1, x2: nx2)
     }
 
+    /// NegPy `_EDGE_*` — camera-scan holder mask + film-base walk.
+    private static let edgeMaskLevel: Float = 0.03
+    private static let edgeBaseLevel: Float = 0.95
+    private static let edgeBridge = 8
+    private static let edgeTrimCap = 0.03
+    private static let edgeCore = 0.70
+    private static let edgeQuantile = 80.0
+    private static let edgeMinSupport = 0.45
+    private static let edgeRebateMargin: Float = 0.10
+    private static let edgeShadeMargin: Float = 0.16
+    private static let edgeRebateStep: Float = 0.18
+    private static let edgeRebateRef = 60
+    private static let edgeDeepCap = 0.10
+    private static let edgeDeepBridge = 12
+    private static let edgeDeepStraight = 0.025
+    private static let edgeDeepFull = 0.92
+    private static let edgeStepShare = 0.45
+    private static let edgeStepFloor: Float = 0.06
+    private static let edgeDeepOuterSpread: Float = 0.15
+
+    private enum FilmEdge: CaseIterable {
+        case top, bottom, left, right
+    }
+
+    /// Oriented so row 0 is the frame edge and columns walk along that side.
+    private static func edgeLines(lum: [Float], width: Int, roi: PixelROI, side: FilmEdge) -> (inward: Int, across: Int, values: [Float]) {
+        let bh = roi.height
+        let bw = roi.width
+        switch side {
+        case .top:
+            var values = [Float](repeating: 0, count: bh * bw)
+            for y in 0..<bh {
+                for x in 0..<bw {
+                    values[y * bw + x] = lum[(roi.y1 + y) * width + (roi.x1 + x)]
+                }
+            }
+            return (bh, bw, values)
+        case .bottom:
+            var values = [Float](repeating: 0, count: bh * bw)
+            for y in 0..<bh {
+                for x in 0..<bw {
+                    values[y * bw + x] = lum[(roi.y2 - 1 - y) * width + (roi.x1 + x)]
+                }
+            }
+            return (bh, bw, values)
+        case .left:
+            var values = [Float](repeating: 0, count: bw * bh)
+            for x in 0..<bw {
+                for y in 0..<bh {
+                    values[x * bh + y] = lum[(roi.y1 + y) * width + (roi.x1 + x)]
+                }
+            }
+            return (bw, bh, values)
+        case .right:
+            var values = [Float](repeating: 0, count: bw * bh)
+            for x in 0..<bw {
+                for y in 0..<bh {
+                    values[x * bh + y] = lum[(roi.y1 + y) * width + (roi.x2 - 1 - x)]
+                }
+            }
+            return (bw, bh, values)
+        }
+    }
+
+    /// NegPy `_walk_border_depth`.
+    private static func walkBorderDepth(
+        inward: Int,
+        across: Int,
+        values: [Float],
+        limit: Int,
+        bridge: Int,
+        relativeStep: Bool
+    ) -> [Int] {
+        let headRows = min(limit + 1, inward)
+        var picture = [Float](repeating: 0, count: across)
+        for j in 0..<across {
+            var samples: [Float] = []
+            let start = min(limit, inward)
+            let end = min(limit + edgeRebateRef, inward)
+            samples.reserveCapacity(max(end - start, 0))
+            for i in start..<end {
+                samples.append(values[i * across + j])
+            }
+            picture[j] = median(samples)
+        }
+
+        var firm = [Bool](repeating: false, count: headRows * across)
+        var border = [Bool](repeating: false, count: headRows * across)
+        for i in 0..<headRows {
+            for j in 0..<across {
+                let v = values[i * across + j]
+                let isFirm = v < edgeMaskLevel || v > edgeBaseLevel
+                firm[i * across + j] = isFirm
+                border[i * across + j] =
+                    isFirm
+                    || v > picture[j] + edgeRebateMargin
+                    || v < picture[j] - edgeShadeMargin
+            }
+        }
+
+        var depth = [Int](repeating: 0, count: across)
+        var last = [Int](repeating: -1, count: across)
+        var soft = [Bool](repeating: false, count: across)
+        var alive = [Bool](repeating: true, count: across)
+        var firmDepth = [Int](repeating: 0, count: across)
+        var firmLast = [Int](repeating: -1, count: across)
+        var firmAlive = [Bool](repeating: true, count: across)
+
+        for i in 0..<headRows {
+            var any = false
+            for j in 0..<across {
+                if alive[j] { alive[j] = (i - last[j]) <= bridge }
+                if firmAlive[j] { firmAlive[j] = (i - firmLast[j]) <= bridge }
+                if alive[j] || firmAlive[j] { any = true }
+            }
+            if !any { break }
+            for j in 0..<across {
+                if alive[j], border[i * across + j] {
+                    last[j] = i
+                    depth[j] = i + 1
+                    soft[j] = !firm[i * across + j]
+                }
+                if firmAlive[j], firm[i * across + j] {
+                    firmLast[j] = i
+                    firmDepth[j] = i + 1
+                }
+            }
+        }
+
+        let spanRows = max(0, min(limit, inward - 3))
+        var peak = [Float](repeating: -1, count: across)
+        var peakAt = [Int](repeating: 0, count: across)
+        for j in 0..<across {
+            var best: Float = -1
+            for i in 0..<spanRows where i < depth[j] {
+                let span = abs(values[(i + 3) * across + j] - values[i * across + j])
+                if span > best {
+                    best = span
+                }
+            }
+            peak[j] = best
+            if best < 0 { continue }
+            let gate = 0.9 * best
+            for i in 0..<spanRows where i < depth[j] {
+                let span = abs(values[(i + 3) * across + j] - values[i * across + j])
+                if span >= gate {
+                    peakAt[j] = i
+                    break
+                }
+            }
+        }
+
+        for j in 0..<across where soft[j] {
+            let resolved = min(max(peakAt[j] + 3, 0), limit)
+            let gate: Float
+            if relativeStep {
+                var outer: [Float] = []
+                let rows = min(3, inward)
+                for i in 0..<rows { outer.append(values[i * across + j]) }
+                gate = max(edgeStepFloor, Float(edgeStepShare) * abs(median(outer) - picture[j]))
+            } else {
+                gate = edgeRebateStep
+            }
+            depth[j] = peak[j] >= gate ? resolved : 0
+        }
+        for j in 0..<across {
+            depth[j] = max(depth[j], firmDepth[j])
+        }
+        return depth
+    }
+
+    private static func poolBorderDepth(_ depth: [Int], limit: Int) -> Int {
+        let live = depth.filter { $0 > 0 }
+        if Double(live.count) / Double(max(depth.count, 1)) < edgeMinSupport {
+            return 0
+        }
+        return min(limit, Int(percentile(live.map(Float.init), edgeQuantile)))
+    }
+
+    private static func borderEdgeScatter(_ depth: [Int]) -> Double {
+        var index: [Double] = []
+        var value: [Double] = []
+        for (i, d) in depth.enumerated() where d > 0 {
+            index.append(Double(i))
+            value.append(Double(d))
+        }
+        if index.count < 8 { return .infinity }
+        let step = max(1, index.count / 48)
+        var a: [Double] = []
+        var b: [Double] = []
+        var i = 0
+        while i < index.count {
+            a.append(index[i])
+            b.append(value[i])
+            i += step
+        }
+        var slopes: [Double] = []
+        if a.count >= 2 {
+            for p in 0..<a.count {
+                for q in (p + 1)..<a.count where a[q] != a[p] {
+                    slopes.append((b[q] - b[p]) / (a[q] - a[p]))
+                }
+            }
+        }
+        let slope = slopes.isEmpty ? 0.0 : Double(median(slopes.map { Float($0) }))
+        var residuals: [Float] = []
+        let interceptSamples = zip(index, value).map { Float($0.1 - slope * $0.0) }
+        let intercept = Double(median(interceptSamples))
+        for k in 0..<index.count {
+            residuals.append(Float(abs(value[k] - (slope * index[k] + intercept))))
+        }
+        return Double(median(residuals))
+    }
+
+    private static func edgeBorderDepth(
+        lum: [Float],
+        width: Int,
+        roi: PixelROI,
+        side: FilmEdge,
+        limit: Int,
+        deepLimit: Int
+    ) -> Int {
+        let lines = edgeLines(lum: lum, width: width, roi: roi, side: side)
+        let inward = lines.inward
+        var across = lines.across
+        var values = lines.values
+        let margin = Int(((1.0 - edgeCore) * 0.5 * Double(across)).rounded())
+        if across - 2 * margin >= 8 {
+            var cropped = [Float](repeating: 0, count: inward * (across - 2 * margin))
+            let newAcross = across - 2 * margin
+            for i in 0..<inward {
+                for j in 0..<newAcross {
+                    cropped[i * newAcross + j] = values[i * across + j + margin]
+                }
+            }
+            values = cropped
+            across = newAcross
+        }
+        if inward < limit + 8 || across < 8 { return 0 }
+
+        let near = poolBorderDepth(
+            walkBorderDepth(
+                inward: inward,
+                across: across,
+                values: values,
+                limit: limit,
+                bridge: edgeBridge,
+                relativeStep: false
+            ),
+            limit: limit
+        )
+        if deepLimit <= limit || inward < deepLimit + 8 {
+            return near
+        }
+
+        let deep = walkBorderDepth(
+            inward: inward,
+            across: across,
+            values: values,
+            limit: deepLimit,
+            bridge: edgeDeepBridge,
+            relativeStep: true
+        )
+        let far = poolBorderDepth(deep, limit: deepLimit)
+        if far <= near || Double(far) >= edgeDeepFull * Double(deepLimit) {
+            return near
+        }
+        if borderEdgeScatter(deep) > edgeDeepStraight * Double(deepLimit) {
+            return near
+        }
+        var outer: [Float] = []
+        let rows = min(3, inward)
+        for j in 0..<across where deep[j] > 0 {
+            var samples: [Float] = []
+            for i in 0..<rows { samples.append(values[i * across + j]) }
+            outer.append(median(samples))
+        }
+        if !outer.isEmpty {
+            let mid = median(outer)
+            let spread = median(outer.map { abs($0 - mid) })
+            if spread > edgeDeepOuterSpread { return near }
+        }
+        return far
+    }
+
+    /// NegPy `measure_film_edges` + `_trim_film_edges`.
     static func trimFilmEdges(lum: [Float], width: Int, height: Int, filmROI: PixelROI) -> PixelROI {
+        _ = height
         let bh = filmROI.height
         let bw = filmROI.width
         if bh < 16 || bw < 16 { return filmROI }
-        let cap = 0.06
-        let ly = max(1, Int((cap * Double(bh)).rounded()))
-        let lx = max(1, Int((cap * Double(bw)).rounded()))
-        let interior = boxMedian(lum: lum, width: width, roi: inset(filmROI, fraction: 0.25))
-        let surround: Float
-        if let ring = surroundMedian(lum: lum, width: width, height: height, roi: filmROI) {
-            surround = ring
-        } else {
-            surround = interior
-        }
-        func depth(limit: Int, isRow: Bool, fromStart: Bool) -> Int {
-            var i = 0
-            while i < limit {
-                var sum: Float = 0
-                var n = 0
-                if isRow {
-                    let y = fromStart ? filmROI.y1 + i : filmROI.y2 - 1 - i
-                    for x in filmROI.x1..<filmROI.x2 {
-                        sum += lum[y * width + x]
-                        n += 1
-                    }
-                } else {
-                    let x = fromStart ? filmROI.x1 + i : filmROI.x2 - 1 - i
-                    for y in filmROI.y1..<filmROI.y2 {
-                        sum += lum[y * width + x]
-                        n += 1
-                    }
-                }
-                let mean = sum / Float(max(n, 1))
-                if abs(mean - surround) >= abs(mean - interior) { break }
-                i += 1
-            }
-            return i
-        }
-        let top = depth(limit: ly, isRow: true, fromStart: true)
-        let bottom = depth(limit: ly, isRow: true, fromStart: false)
-        let left = depth(limit: lx, isRow: false, fromStart: true)
-        let right = depth(limit: lx, isRow: false, fromStart: false)
+        let ly = Int((edgeTrimCap * Double(bh)).rounded())
+        let lx = Int((edgeTrimCap * Double(bw)).rounded())
+        let dy = Int((edgeDeepCap * Double(bh)).rounded())
+        let dx = Int((edgeDeepCap * Double(bw)).rounded())
+        let top = edgeBorderDepth(lum: lum, width: width, roi: filmROI, side: .top, limit: ly, deepLimit: dy)
+        let bottom = edgeBorderDepth(lum: lum, width: width, roi: filmROI, side: .bottom, limit: ly, deepLimit: dy)
+        let left = edgeBorderDepth(lum: lum, width: width, roi: filmROI, side: .left, limit: lx, deepLimit: dx)
+        let right = edgeBorderDepth(lum: lum, width: width, roi: filmROI, side: .right, limit: lx, deepLimit: dx)
         let roi = PixelROI(
             y1: filmROI.y1 + top,
             y2: filmROI.y2 - bottom,
@@ -769,37 +1025,7 @@ public enum Autocrop: Sendable {
     }
 
     static func areaResized(_ image: LinearRGBBuffer, width: Int, height: Int) -> LinearRGBBuffer {
-        if width == image.width, height == image.height { return image }
-        var out = [Float](repeating: 0, count: width * height * 3)
-        let srcW = image.width
-        let srcH = image.height
-        for y in 0..<height {
-            let y0 = y * srcH / height
-            let y1 = max(y0 + 1, (y + 1) * srcH / height)
-            for x in 0..<width {
-                let x0 = x * srcW / width
-                let x1 = max(x0 + 1, (x + 1) * srcW / width)
-                var r: Float = 0
-                var g: Float = 0
-                var b: Float = 0
-                var n: Float = 0
-                for sy in y0..<min(y1, srcH) {
-                    for sx in x0..<min(x1, srcW) {
-                        let i = (sy * srcW + sx) * 3
-                        r += image.pixels[i]
-                        g += image.pixels[i + 1]
-                        b += image.pixels[i + 2]
-                        n += 1
-                    }
-                }
-                let d = (y * width + x) * 3
-                let inv = n > 0 ? 1 / n : 0
-                out[d] = r * inv
-                out[d + 1] = g * inv
-                out[d + 2] = b * inv
-            }
-        }
-        return LinearRGBBuffer(width: width, height: height, pixels: out)
+        image.areaResized(width: width, height: height)
     }
 
     static func filmBoxCoversEnough(width: Int, height: Int, roi: PixelROI) -> Bool {

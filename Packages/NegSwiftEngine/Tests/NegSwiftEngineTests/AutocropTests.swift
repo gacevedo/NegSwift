@@ -79,6 +79,47 @@ struct AutocropTests {
         #expect(Autocrop.hasManualCrop(kept.config))
     }
 
+    /// Lightbox + orange-mask RAF: nearest preview shrink kept demosaic zeros and
+    /// crushed D-max once auto-crop removed the bed. Skip if the local file is missing.
+    @Test func fujiRAFLightboxCropPrintIsNotCrushed() throws {
+        let path = "/Users/gacevedo/Downloads/sample-raw-scans/_DSF8951.RAF"
+        try #require(FileManager.default.fileExists(atPath: path))
+        NativePipeline.resetWorkingSets()
+        defer { NativePipeline.resetWorkingSets() }
+        var cfg = PrintConfig.s4aPin
+        cfg.cropFromAuto = true
+        cfg.autoCropEnabled = true
+        cfg.autoDensityUsesCrop = true
+        let printed = try NativePipeline().renderPrint(
+            path: path,
+            longEdgePx: Int(Autocrop.previewRenderSize),
+            processMode: .colorNegative,
+            config: cfg
+        )
+        let mean = printed.pixels.reduce(0, +) / Float(printed.pixels.count)
+        #expect(mean > 0.15)
+        #expect(printed.width > 400)
+        #expect(printed.height > 400)
+    }
+
+    /// Camera-scan RAF: no clipping bed, so film-bounds + 0.96 threshold are a no-op.
+    /// Python still crops via the edge walk (`measure_film_edges`). Skip if the local
+    /// file is missing.
+    @Test func fujiRAFCameraScanMatchesPythonAutocrop() throws {
+        let path = "/Users/gacevedo/Downloads/sample-raw-scans/_DSF8434.RAF"
+        try #require(FileManager.default.fileExists(atPath: path))
+        let buffer = try NativePipeline().decode(path: path, maxLongEdge: Int(Autocrop.previewRenderSize))
+        let rect = Autocrop.resolveRect(buffer, config: armedConfig())
+        #expect(!Autocrop.hasDetectableFrame(buffer))
+        #expect(rect != nil)
+        guard let rect else { return }
+        // Python `resolve_autocrop_rect` on PreviewManager linear at 1600 long edge.
+        #expect(abs(rect.x1 - 0.17875) < 0.04)
+        #expect(abs(rect.y1 - 0.093545) < 0.04)
+        #expect(abs(rect.x2 - 0.765625) < 0.04)
+        #expect(abs(rect.y2 - 0.971936) < 0.04)
+    }
+
     @Test func holderFixtureDetectsAnInsetRect() {
         let image = frameImage(height: 1200, width: 1800)
         let rect = Autocrop.resolveRect(image, config: armedConfig())

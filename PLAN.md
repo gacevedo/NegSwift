@@ -1013,7 +1013,7 @@ Full cards (goal, pinned config, automated gate, human procedure, still-wrong, e
 | **S11** | Autocrop detect-once | **Done** — holder fixture + detect-once stdio; human holder-scan A/B done |
 | **S12** | Metal (optional) | **Done** — CPU-vs-Metal MAE (`make compare-s12`); slider feel on ~20 MP. Not a look gate. |
 | **S13** | Interactive performance | **Done** — reprint cache, Metal geometry, resident texture + skip JPEG present (`make compare-s13`). Not a look gate. |
-| **S14** | Camera RAW (LibRaw) | **Done** — sensor-native linear for NegPy’s camera RAW list; ImageIO is not the look path |
+| **S14** | Camera RAW (LibRaw) | **Done** — sensor-native linear for NegPy’s camera RAW list; ImageIO is not the look path. Preview/thumb uses LibRaw `half_size` (Bayer) like NegPy |
 | **S15** | iOS harness (later) | After S4a; not an App Store product |
 
 Do not start S12–S15 before S4a. Do not start S11 before S6. Do not compare Swift-at-S4 to Python-at-app-defaults.

@@ -40,23 +40,67 @@ public struct LinearRGBBuffer: Sendable, Equatable {
 
     /// Nearest-neighbor downsample so the long edge is at most `maxEdge`.
     public func downsampled(toLongEdge maxEdge: Int) -> LinearRGBBuffer {
-        let longest = max(width, height)
-        guard maxEdge > 0, longest > maxEdge else { return self }
-        let newWidth = max(1, Int((Double(width) * Double(maxEdge) / Double(longest)).rounded()))
-        let newHeight = max(1, Int((Double(height) * Double(maxEdge) / Double(longest)).rounded()))
-        var out = [Float](repeating: 0, count: newWidth * newHeight * 3)
-        for y in 0..<newHeight {
-            let srcY = min(height - 1, y * height / newHeight)
-            for x in 0..<newWidth {
-                let srcX = min(width - 1, x * width / newWidth)
+        guard let size = downsampledSize(toLongEdge: maxEdge) else { return self }
+        var out = [Float](repeating: 0, count: size.width * size.height * 3)
+        for y in 0..<size.height {
+            let srcY = min(height - 1, y * height / size.height)
+            for x in 0..<size.width {
+                let srcX = min(width - 1, x * width / size.width)
                 let src = (srcY * width + srcX) * 3
-                let dst = (y * newWidth + x) * 3
+                let dst = (y * size.width + x) * 3
                 out[dst] = pixels[src]
                 out[dst + 1] = pixels[src + 1]
                 out[dst + 2] = pixels[src + 2]
             }
         }
-        return LinearRGBBuffer(width: newWidth, height: newHeight, pixels: out)
+        return LinearRGBBuffer(width: size.width, height: size.height, pixels: out)
+    }
+
+    /// Box-average downsample (NegPy `cv2.INTER_AREA`). Nearest keeps demosaic pinholes
+    /// that pull log D-max down on an orange-mask camera scan once the lightbox is cropped.
+    public func areaDownsampled(toLongEdge maxEdge: Int) -> LinearRGBBuffer {
+        guard let size = downsampledSize(toLongEdge: maxEdge) else { return self }
+        return areaResized(width: size.width, height: size.height)
+    }
+
+    public func areaResized(width dstW: Int, height dstH: Int) -> LinearRGBBuffer {
+        if dstW == width, dstH == height { return self }
+        var out = [Float](repeating: 0, count: dstW * dstH * 3)
+        for y in 0..<dstH {
+            let y0 = y * height / dstH
+            let y1 = max(y0 + 1, (y + 1) * height / dstH)
+            for x in 0..<dstW {
+                let x0 = x * width / dstW
+                let x1 = max(x0 + 1, (x + 1) * width / dstW)
+                var r: Float = 0
+                var g: Float = 0
+                var b: Float = 0
+                var n: Float = 0
+                for sy in y0..<min(y1, height) {
+                    for sx in x0..<min(x1, width) {
+                        let i = (sy * width + sx) * 3
+                        r += pixels[i]
+                        g += pixels[i + 1]
+                        b += pixels[i + 2]
+                        n += 1
+                    }
+                }
+                let d = (y * dstW + x) * 3
+                let inv = n > 0 ? 1 / n : 0
+                out[d] = r * inv
+                out[d + 1] = g * inv
+                out[d + 2] = b * inv
+            }
+        }
+        return LinearRGBBuffer(width: dstW, height: dstH, pixels: out)
+    }
+
+    private func downsampledSize(toLongEdge maxEdge: Int) -> (width: Int, height: Int)? {
+        let longest = max(width, height)
+        guard maxEdge > 0, longest > maxEdge else { return nil }
+        let newWidth = max(1, Int((Double(width) * Double(maxEdge) / Double(longest)).rounded()))
+        let newHeight = max(1, Int((Double(height) * Double(maxEdge) / Double(longest)).rounded()))
+        return (newWidth, newHeight)
     }
 
     /// Center crop used by process-mode detect (`buffer_ratio` 0.12 in NegPy).

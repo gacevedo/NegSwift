@@ -71,6 +71,28 @@ struct RawDecodeTests {
         #expect(abs(buffer.pixels[2] - 10_000 / 65535) < 2 / 65535)
         let down = try LinearDecode.decode(url: url, maxLongEdge: 16)
         #expect(max(down.width, down.height) <= 16)
+
+        let full = try RawDecode.decodeDetailed(url: url, halfSize: false)
+        #expect(!full.usedHalfSize)
+        let half = try RawDecode.decodeDetailed(url: url, halfSize: true)
+        if half.usedHalfSize {
+            #expect(max(half.buffer.width, half.buffer.height) <= max(full.buffer.width, full.buffer.height))
+        }
+        #expect(abs(half.buffer.pixels[0] - 40_000 / 65535) < 4 / 65535)
+    }
+
+    @Test(.enabled(if: RawDecode.isAvailable && RawDecodeTests.localCameraRaw() != nil))
+    func halfSizeBinsLocalCameraRaw() throws {
+        guard let url = Self.localCameraRaw() else { return }
+        let full = try RawDecode.decodeDetailed(url: url, halfSize: false)
+        let half = try RawDecode.decodeDetailed(url: url, halfSize: true)
+        #expect(half.usedHalfSize)
+        let fullLong = max(full.buffer.width, full.buffer.height)
+        let halfLong = max(half.buffer.width, half.buffer.height)
+        #expect(halfLong * 2 <= fullLong + 4)
+        #expect(halfLong * 2 >= fullLong - 8)
+        let thumb = try LinearDecode.decode(url: url, maxLongEdge: 256)
+        #expect(max(thumb.width, thumb.height) <= 256)
     }
 
     @Test(.enabled(if: !RawDecode.isAvailable))
@@ -87,5 +109,17 @@ struct RawDecodeTests {
         } catch {
             Issue.record("wrong error: \(error)")
         }
+    }
+
+    static func localCameraRaw() -> URL? {
+        let keys = ["NEGSWIFT_S14_NEF", "NEGSWIFT_S14_ARW", "NEGSWIFT_S14_RAW"]
+        for key in keys {
+            guard let path = ProcessInfo.processInfo.environment[key], !path.isEmpty else { continue }
+            let url = URL(fileURLWithPath: path)
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+        return nil
     }
 }

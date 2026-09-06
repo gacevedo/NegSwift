@@ -1612,7 +1612,7 @@ final class EngineSession {
             if let generation, generation != thumbnailGeneration { return }
             guard stripGen == stripGeneration else { return }
             guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
-            if let data = result.imageData, let image = NSImage(data: data) {
+            if let image = Self.nsImage(from: result) {
                 updateFrame(at: frameIndex) { $0.thumbnail = image }
             }
         } catch is CancellationError {
@@ -1779,7 +1779,7 @@ final class EngineSession {
             )
             guard generation == stripGeneration, thumbGen == thumbnailGeneration else { return }
             guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
-            if let data = result.imageData, let image = NSImage(data: data) {
+            if let image = Self.nsImage(from: result) {
                 updateFrame(at: frameIndex) { $0.thumbnail = image }
             }
         } catch is CancellationError {
@@ -2111,6 +2111,20 @@ final class EngineSession {
         else { return false }
         updateFrame(at: index) { $0.thumbnail = thumbnail }
         return true
+    }
+
+    /// In-process Swift renders return ``RenderResult/nativePreview``; Python returns encoded bytes.
+    nonisolated private static func nsImage(from result: RenderResult) -> NSImage? {
+        if let native = result.nativePreview {
+            return NSImage(
+                cgImage: native.cgImage,
+                size: NSSize(width: native.cgImage.width, height: native.cgImage.height)
+            )
+        }
+        if let data = result.imageData {
+            return NSImage(data: data)
+        }
+        return nil
     }
 
     nonisolated private static func makeStripThumbnail(from preview: NSImage) -> NSImage? {

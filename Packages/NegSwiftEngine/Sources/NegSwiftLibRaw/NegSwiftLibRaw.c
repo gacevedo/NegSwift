@@ -26,6 +26,7 @@ void negswift_raw_free(NegSwiftRawBuffer *buf) {
     buf->width = 0;
     buf->height = 0;
     buf->orientation = 0;
+    buf->used_half_size = 0;
 }
 
 #ifndef NEGSWIFT_HAS_LIBRAW
@@ -44,8 +45,9 @@ int negswift_raw_probe(const char *path, int *width, int *height, int *orientati
     return -1;
 }
 
-int negswift_raw_decode(const char *path, NegSwiftRawBuffer *out, char *err, size_t err_len) {
+int negswift_raw_decode(const char *path, int half_size, NegSwiftRawBuffer *out, char *err, size_t err_len) {
     (void)path;
+    (void)half_size;
     if (out) {
         memset(out, 0, sizeof(*out));
     }
@@ -63,7 +65,11 @@ static void fail_msg(char *err, size_t err_len, const char *msg) {
     }
 }
 
-static void apply_linear_params(libraw_data_t *raw) {
+static int is_xtrans(const libraw_data_t *raw) {
+    return raw->idata.filters == LIBRAW_XTRANS;
+}
+
+static void apply_linear_params(libraw_data_t *raw, int half_size) {
     raw->params.output_color = 0; /* raw / sensor-native */
     raw->params.output_bps = 16;
     raw->params.gamm[0] = 1.0;
@@ -77,9 +83,16 @@ static void apply_linear_params(libraw_data_t *raw) {
     raw->params.user_mul[3] = 1.0f;
     raw->params.adjust_maximum_thr = 0.0f;
     raw->params.user_flip = 0;
-    raw->params.user_qual = 3; /* AHD — NegPy AUTO on Bayer */
     raw->params.bright = 1.0f;
     raw->params.highlight = 0;
+    /* NegPy preview: half_size + LINEAR on Bayer. X-Trans + linear aliases the 6×6 CFA. */
+    if (half_size && !is_xtrans(raw)) {
+        raw->params.half_size = 1;
+        raw->params.user_qual = 0;
+    } else {
+        raw->params.half_size = 0;
+        raw->params.user_qual = 3; /* AHD — NegPy AUTO on Bayer */
+    }
 }
 
 int negswift_raw_probe(const char *path, int *width, int *height, int *orientation) {
@@ -118,7 +131,7 @@ int negswift_raw_probe(const char *path, int *width, int *height, int *orientati
     return 0;
 }
 
-int negswift_raw_decode(const char *path, NegSwiftRawBuffer *out, char *err, size_t err_len) {
+int negswift_raw_decode(const char *path, int half_size, NegSwiftRawBuffer *out, char *err, size_t err_len) {
     if (out) {
         memset(out, 0, sizeof(*out));
     }
@@ -147,7 +160,8 @@ int negswift_raw_decode(const char *path, NegSwiftRawBuffer *out, char *err, siz
         return rc;
     }
 
-    apply_linear_params(raw);
+    apply_linear_params(raw, half_size);
+    int used_half = raw->params.half_size ? 1 : 0;
     int flip = raw->sizes.flip;
 
     rc = libraw_dcraw_process(raw);
@@ -225,6 +239,7 @@ int negswift_raw_decode(const char *path, NegSwiftRawBuffer *out, char *err, siz
     out->orientation = flip == 0 ? 1 : flip;
     out->pixels = pixels;
     out->count = count;
+    out->used_half_size = used_half;
     return 0;
 }
 

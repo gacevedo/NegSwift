@@ -416,6 +416,7 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 - [x] Second render with no edit does **not** change the rect (`make test-s11-stdio`)
 - [x] Preview and export share the same crop
 - [x] Human: holder scan auto-crops; sidecar freeze; preview and export share the same rect
+- [ ] Human: Swift backend, `_DSF8434.RAF` (or another camera-scan RAW with no clipping bed) auto-crops in the same class as Python
 - [x] Still wrong: keystone / k1 (unused in lite)
 
 ### S12 — Metal (optional)
@@ -437,10 +438,13 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 
 - [x] Discover / Open accept camera RAW on the Swift backend (NEF, ARW, CR2, DNG, … — not only NEF/ARW)
 - [x] Automated: `make compare-s14` keeps `sample.tif` green; synthetic LinearRaw DNG when LibRaw is linked; local RAW is skip-if-missing (`NEGSWIFT_S14_NEF` / `NEGSWIFT_S14_ARW` / `NEGSWIFT_S14_RAW`)
+- [x] Automated: preview/thumb RAW decode uses LibRaw `half_size` (LINEAR) when a long edge is set; export stays full-size (`RawDecodeTests`)
+- [x] Automated: lightbox RAF auto-crop print is not crushed — preview shrink is box-average, not nearest (`fujiRAFLightboxCropPrintIsNotCrushed`)
 - [x] Linear decode MAE vs Python on named local NEF and ARW (`compare-s14`; sensor-native, not ImageIO camera RGB; MAE ~1e-10)
 - [x] S8 working-space MAE on those files at `--long-edge 256` (MAE ~1e-7)
 - [x] Human: Swift backend, NEF — orange mask still orange; A/B at app defaults vs Python
 - [x] Human: same for ARW (and any other camera RAW you have)
+- [ ] Human: Swift backend, Import Folder of 3+ RAWs — strip thumbs fill; first preview is auto-cropped; clicking another frame leaves “Loading image…” and shows a preview
 - [x] Still wrong: JXL, Coolscan NEF, Noritsu / FFF / Pakon special loaders, demosaic picker, IR sidecars
 
 ### S15 — iOS (later)

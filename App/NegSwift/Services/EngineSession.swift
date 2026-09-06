@@ -40,6 +40,10 @@ final class EngineSession {
     /// When set, the canvas shows a loading overlay with this message (e.g. during reset).
     private(set) var previewLoadingMessage: String?
 
+    /// True when ``previewImage`` is the settled canvas print for ``currentPath``,
+    /// not a strip thumbnail or embedded-splash placeholder.
+    private(set) var isPreviewSettled = false
+
     /// Tone snapshot when crop mode opens. Crop drags can re-meter live when
     /// ``autoDensityUsesCrop`` is on (via a wire ``analysis_rect`` that busts the engine cache).
     private var cropPreviewBaseline: FrameEditState?
@@ -136,11 +140,12 @@ final class EngineSession {
         }
     }
 
-    /// True while the canvas preview does not yet match the selected film-strip frame.
+    /// True while the canvas does not yet have a settled preview for the selected frame.
+    /// Strip thumbs and splash stay visible underneath the overlay until the full print lands.
     var isPreviewStale: Bool {
         guard let selected = selectedFramePath else { return false }
         if previewLoadingMessage != nil { return true }
-        if currentPath == selected { return false }
+        if currentPath == selected, isPreviewSettled { return false }
         if isRenderingPreview { return true }
         if previewError != nil { return false }
         return true
@@ -1013,6 +1018,7 @@ final class EngineSession {
         previewError = nil
         currentPath = nil
         isRenderingPreview = false
+        isPreviewSettled = false
         previewMemo.clear()
 
         if clearWorkspace {
@@ -1076,6 +1082,7 @@ final class EngineSession {
         previewImage = nil
         previewError = nil
         currentPath = nil
+        isPreviewSettled = false
     }
 
     func noteImportError(_ message: String) {
@@ -1281,6 +1288,7 @@ final class EngineSession {
         currentPath = nil
         previewError = nil
         isRenderingPreview = false
+        isPreviewSettled = false
     }
 
     private func activatePrimaryFrame(
@@ -1320,6 +1328,7 @@ final class EngineSession {
             return
         }
 
+        isPreviewSettled = false
         applyThumbnailInterimPreview(for: frame)
         await warmOpenAsset(for: frame)
 
@@ -1513,6 +1522,7 @@ final class EngineSession {
             previewImage = image
             previewPixelSize = CGSize(width: result.width, height: result.height)
             currentPath = path
+            isPreviewSettled = true
             if isCropToolActive {
                 storePreviewMemo(
                     path: path,
@@ -1802,6 +1812,7 @@ final class EngineSession {
         previewImage = thumbnail
         previewPixelSize = nil
         currentPath = frame.path
+        isPreviewSettled = false
         previewError = nil
     }
 
@@ -1834,6 +1845,7 @@ final class EngineSession {
             previewPixelSize = CGSize(width: width, height: height)
         }
         currentPath = path
+        isPreviewSettled = false
         previewError = nil
     }
 
@@ -1897,6 +1909,7 @@ final class EngineSession {
         pendingThumbnailRefreshAfterCropClose = false
         pendingAutoCropSeed = false
         previewPixelSize = nil
+        isPreviewSettled = false
         previewMemo.clear()
     }
 
@@ -1916,6 +1929,7 @@ final class EngineSession {
         previewPixelSize = entry.pixelSize
         currentPath = path
         isRenderingPreview = false
+        isPreviewSettled = true
         previewError = nil
         if !isCropToolActive {
             applyPreviewToSelectedThumbnail()
@@ -2029,6 +2043,14 @@ final class EngineSession {
         currentPath = path
     }
 
+    func setPreviewSettledForTests(_ settled: Bool) {
+        isPreviewSettled = settled
+    }
+
+    func applyThumbnailInterimPreviewForTests(for frame: ScanFrame) {
+        applyThumbnailInterimPreview(for: frame)
+    }
+
     func setDirtyPathsForTests(_ paths: [String]) {
         dirtyPaths = Set(paths)
     }
@@ -2127,6 +2149,7 @@ final class EngineSession {
         guard let targetPath,
               targetPath == selectedFramePath,
               targetPath == currentPath,
+              isPreviewSettled,
               !isCropToolActive,
               let preview = previewImage,
               let index = frames.firstIndex(where: { $0.path == targetPath }),

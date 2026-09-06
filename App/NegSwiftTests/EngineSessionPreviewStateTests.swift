@@ -18,6 +18,7 @@ struct EngineSessionPreviewStateTests {
         let session = EngineSession.preview
         session.setPreviewLoadingMessageForTests(nil)
         session.setCurrentPathForTests(session.frames[0].path)
+        session.setPreviewSettledForTests(true)
         #expect(!session.isPreviewStale)
     }
 
@@ -28,6 +29,7 @@ struct EngineSessionPreviewStateTests {
         session.storePreviewMemoForTests(path: path, image: image, pixelSize: CGSize(width: 100, height: 80))
         session.setCurrentPathForTests(path)
         session.setPreviewImageForTests(image)
+        session.setPreviewSettledForTests(true)
         session.setPreviewLoadingMessageForTests(nil)
         #expect(!session.isPreviewStale)
         #expect(session.previewMemoHitForTests(path: path))
@@ -48,23 +50,26 @@ struct EngineSessionPreviewStateTests {
         #expect(session.isPreviewStale)
     }
 
-    @Test @MainActor func thumbnailInterimPreviewIsNotStale() {
+    @Test @MainActor func thumbnailInterimPreviewStaysStaleUntilSettled() {
         let session = EngineSession.preview
         let path = session.frames[1].path
         let thumbnail = NSImage(size: NSSize(width: 56, height: 42))
-        session.setFramesForTests([
-            session.frames[0],
-            ScanFrame(
-                id: session.frames[1].id,
-                url: session.frames[1].url,
-                path: path,
-                name: session.frames[1].name,
-                thumbnail: thumbnail
-            ),
-        ])
-        session.setFilmStripSelectionForTests(primary: session.frames[1].id, ids: [session.frames[1].id])
-        session.setPreviewImageForTests(thumbnail)
-        session.setCurrentPathForTests(path)
+        let frame = ScanFrame(
+            id: session.frames[1].id,
+            url: session.frames[1].url,
+            path: path,
+            name: session.frames[1].name,
+            thumbnail: thumbnail
+        )
+        session.setFramesForTests([session.frames[0], frame])
+        session.setFilmStripSelectionForTests(primary: frame.id, ids: [frame.id])
+        session.applyThumbnailInterimPreviewForTests(for: frame)
+        #expect(session.previewImage != nil)
+        #expect(session.currentPath == path)
+        #expect(!session.isPreviewSettled)
+        #expect(session.isPreviewStale)
+
+        session.setPreviewSettledForTests(true)
         #expect(!session.isPreviewStale)
     }
 

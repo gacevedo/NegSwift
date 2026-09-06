@@ -66,6 +66,12 @@ public struct PrintConfig: Sendable, Equatable {
     public var healStrokes: [HealStroke]
     /// Legacy one-point heals (`manual_dust_spots`).
     public var dustSpots: [HealSpot]
+    /// Preferences optical dust (`dust_remove`). Baked on decoded linear before geometry.
+    public var dustRemove: Bool
+    /// UI Threshold, higher = more conservative. NegPy default `0.66`.
+    public var dustThreshold: Float
+    /// Detection window in film-footprint px. NegPy default `4`.
+    public var dustSize: Int
 
     public init(
         density: Float = 1,
@@ -103,7 +109,10 @@ public struct PrintConfig: Sendable, Equatable {
         sharpenRadius: Float = 1,
         sharpenMasking: Float = 0,
         healStrokes: [HealStroke] = [],
-        dustSpots: [HealSpot] = []
+        dustSpots: [HealSpot] = [],
+        dustRemove: Bool = false,
+        dustThreshold: Float = OpticalDust.defaultThreshold,
+        dustSize: Int = OpticalDust.defaultSize
     ) {
         self.density = density
         self.grade = grade
@@ -141,6 +150,9 @@ public struct PrintConfig: Sendable, Equatable {
         self.sharpenMasking = sharpenMasking
         self.healStrokes = healStrokes
         self.dustSpots = dustSpots
+        self.dustRemove = dustRemove
+        self.dustThreshold = dustThreshold
+        self.dustSize = dustSize
     }
 
     /// Pinned S4a/S4b base (autos off, Neutral paper, BPC on, cast 0.5, sliders at 0).
@@ -224,6 +236,9 @@ public struct PrintConfig: Sendable, Equatable {
         if overrides["manual_dust_spots"] != nil {
             copy.dustSpots = HealSpot.parseList(overrides["manual_dust_spots"])
         }
+        if let v = Self.boolValue(overrides["dust_remove"]) { copy.dustRemove = v }
+        if let v = Self.floatValue(overrides["dust_threshold"]) { copy.dustThreshold = v }
+        if let v = Self.intValue(overrides["dust_size"]) { copy.dustSize = max(1, v) }
         return copy.applyingMeteringRemap(from: overrides)
     }
 

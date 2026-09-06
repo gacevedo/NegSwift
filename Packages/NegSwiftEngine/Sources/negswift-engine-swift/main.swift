@@ -58,7 +58,7 @@ struct NegSwiftEngineCLI {
                  [--config-json FILE]
           serve --stdio
 
-        S10a: heal mapping + preview inpaint. serve --stdio speaks the Python NDJSON contract.
+        S10b: optical dust + heal mapping. serve --stdio speaks the Python NDJSON contract.
         """
         print(text)
     }

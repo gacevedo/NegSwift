@@ -1,7 +1,7 @@
 import Foundation
 
 /// Preview-res painted heal: `strokes_to_score` + score-weighted fill, baked on
-/// decoded linear **before** geometry. Navier–Stokes hair inpaint is S10b / later.
+/// decoded linear **before** geometry. Optical dust is `OpticalDust` (S10b).
 public enum HealInpaint: Sendable {
     public static let healSizeRef: Float = 1600
     public static let detectRef: Float = 1600
@@ -146,10 +146,20 @@ public enum HealInpaint: Sendable {
     }
 
     public static func applyScoreRepair(_ image: LinearRGBBuffer, score: [Float]) -> LinearRGBBuffer {
+        applyScoreRepair(image, score: score, floor: false, factor: nil)
+    }
+
+    /// Score-weighted fill. `floor` is the original-floor rule (optical dust only lightens).
+    public static func applyScoreRepair(
+        _ image: LinearRGBBuffer,
+        score: [Float],
+        floor: Bool,
+        factor: Float?
+    ) -> LinearRGBBuffer {
         let w = image.width
         let h = image.height
-        let factor = filmScale(width: w, height: h)
-        let scales = fillSupports(longEdge: max(w, h), factor: factor)
+        let usedFactor = factor ?? filmScale(width: w, height: h)
+        let scales = fillSupports(longEdge: max(w, h), factor: usedFactor)
         var bbox: (x0: Int, y0: Int, x1: Int, y1: Int)?
         for y in 0..<h {
             for x in 0..<w {
@@ -187,17 +197,30 @@ public enum HealInpaint: Sendable {
             }
         }
         // Painted strokes: `floor=False` → `reject_floor_mass=True` so later rungs
-        // do not treat the score floor as clean-film confidence.
+        // do not treat the score floor as clean-film confidence. Optical dust keeps
+        // the floor so a dark speck can only lighten.
         var fill = scoreWeightedFill(
             rgb: cropRGB,
             score: cropScore,
             width: cw,
             height: ch,
             scales: scales,
-            rejectFloorMass: true
+            rejectFloorMass: !floor
         )
         var alpha = [Float](repeating: 0, count: cw * ch)
         blendFill(src: cropRGB, score: cropScore, fill: &fill, alpha: &alpha, width: cw, height: ch)
+        if floor {
+            let sigma = max(1, usedFactor)
+            let blurSrc = gaussianBlurRGB(cropRGB, width: cw, height: ch, sigma: sigma)
+            let blurOut = gaussianBlurRGB(fill, width: cw, height: ch, sigma: sigma)
+            for i in 0..<(cw * ch) {
+                let a = alpha[i]
+                for c in 0..<3 {
+                    let deficit = blurSrc[i * 3 + c] - blurOut[i * 3 + c]
+                    fill[i * 3 + c] += a * max(deficit, 0)
+                }
+            }
+        }
         var out = image.pixels
         for y in 0..<ch {
             for x in 0..<cw {
@@ -605,6 +628,11 @@ public enum HealInpaint: Sendable {
             }
         }
         return out
+    }
+
+    static func gaussianBlurRGB(_ src: [Float], width: Int, height: Int, sigma: Float) -> [Float] {
+        let kernel = PhotoLab.gaussianKernel1D(sigma: sigma)
+        return sepFilterRGB(src, width: width, height: height, kernel: kernel)
     }
 
     private static func sepFilterRGB(_ src: [Float], width: Int, height: Int, kernel: [Float]) -> [Float] {

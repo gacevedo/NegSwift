@@ -13,7 +13,7 @@ struct ProtocolServerTests {
         let info = server.handleMessage(#"{"id":1,"method":"info"}"#)
         let payload = info["result"] as? [String: Any]
         #expect(payload?["protocol_version"] as? String == "0.1")
-        #expect(payload?["negpy_version"] as? String == "s10a-heal")
+        #expect(payload?["negpy_version"] as? String == "s10b-optical-dust")
         #expect(info["id"] as? Int == 1 || (info["id"] as? NSNumber)?.intValue == 1)
     }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S5: log-normalize → H&D + autos/metering + zone/CMY + cast + BPC → OETF.
+/// In-process pipeline. S6: geometry (90° / flip / fine-rot / stored crop) after S5 print.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -85,9 +85,9 @@ public struct NativePipeline: Sendable {
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
-    /// S5 print: normalize → H&D + autos/metering + zone/CMY + cast + BPC → working OETF.
+    /// S6 print: orient (90° / flip / fine-rot) → normalize → H&D + autos → OETF → stored crop.
     /// Meters on the oriented full frame (`analysis_rect` / buffer), then crops pixels unless
-    /// ``PrintConfig.applyPixelCrop`` is false (crop-tool preview). Preview-size decodes
+    /// ``PrintConfig.applyPixelCrop`` is false (`crop_preview_full`). Preview-size decodes
     /// oversample so Analysis Buffer still sees film/holder edges.
     public func renderPrint(
         path: String,
@@ -99,7 +99,8 @@ public struct NativePipeline: Sendable {
         linear = linear.oriented(
             rotation: config.rotation,
             flipHorizontal: config.flipHorizontal,
-            flipVertical: config.flipVertical
+            flipVertical: config.flipVertical,
+            fineRotation: config.fineRotation
         )
         let mode = processMode ?? ProcessDetect.detectLite(linear)
         var printed = PhotometricPrint.process(linear: linear, processMode: mode, config: config)

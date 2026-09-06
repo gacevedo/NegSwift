@@ -75,6 +75,13 @@ struct LinearRGBBufferTests {
         #expect(cropped.pixels.contains(where: { $0 == 1 }))
     }
 
+    @Test func croppedNormalizedUsesNegPyTruncation() {
+        let buffer = LinearRGBBuffer.stub(width: 33, height: 33)
+        let cropped = buffer.cropped(normalized: (0.1, 0.1, 0.3, 0.3))
+        #expect(cropped.width == 6)
+        #expect(cropped.height == 6)
+    }
+
     @Test func rotate180MovesCornerToOpposite() {
         var pixels = [Float](repeating: 0, count: 4 * 2 * 3)
         pixels[0] = 1

@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S5** automated gates are in (S5 human A/B still open). **S6–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S6** automated gates are in (S5–S6 human A/B still open). **S7–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -348,18 +348,19 @@ Pinned S5 config (both backends): S4 pin with `auto_exposure=true`, `auto_normal
 - [x] MAE gate: `make compare-s5` MAE ≤ 0.02 on `sample.tif` (measured ~0.0006) and the real scan at `--long-edge 256` (measured ~0.011)
 - [x] Autos on, Lab still off; A/B closer to current NegSwift
 - [ ] Analysis Buffer changes the look on a full-frame scan
-- [ ] **Apply Auto Density while cropping** off: crop drag does not re-meter
-- [ ] Same toggle on: crop drag re-meters (debounced)
+- [x] **Apply Auto Density while cropping** off: crop drag does not re-meter
+- [x] Same toggle on: crop drag re-meters (debounced)
 - [x] Still wrong: Lab softness; stored-crop overlay polish (S6)
 
 ### S6 — Stored geometry
 
-- [ ] Crop box matches Python; click-outside applies
-- [ ] 90° CW / CCW matches Python
-- [ ] Flip H/V and fine rotation match Python
-- [ ] Crop-tool preview is the uncropped frame (`crop_preview_full`)
-- [ ] Export pixel size shrinks with crop (same as M8 / `test_export.py`)
-- [ ] Still wrong: autocrop *detect* (S11)
+- [x] MAE gate: `make compare-s6` MAE ≤ 0.02 on `sample.tif` (crop/rot/flip ~0.0006; fine-rot ~0.0023; cropped 24×16 vs full 48×32). Real scan at `--long-edge 1600`: rot/flip/fine-rot ~0.005; autos-off crop ~0.014; autos-on crop ~0.034 (preview resample vs full-res nearest — not a geometry miss)
+- [x] Crop box matches Python; click-outside applies
+- [x] 90° CW / CCW matches Python
+- [x] Flip H/V and fine rotation match Python
+- [x] Crop-tool preview is the uncropped frame (`crop_preview_full`)
+- [x] Preview / CLI render pixel size shrinks with crop (same as M8 / `test_crop.py`; Swift export is S9)
+- [x] Still wrong: autocrop *detect* (S11)
 
 ### S7 — Sidecar + stdio
 

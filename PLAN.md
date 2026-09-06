@@ -29,9 +29,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 | **M14** Batch export | **Done** | Sheet scope + tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
-| **S0–S13** Native Swift engine | **S5 done** | Autos + metering remap (`analysis_rect`). Next: S6 stored geometry. See §14 |
+| **S0–S13** Native Swift engine | **S6 done** | Stored crop / 90° / flip / fine-rot / `crop_preview_full`. Next: S7 sidecar + stdio. See §14 |
 
-**Resume here:** Native engine **S6** (stored crop / 90° / flip / fine rot). S5 autos + metering remap are in. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for leftover M12 manual benches.
+**Resume here:** Native engine **S7** (sidecar + `serve --stdio`). S6 stored geometry is in. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for leftover M12 manual benches.
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -985,7 +985,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 3. **M15:** Wire zone tone sliders (shadows/highlights density + ISO-R split grade) per §7 M15. — **Done**
 4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
-5. **Native engine S6:** Stored crop / 90° / flip / fine rot. S5 autos + metering remap are in — see §14.
+5. **Native engine S7:** Sidecar + `serve --stdio`. S6 stored geometry is in — see §14.
 
 ---
 

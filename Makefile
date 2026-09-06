@@ -1,5 +1,5 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
-	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 bench-engine bundle-engine build-app build-release \
+	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -47,6 +47,9 @@ compare-s4b: sync
 
 compare-s5: sync
 	cd Engine && uv run python scripts/compare_s5_renders.py
+
+compare-s6: sync
+	cd Engine && uv run python scripts/compare_s6_renders.py
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

@@ -86,7 +86,11 @@ def _python_print(path: Path, long_edge: int | None, config: dict) -> np.ndarray
         rgb = np.asarray(handle.data, dtype=np.float32)
     if long_edge is not None:
         rgb = _downsample_nearest(rgb, long_edge)
-    workspace = WorkspaceConfig.from_flat_dict(dict(config))
+    from negswift_engine.metering import negpy_flat_for_pipeline
+
+    flat = dict(config)
+    crop_preview_full = bool(flat.pop("crop_preview_full", False))
+    workspace = WorkspaceConfig.from_flat_dict(negpy_flat_for_pipeline(flat))
     result, _metrics = ImageProcessor().run_pipeline(
         rgb,
         workspace,
@@ -94,6 +98,7 @@ def _python_print(path: Path, long_edge: int | None, config: dict) -> np.ndarray
         render_size_ref=float(max(rgb.shape[0], rgb.shape[1])),
         prefer_gpu=False,
         wants_uv_grid=False,
+        crop_preview_full=crop_preview_full,
     )
     if result.ndim == 3 and result.shape[2] >= 3:
         return np.asarray(result[:, :, :3], dtype=np.float32)

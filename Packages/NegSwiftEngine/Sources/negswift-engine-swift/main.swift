@@ -45,12 +45,13 @@ struct NegSwiftEngineCLI {
                  [--shadow-density D] [--highlight-density D]
                  [--shadow-grade G] [--highlight-grade G]
                  [--wb-cyan C] [--wb-magenta M] [--wb-yellow Y]
+                 [--crop-preview-full]
                  [--config-json FILE]
           decode --path PATH --out-f32 FILE
           detect --path PATH
           oetf-ramp --out-dir DIR [--width N] [--height N]
 
-        S5: render is H&D + autos/metering + zone/CMY + cast + BPC + OETF (Lab still off).
+        S6: render applies stored geometry (90° / flip / fine-rot / crop) on the S5 print.
         """
         print(text)
     }
@@ -80,6 +81,7 @@ struct NegSwiftEngineCLI {
         if let v = parsed.wbCyan { config.wbCyan = v }
         if let v = parsed.wbMagenta { config.wbMagenta = v }
         if let v = parsed.wbYellow { config.wbYellow = v }
+        if parsed.cropPreviewFull { config.applyPixelCrop = false }
         guard let path = parsed.path, let out = parsed.out else {
             throw CLIError.usage("render requires --path and --out")
         }
@@ -282,6 +284,8 @@ struct NegSwiftEngineCLI {
                     throw CLIError.missingValue("--wb-yellow")
                 }
                 parsed.wbYellow = value
+            case "--crop-preview-full":
+                parsed.cropPreviewFull = true
             case "--config-json":
                 i += 1
                 guard i < args.count else { throw CLIError.missingValue("--config-json") }
@@ -311,6 +315,7 @@ struct NegSwiftEngineCLI {
         var wbCyan: Float?
         var wbMagenta: Float?
         var wbYellow: Float?
+        var cropPreviewFull = false
         var configJSON: String?
     }
 

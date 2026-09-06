@@ -50,6 +50,8 @@ public struct PrintConfig: Sendable, Equatable {
     public var rotation: Int
     public var flipHorizontal: Bool
     public var flipVertical: Bool
+    /// NegPy `fine_rotation` degrees (cv2/warp, positive CCW). Canvas size stays fixed.
+    public var fineRotation: Float
 
     public init(
         density: Float = 1,
@@ -79,7 +81,8 @@ public struct PrintConfig: Sendable, Equatable {
         applyPixelCrop: Bool = true,
         rotation: Int = 0,
         flipHorizontal: Bool = false,
-        flipVertical: Bool = false
+        flipVertical: Bool = false,
+        fineRotation: Float = 0
     ) {
         self.density = density
         self.grade = grade
@@ -109,6 +112,7 @@ public struct PrintConfig: Sendable, Equatable {
         self.rotation = rotation
         self.flipHorizontal = flipHorizontal
         self.flipVertical = flipVertical
+        self.fineRotation = fineRotation
     }
 
     /// Pinned S4a/S4b base (autos off, Neutral paper, BPC on, cast 0.5, sliders at 0).
@@ -170,6 +174,8 @@ public struct PrintConfig: Sendable, Equatable {
         if let v = Self.intValue(overrides["rotation"]) { copy.rotation = v }
         if let v = Self.boolValue(overrides["flip_horizontal"]) { copy.flipHorizontal = v }
         if let v = Self.boolValue(overrides["flip_vertical"]) { copy.flipVertical = v }
+        if let v = Self.floatValue(overrides["fine_rotation"]) { copy.fineRotation = v }
+        if let v = Self.boolValue(overrides["crop_preview_full"]) { copy.applyPixelCrop = !v }
         return copy.applyingMeteringRemap(from: overrides)
     }
 

@@ -378,6 +378,7 @@ actor NativeEngineBackend: EngineBackend {
         printConfig.rotation = config.rotation
         printConfig.flipHorizontal = config.flipHorizontal
         printConfig.flipVertical = config.flipVertical
+        printConfig.fineRotation = Float(config.fineRotation)
         if let crop = config.manualCropRect {
             printConfig.cropRect = NormalizedCropRect(
                 x1: crop.x1,

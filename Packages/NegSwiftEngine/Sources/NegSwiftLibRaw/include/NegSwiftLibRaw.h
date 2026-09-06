@@ -30,6 +30,23 @@ int negswift_raw_decode(const char *path, int half_size, NegSwiftRawBuffer *out,
 
 void negswift_raw_free(NegSwiftRawBuffer *buf);
 
+/// Embedded preview from `libraw_unpack_thumb`. JPEG `data` is the file bytes.
+/// BITMAP: `format=2` and `data` is NULL — never copy grayscale BITMAP (NegPy).
+typedef struct NegSwiftRawThumb {
+    int width;
+    int height;
+    /// LibRaw `sizes.flip` (0 or EXIF 1–8).
+    int orientation;
+    /// 1 = JPEG, 2 = BITMAP (unsafe to read).
+    int format;
+    uint8_t *data;
+    size_t size;
+} NegSwiftRawThumb;
+
+int negswift_raw_extract_thumb(const char *path, NegSwiftRawThumb *out, char *err, size_t err_len);
+
+void negswift_raw_free_thumb(NegSwiftRawThumb *thumb);
+
 #ifdef __cplusplus
 }
 #endif

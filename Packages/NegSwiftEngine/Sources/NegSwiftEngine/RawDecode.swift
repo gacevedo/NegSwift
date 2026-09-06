@@ -82,4 +82,56 @@ public enum RawDecode: Sendable {
     public static func decode(path: String, halfSize: Bool = false) throws -> LinearRGBBuffer {
         try decode(url: URL(fileURLWithPath: path), halfSize: halfSize)
     }
+
+    /// LibRaw embedded preview. JPEG bytes only — BITMAP is reported without pixel data.
+    public struct Thumb: Sendable {
+        public var format: Format
+        public var jpeg: Data?
+        public var width: Int
+        public var height: Int
+        public var orientation: Int
+
+        public enum Format: Sendable {
+            case jpeg
+            case bitmap
+        }
+    }
+
+    public static func extractThumb(url: URL) -> Thumb? {
+        guard isAvailable else { return nil }
+        librawLock.lock()
+        defer { librawLock.unlock() }
+        var raw = NegSwiftRawThumb()
+        var message = [CChar](repeating: 0, count: 256)
+        let rc = url.path.withCString { path in
+            message.withUnsafeMutableBufferPointer { err in
+                negswift_raw_extract_thumb(path, &raw, err.baseAddress, err.count)
+            }
+        }
+        defer { negswift_raw_free_thumb(&raw) }
+        guard rc == 0 else { return nil }
+        if raw.format == 1, let pointer = raw.data, raw.size > 0 {
+            return Thumb(
+                format: .jpeg,
+                jpeg: Data(bytes: pointer, count: Int(raw.size)),
+                width: Int(raw.width),
+                height: Int(raw.height),
+                orientation: Int(raw.orientation)
+            )
+        }
+        if raw.format == 2 {
+            return Thumb(
+                format: .bitmap,
+                jpeg: nil,
+                width: Int(raw.width),
+                height: Int(raw.height),
+                orientation: Int(raw.orientation)
+            )
+        }
+        return nil
+    }
+
+    public static func extractThumb(path: String) -> Thumb? {
+        extractThumb(url: URL(fileURLWithPath: path))
+    }
 }

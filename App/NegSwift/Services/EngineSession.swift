@@ -1584,6 +1584,10 @@ final class EngineSession {
         if let generation, generation != thumbnailGeneration { return }
         if defersThumbnailLoadToPreview(for: path) { return }
         if applyPreviewToSelectedThumbnail(for: path) { return }
+        if applyMemoToThumbnail(for: path) { return }
+        // Cheap strip thumbs are a first-fill placeholder (no crop / autos). Do not
+        // replace a preview-derived cell when leaving a frame.
+        if frames[index].thumbnail != nil { return }
 
         let frame = frames[index]
         let gotAccess = beginFileAccess(for: frame.url)
@@ -1683,6 +1687,7 @@ final class EngineSession {
             let path = frames[index].path
             return frames[index].thumbnail == nil
                 && !applyPreviewToSelectedThumbnail(for: path)
+                && !applyMemoToThumbnail(for: path)
                 && !defersThumbnailLoadToPreview(for: path)
         }
         guard !indices.isEmpty else { return true }
@@ -1752,6 +1757,7 @@ final class EngineSession {
         let path = frames[index].path
         if defersThumbnailLoadToPreview(for: path) { return }
         if applyPreviewToSelectedThumbnail(for: path) { return }
+        if applyMemoToThumbnail(for: path) { return }
 
         updateFrame(at: index) { $0.isLoadingThumbnail = true }
         defer { updateFrame(at: index) { $0.isLoadingThumbnail = false } }
@@ -1855,15 +1861,14 @@ final class EngineSession {
         }
     }
 
-    /// Sidecar config for strip thumbs — skips process-mode autodetect so bulk loading
-    /// does not block preview IPC on every frame in the folder.
+    /// Sidecar / default config for strip thumbs. Autodetect stays on selectFrame —
+    /// a background detect is canvas-priority on the Swift worker and cancels queued thumbs.
     private func thumbnailEditState(for path: String) async -> FrameEditState {
         if let cached = frameEdits[path] {
             return cached
         }
         let edit = await loadConfigOnly(for: path)
         frameEdits[path] = edit
-        scheduleAutodetectIfNeeded(for: path)
         return edit
     }
 
@@ -2016,6 +2021,10 @@ final class EngineSession {
         await loadMissingThumbnails()
     }
 
+    func refreshThumbnailForTests(path: String) async {
+        await refreshThumbnail(for: path)
+    }
+
     func setCurrentPathForTests(_ path: String?) {
         currentPath = path
     }
@@ -2090,6 +2099,20 @@ final class EngineSession {
         return previewMemo.get(path: path, fingerprint: fingerprint) != nil
     }
     #endif
+
+    /// Reuse a settled canvas preview as the strip cell (S13f/S13k). Works for a
+    /// frame that is no longer selected, so leaving it does not fall back to a cheap
+    /// uncropped invert.
+    @discardableResult
+    private func applyMemoToThumbnail(for path: String) -> Bool {
+        let fingerprint = previewMemoFingerprint(for: path, cropPreviewFull: false)
+        guard let memo = previewMemo.get(path: path, fingerprint: fingerprint),
+              let index = frames.firstIndex(where: { $0.path == path }),
+              let thumbnail = Self.makeStripThumbnail(from: memo.image)
+        else { return false }
+        updateFrame(at: index) { $0.thumbnail = thumbnail }
+        return true
+    }
 
     /// Selected-frame strip thumbs come from the canvas preview; do not issue a competing
     /// engine render while that preview is still in flight (same-path supersession).

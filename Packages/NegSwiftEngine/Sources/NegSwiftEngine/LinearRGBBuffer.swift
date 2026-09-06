@@ -26,6 +26,8 @@ public struct LinearRGBBuffer: Sendable, Equatable {
 
     public var sampleCount: Int { pixels.count }
 
+    public var longEdge: Int { max(width, height) }
+
     /// Mean absolute error vs another buffer of the same size. `infinity` on a size mismatch.
     public func meanAbsoluteError(against other: LinearRGBBuffer) -> Float {
         guard width == other.width, height == other.height, pixels.count == other.pixels.count else {
@@ -64,6 +66,15 @@ public struct LinearRGBBuffer: Sendable, Equatable {
     }
 
     public func areaResized(width dstW: Int, height dstH: Int) -> LinearRGBBuffer {
+        if dstW == width, dstH == height { return self }
+        if let accelerated = AccelerateConvert.areaResized(self, width: dstW, height: dstH) {
+            return accelerated
+        }
+        return areaResizedScalar(width: dstW, height: dstH)
+    }
+
+    /// Look-identical INTER_AREA used as the Accelerate fallback and test oracle.
+    func areaResizedScalar(width dstW: Int, height dstH: Int) -> LinearRGBBuffer {
         if dstW == width, dstH == height { return self }
         var out = [Float](repeating: 0, count: dstW * dstH * 3)
         for y in 0..<dstH {

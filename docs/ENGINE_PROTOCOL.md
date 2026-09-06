@@ -97,7 +97,7 @@ Optional `config` — flat edit overrides used to decide whether armed auto-crop
 }
 ```
 
-`splash_*` and `suggested_crop_rect` / `crop_detect_key` are omitted when unavailable.
+`splash_*` and `suggested_crop_rect` / `crop_detect_key` are omitted when unavailable. The Swift backend returns `splash_*` from a LibRaw embedded JPEG (or the TIFF preview page when the thumb is BITMAP); raster TIFF/JPEG have no splash.
 
 ### `discover`
 
@@ -182,7 +182,7 @@ Preview render at display resolution.
 
 `crop_preview_full` — when `true`, render the full transformed frame without applying the crop (for on-canvas crop editing). Matches NegPy desktop crop-tool behaviour.
 
-`fast_preview` — when `true`, request a strip-thumbnail render (`long_edge_px` ≈ 256). Uses the same `PreviewManager` + `run_pipeline` path as canvas preview; reserved for callers that want to distinguish thumb jobs (cancellation priority).
+`fast_preview` — when `true`, request a strip-thumbnail render (`long_edge_px` ≈ 256). The Swift backend uses an ImageIO / RAW embedded-JPEG cheap thumb (not H&D+Lab). The Python backend still uses `PreviewManager` + `run_pipeline`; reserved for callers that want to distinguish thumb jobs (cancellation priority).
 
 `preview_format` — `"jpeg"` (recommended for canvas IPC) or `"png"`. Swift canvas preview uses JPEG by default; PNG remains available for compatibility.
 

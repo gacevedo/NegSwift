@@ -46,13 +46,17 @@ let librawCSettings: [CSetting] = {
     ]
 }()
 let librawLinkerSettings: [LinkerSetting] = {
-    guard let prefix = librawHome else { return [] }
-    return [
+    var settings: [LinkerSetting] = [
+        .linkedFramework("Accelerate"),
+    ]
+    guard let prefix = librawHome else { return settings }
+    settings.append(
         .unsafeFlags(
             ["-L\(prefix)/lib", "-lraw_r", "-Xlinker", "-rpath", "-Xlinker", "\(prefix)/lib"],
             .when(platforms: [.macOS])
-        ),
-    ]
+        )
+    )
+    return settings
 }()
 
 let package = Package(

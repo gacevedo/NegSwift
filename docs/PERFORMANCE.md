@@ -154,9 +154,9 @@ cd Engine && uv run pytest tests/test_perf.py -v
 
 ## Native Swift engine (S13 first-load)
 
-Separate from the M12 Python IPC harness above. S13a–c optimized slider reprints (`make compare-s13` = reprint cache + Metal geometry). First open on the Swift backend is still a different path: serial detect / autocrop / print decodes, CPU convert/resize, Metal upload/download, ColorSync present.
+Separate from the M12 Python IPC harness above. S13a–f optimized slider reprints, fused first-open decode, Accelerate convert/resize, and splash/cheap thumbs (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests`). First open on the Swift backend is still a different path: Metal upload/download, ColorSync present, no progressive first paint.
 
-`make compare-s13` stays reprint + geometry until S13d adds decode-reuse tests. Do not add a `make bench-native` target until a script exists.
+`make compare-s13` includes decode-reuse, Accelerate convert, and splash/thumb tests. Do not add a `make bench-native` target until a script exists.
 
 When `NEGSWIFT_PERF_LOG=1` and `PipelineStats` grow stage timers, record:
 
@@ -166,8 +166,8 @@ When `NEGSWIFT_PERF_LOG=1` and `PipelineStats` grow stage timers, record:
 | `native_open_autocrop_ms` | `open` armed-crop decode |
 | `native_decode_ms` | Print-path ImageIO/LibRaw + convert + resize |
 | `native_analyze_ms` | Bounds + metering |
-| `native_metal_upload_ms` | RGB→RGBA swizzle + GPU upload |
-| `native_metal_download_ms` | GPU `getBytes` + RGBA→RGB |
+| `native_metal_upload_ms` | vImage RGB→RGBA + GPU upload |
+| `native_metal_download_ms` | GPU `getBytes` + vImage RGBA→RGB |
 | `native_present_ms` | ColorSync / CGImage / texture present |
 | `native_first_open_ms` | `selectFrame` cold (no preview memo) |
 | `native_thumb_ms` | One strip thumb |

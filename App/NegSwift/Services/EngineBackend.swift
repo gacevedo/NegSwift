@@ -185,6 +185,9 @@ actor NativeEngineBackend: EngineBackend {
         var cropDetectKey: String?
         // Prefetch uses includeSplash: false — keep that path a cheap probe so a folder
         // of RAWs does not queue LibRaw decodes behind the selected-frame preview.
+        // Splash is an embedded JPEG (or TIFF preview page); it does not decode linear.
+        // Armed crop reuses the S13d linear LRU (same oversampled sample as detect/print).
+        let splash = includeSplash ? NativePipeline().splashJPEG(path: path) : nil
         if includeSplash {
             let printConfig = Self.printInputs(from: config).printConfig
             if Autocrop.isArmed(printConfig), printConfig.cropRect == nil {
@@ -193,7 +196,8 @@ actor NativeEngineBackend: EngineBackend {
                     let resolved = try await Self.performOnWorkQueue(stripJob: false) {
                         let preview = try NativePipeline().decode(
                             path: path,
-                            maxLongEdge: Autocrop.detectResolution
+                            maxLongEdge: Autocrop.detectResolution,
+                            analysisOversample: true
                         )
                         return Autocrop.resolveRect(preview, config: printConfig)
                     }
@@ -215,9 +219,9 @@ actor NativeEngineBackend: EngineBackend {
             width: dims.width,
             height: dims.height,
             hasSidecar: SidecarLocator.exists(forScanPath: path),
-            splashWidth: nil,
-            splashHeight: nil,
-            splashJPEGBase64: nil,
+            splashWidth: splash?.width,
+            splashHeight: splash?.height,
+            splashJPEGBase64: splash.map { $0.jpeg.base64EncodedString() },
             suggestedCropRect: suggestedCropRect,
             cropDetectKey: cropDetectKey
         )
@@ -241,15 +245,27 @@ actor NativeEngineBackend: EngineBackend {
         printConfig.applyPixelCrop = !cropPreviewFull
         let result: RenderResult
         do {
-            result = try await Self.performOnWorkQueue(stripJob: stripThumbnail) {
-                try Self.performRender(
-                    path: path,
-                    longEdgePx: longEdgePx,
-                    processMode: mapped.processMode,
-                    printConfig: printConfig,
-                    previewFormat: previewFormat,
-                    jpegQuality: jpegQuality
-                )
+            if stripThumbnail {
+                // Cheap ImageIO / embedded-JPEG thumbs stay off the serial LibRaw/Metal
+                // queue so a folder of frames can fill the strip during the selected print.
+                result = try await Self.performOffActor {
+                    try Self.performCheapThumb(
+                        path: path,
+                        longEdgePx: longEdgePx,
+                        processMode: mapped.processMode
+                    )
+                }
+            } else {
+                result = try await Self.performOnWorkQueue(stripJob: false) {
+                    try Self.performRender(
+                        path: path,
+                        longEdgePx: longEdgePx,
+                        processMode: mapped.processMode,
+                        printConfig: printConfig,
+                        previewFormat: previewFormat,
+                        jpegQuality: jpegQuality
+                    )
+                }
             }
         } catch let error as LinearDecodeError {
             throw Self.mapDecode(error)
@@ -467,6 +483,14 @@ actor NativeEngineBackend: EngineBackend {
         return supersedeEpoch
     }
 
+    private static func performOffActor<T: Sendable>(
+        operation: @escaping @Sendable () throws -> T
+    ) async throws -> T {
+        try await Task.detached(priority: .utility) {
+            try operation()
+        }.value
+    }
+
     private static func performOnWorkQueue<T: Sendable>(
         stripJob: Bool,
         operation: @escaping @Sendable () throws -> T
@@ -520,6 +544,30 @@ actor NativeEngineBackend: EngineBackend {
             pngBase64: nil,
             jpegBase64: nil,
             metrics: metrics,
+            nativePreview: NativePreview(cgImage: cgImage)
+        )
+    }
+
+    private static func performCheapThumb(
+        path: String,
+        longEdgePx: Int?,
+        processMode: FilmProcessMode?
+    ) throws -> RenderResult {
+        let buffer = try NativePipeline().cheapThumb(
+            path: path,
+            longEdgePx: longEdgePx ?? 256,
+            processMode: processMode
+        )
+        guard let cgImage = ImageCoding.sRGBDisplayImage(from: buffer) else {
+            throw LinearDecodeError.decodeFailed
+        }
+        return RenderResult(
+            width: buffer.width,
+            height: buffer.height,
+            previewFormat: "cgimage",
+            pngBase64: nil,
+            jpegBase64: nil,
+            metrics: nil,
             nativePreview: NativePreview(cgImage: cgImage)
         )
     }

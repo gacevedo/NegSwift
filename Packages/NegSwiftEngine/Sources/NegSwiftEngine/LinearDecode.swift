@@ -26,7 +26,7 @@ public enum LinearDecodeError: Error, LocalizedError, Sendable {
     }
 }
 
-/// ImageIO decode to scene-linear RGB.
+/// ImageIO decode to scene-linear RGB. S13e extract / sRGB→linear use vImage.
 ///
 /// Untagged 16-bit TIFF stays linear (`/ 65535`). Untagged 8-bit and JPEG apply IEC 61966-2-1
 /// sRGB → linear. IR / ExtraSamples are dropped (S1).
@@ -40,21 +40,48 @@ public enum LinearDecode: Sendable {
     /// Camera RAW with a long-edge cap uses LibRaw `half_size` (Bayer) then box-average
     /// shrink — nearest-neighbor keeps demosaic pinholes that crush Auto Density once
     /// the lightbox is cropped. Export leaves `maxLongEdge` nil and stays full-size AHD.
+    /// ImageIO / LibRaw sample before the final long-edge shrink. S13d caches this
+    /// so detect, autocrop, and preview share one pass.
+    public struct Sample: Sendable {
+        public var buffer: LinearRGBBuffer
+        public var isCameraRaw: Bool
+        public var isFullResolution: Bool
+        public var usedHalfSize: Bool
+        /// File long edge from ImageIO properties (not the thumbnail).
+        public var sourceLongEdge: Int?
+    }
+
     public static func decode(
         url: URL,
         maxLongEdge: Int? = nil,
         analysisOversample: Bool = false
     ) throws -> LinearRGBBuffer {
+        let sample = try decodeSample(
+            url: url,
+            maxLongEdge: maxLongEdge,
+            analysisOversample: analysisOversample
+        )
+        return shrink(sample.buffer, toLongEdge: maxLongEdge, cameraRaw: sample.isCameraRaw)
+    }
+
+    public static func decodeSample(
+        url: URL,
+        maxLongEdge: Int? = nil,
+        analysisOversample: Bool = false
+    ) throws -> Sample {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw LinearDecodeError.fileNotFound(url)
         }
         if ScanFormat.isCameraRaw(url.path) {
             let halfSize = (maxLongEdge ?? 0) > 0
-            var buffer = try RawDecode.decode(url: url, halfSize: halfSize)
-            if let maxLongEdge, maxLongEdge > 0 {
-                buffer = buffer.areaDownsampled(toLongEdge: maxLongEdge)
-            }
-            return buffer
+            let buffer = try RawDecode.decode(url: url, halfSize: halfSize)
+            return Sample(
+                buffer: buffer,
+                isCameraRaw: true,
+                isFullResolution: !halfSize,
+                usedHalfSize: halfSize,
+                sourceLongEdge: buffer.longEdge
+            )
         }
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw LinearDecodeError.decodeFailed
@@ -86,10 +113,25 @@ public enum LinearDecode: Sendable {
         if shouldApplySRGBToLinear(uti: uti, bitsPerComponent: transferDepth, properties: props) {
             buffer = applySRGBToLinear(buffer)
         }
-        if let maxLongEdge {
-            buffer = buffer.downsampled(toLongEdge: maxLongEdge)
+        return Sample(
+            buffer: buffer,
+            isCameraRaw: false,
+            isFullResolution: sampleEdge == nil,
+            usedHalfSize: false,
+            sourceLongEdge: sourceLongEdge(properties: props)
+        )
+    }
+
+    public static func shrink(
+        _ buffer: LinearRGBBuffer,
+        toLongEdge maxLongEdge: Int?,
+        cameraRaw: Bool
+    ) -> LinearRGBBuffer {
+        guard let maxLongEdge, maxLongEdge > 0 else { return buffer }
+        if cameraRaw {
+            return buffer.areaDownsampled(toLongEdge: maxLongEdge)
         }
-        return buffer
+        return buffer.downsampled(toLongEdge: maxLongEdge)
     }
 
     public static func decode(
@@ -98,6 +140,18 @@ public enum LinearDecode: Sendable {
         analysisOversample: Bool = false
     ) throws -> LinearRGBBuffer {
         try decode(url: URL(fileURLWithPath: path), maxLongEdge: maxLongEdge, analysisOversample: analysisOversample)
+    }
+
+    public static func decodeSample(
+        path: String,
+        maxLongEdge: Int? = nil,
+        analysisOversample: Bool = false
+    ) throws -> Sample {
+        try decodeSample(
+            url: URL(fileURLWithPath: path),
+            maxLongEdge: maxLongEdge,
+            analysisOversample: analysisOversample
+        )
     }
 
     /// Intermediate thumbnail long edge so meters still see film/holder boundaries.
@@ -208,7 +262,7 @@ public enum LinearDecode: Sendable {
     }
 
     private static func applySRGBToLinear(_ buffer: LinearRGBBuffer) -> LinearRGBBuffer {
-        LinearRGBBuffer(width: buffer.width, height: buffer.height, pixels: buffer.pixels.map(srgbToLinear))
+        AccelerateConvert.applySRGBToLinear(buffer)
     }
 
     private static func extractRGB(_ image: CGImage) throws -> LinearRGBBuffer {
@@ -231,115 +285,16 @@ public enum LinearDecode: Sendable {
 
         let length = CFDataGetLength(cfData)
         return try CFDataGetBytePtr(cfData).withMemoryRebound(to: UInt8.self, capacity: length) { ptr in
-            var pixels = [Float](repeating: 0, count: width * height * 3)
-            if bpc == 16 {
-                try extractUInt16(
-                    ptr: ptr,
-                    width: width,
-                    height: height,
-                    bytesPerRow: bytesPerRow,
-                    bitsPerPixel: bpp,
-                    littleEndian: little16 || !big16,
-                    pixels: &pixels
-                )
-            } else if bpc == 8 {
-                try extractUInt8(
-                    ptr: ptr,
-                    width: width,
-                    height: height,
-                    bytesPerRow: bytesPerRow,
-                    bitsPerPixel: bpp,
-                    bgra: bgra,
-                    pixels: &pixels
-                )
-            } else {
-                throw LinearDecodeError.unsupported
-            }
-            return LinearRGBBuffer(width: width, height: height, pixels: pixels)
+            try AccelerateConvert.extractRGB(
+                ptr: ptr,
+                width: width,
+                height: height,
+                bytesPerRow: bytesPerRow,
+                bitsPerComponent: bpc,
+                bitsPerPixel: bpp,
+                littleEndian16: little16 || !big16,
+                bgra: bgra
+            )
         }
-    }
-
-    @_optimize(speed)
-    private static func extractUInt16(
-        ptr: UnsafePointer<UInt8>,
-        width: Int,
-        height: Int,
-        bytesPerRow: Int,
-        bitsPerPixel: Int,
-        littleEndian: Bool,
-        pixels: inout [Float]
-    ) throws {
-        let channels = bitsPerPixel / 16
-        guard channels >= 1 else { throw LinearDecodeError.unsupported }
-        let scale: Float = 1.0 / 65535.0
-        for y in 0..<height {
-            let row = ptr.advanced(by: y * bytesPerRow)
-            for x in 0..<width {
-                let pixel = row.advanced(by: x * channels * 2)
-                let r: UInt16
-                let g: UInt16
-                let b: UInt16
-                if channels == 1 {
-                    let v = readU16(pixel, littleEndian: littleEndian)
-                    r = v
-                    g = v
-                    b = v
-                } else {
-                    r = readU16(pixel, littleEndian: littleEndian)
-                    g = readU16(pixel.advanced(by: 2), littleEndian: littleEndian)
-                    b = readU16(pixel.advanced(by: 4), littleEndian: littleEndian)
-                }
-                let o = (y * width + x) * 3
-                pixels[o] = Float(r) * scale
-                pixels[o + 1] = Float(g) * scale
-                pixels[o + 2] = Float(b) * scale
-            }
-        }
-    }
-
-    @_optimize(speed)
-    private static func extractUInt8(
-        ptr: UnsafePointer<UInt8>,
-        width: Int,
-        height: Int,
-        bytesPerRow: Int,
-        bitsPerPixel: Int,
-        bgra: Bool,
-        pixels: inout [Float]
-    ) throws {
-        let channels = bitsPerPixel / 8
-        guard channels >= 1 else { throw LinearDecodeError.unsupported }
-        let scale: Float = 1.0 / 255.0
-        for y in 0..<height {
-            let row = ptr.advanced(by: y * bytesPerRow)
-            for x in 0..<width {
-                let pixel = row.advanced(by: x * channels)
-                let r: UInt8
-                let g: UInt8
-                let b: UInt8
-                if channels == 1 {
-                    r = pixel[0]
-                    g = pixel[0]
-                    b = pixel[0]
-                } else if bgra, channels >= 4 {
-                    b = pixel[0]
-                    g = pixel[1]
-                    r = pixel[2]
-                } else {
-                    r = pixel[0]
-                    g = channels > 1 ? pixel[1] : pixel[0]
-                    b = channels > 2 ? pixel[2] : pixel[0]
-                }
-                let o = (y * width + x) * 3
-                pixels[o] = Float(r) * scale
-                pixels[o + 1] = Float(g) * scale
-                pixels[o + 2] = Float(b) * scale
-            }
-        }
-    }
-
-    private static func readU16(_ ptr: UnsafePointer<UInt8>, littleEndian: Bool) -> UInt16 {
-        let raw = UnsafeRawPointer(ptr).load(as: UInt16.self)
-        return littleEndian ? UInt16(littleEndian: raw) : UInt16(bigEndian: raw)
     }
 }

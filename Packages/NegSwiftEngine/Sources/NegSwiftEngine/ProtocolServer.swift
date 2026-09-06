@@ -113,6 +113,7 @@ public struct ProtocolServer: Sendable {
             }
         }
         try requireExistingFile(path)
+        let includeSplash = ConfigJSON.boolValue(params["include_splash"]) ?? false
         let dims = NativePipeline().probeSource(at: path) ?? (1, 1)
         var result: [String: Any] = [
             "path": path,
@@ -121,6 +122,11 @@ public struct ProtocolServer: Sendable {
             "height": dims.height,
             "has_sidecar": SidecarStore.exists(forScanPath: path),
         ]
+        if includeSplash, let splash = NativePipeline().splashJPEG(path: path) {
+            result["splash_width"] = splash.width
+            result["splash_height"] = splash.height
+            result["splash_jpeg_base64"] = splash.jpeg.base64EncodedString()
+        }
         var overrides: [String: Any] = [:]
         if let dict = params["config"] as? [String: Any] {
             overrides = dict
@@ -129,7 +135,11 @@ public struct ProtocolServer: Sendable {
         let flat = ConfigJSON.merge(base, overrides)
         let printConfig = PrintConfig.s8Pin.merging(flat)
         if Autocrop.isArmed(printConfig), printConfig.cropRect == nil {
-            let preview = try NativePipeline().decode(path: path, maxLongEdge: Autocrop.detectResolution)
+            let preview = try NativePipeline().decode(
+                path: path,
+                maxLongEdge: Autocrop.detectResolution,
+                analysisOversample: true
+            )
             if let rect = Autocrop.resolveRect(preview, config: printConfig) {
                 result["suggested_crop_rect"] = rect.arrayValue
                 result["crop_detect_key"] = Autocrop.detectionKey(printConfig)
@@ -255,10 +265,12 @@ public struct ProtocolServer: Sendable {
             }
             cropPreviewFull = ConfigJSON.boolValue(params["crop_preview_full"]) ?? false
         }
+        var fastPreview = false
         if params["fast_preview"] != nil {
             guard ConfigJSON.isJSONBool(params["fast_preview"]!) else {
                 throw ProtocolFailure(code: "INVALID_REQUEST", message: "params.fast_preview must be a boolean")
             }
+            fastPreview = ConfigJSON.boolValue(params["fast_preview"]) ?? false
         }
         var previewFormat = "png"
         if let raw = params["preview_format"] {
@@ -284,6 +296,15 @@ public struct ProtocolServer: Sendable {
         var printConfig = PrintConfig.s8Pin.merging(flat)
         printConfig.applyPixelCrop = !cropPreviewFull
         let processMode = WorkspaceFlatConfig.processMode(from: flat)
+        if fastPreview {
+            return try cmdCheapThumb(
+                path: path,
+                longEdge: longEdge,
+                processMode: processMode,
+                previewFormat: previewFormat,
+                jpegQuality: jpegQuality
+            )
+        }
         do {
             let printed = try NativePipeline().renderPrintDetailed(
                 path: path,
@@ -314,6 +335,45 @@ public struct ProtocolServer: Sendable {
                 "height": buffer.height,
                 "preview_format": previewFormat,
                 "metrics": metrics,
+            ]
+            let encoded = data.base64EncodedString()
+            if previewFormat == "jpeg" {
+                result["jpeg_base64"] = encoded
+            } else {
+                result["png_base64"] = encoded
+            }
+            return result
+        } catch let error as LinearDecodeError {
+            throw ProtocolFailure(code: Self.mapDecode(error).code, message: error.localizedDescription)
+        } catch {
+            throw ProtocolFailure(code: "RENDER_FAILED", message: error.localizedDescription)
+        }
+    }
+
+    private func cmdCheapThumb(
+        path: String,
+        longEdge: Int?,
+        processMode: FilmProcessMode?,
+        previewFormat: String,
+        jpegQuality: Int
+    ) throws -> [String: Any] {
+        do {
+            let buffer = try NativePipeline().cheapThumb(
+                path: path,
+                longEdgePx: longEdge ?? 256,
+                processMode: processMode
+            )
+            let data: Data
+            if previewFormat == "jpeg" {
+                data = try ImageCoding.jpegData(from: buffer, quality: Double(jpegQuality) / 100)
+            } else {
+                data = try ImageCoding.pngData(from: buffer)
+            }
+            var result: [String: Any] = [
+                "width": buffer.width,
+                "height": buffer.height,
+                "preview_format": previewFormat,
+                "metrics": [String: Any](),
             ]
             let encoded = data.base64EncodedString()
             if previewFormat == "jpeg" {

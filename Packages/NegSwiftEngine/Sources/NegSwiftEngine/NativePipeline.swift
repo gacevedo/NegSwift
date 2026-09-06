@@ -30,7 +30,8 @@ public struct RenderPrintResult: Sendable {
     }
 }
 
-/// In-process pipeline. S13: reprint cache, Metal geometry, resident GPU present.
+/// In-process pipeline. S13: reprint cache, Metal geometry, resident GPU present,
+/// one linear decode per file, Accelerate convert/resize, splash + cheap thumbs.
 public struct NativePipeline: Sendable {
     public var pixelBackend: PixelBackend
 
@@ -40,9 +41,7 @@ public struct NativePipeline: Sendable {
 
     /// Drop decode / reprint / resident GPU caches. Tests call this between cases.
     public static func resetWorkingSets() {
-        decodeLock.lock()
-        lastPrintDecode = nil
-        decodeLock.unlock()
+        LinearBufferCache.shared.reset()
         ReprintCache.shared.reset()
         #if canImport(Metal)
         MetalWorkingSet.shared.reset()
@@ -65,44 +64,34 @@ public struct NativePipeline: Sendable {
         ]
     }
 
-    public func decode(path: String, maxLongEdge: Int? = nil) throws -> LinearRGBBuffer {
-        try LinearDecode.decode(path: path, maxLongEdge: maxLongEdge)
+    public func decode(
+        path: String,
+        maxLongEdge: Int? = nil,
+        analysisOversample: Bool = false
+    ) throws -> LinearRGBBuffer {
+        try LinearBufferCache.shared.buffer(
+            path: path,
+            maxLongEdge: maxLongEdge,
+            analysisOversample: analysisOversample
+        )
     }
 
-    /// Last canvas-size decode. Analysis Buffer drags reuse it so the 4096-px sample is not reloaded.
-    private static let decodeLock = NSLock()
-    nonisolated(unsafe) private static var lastPrintDecode: (key: String, buffer: LinearRGBBuffer)?
-
+    /// Preview-class decode. LRU reuses a larger sample for a smaller long-edge.
     private func decodeForPrint(path: String, longEdgePx: Int?) throws -> LinearRGBBuffer {
-        let key = "\(path)|\(longEdgePx ?? 0)|\(Self.fileStamp(path))"
-        Self.decodeLock.lock()
-        if let last = Self.lastPrintDecode, last.key == key {
-            let buffer = last.buffer
-            Self.decodeLock.unlock()
-            return buffer
-        }
-        Self.decodeLock.unlock()
-        PipelineStats.increment(.decode)
-        let buffer = try LinearDecode.decode(
+        try decode(
             path: path,
             maxLongEdge: longEdgePx,
             analysisOversample: (longEdgePx ?? 0) >= 800
         )
-        Self.decodeLock.lock()
-        Self.lastPrintDecode = (key, buffer)
-        Self.decodeLock.unlock()
-        return buffer
-    }
-
-    private static func fileStamp(_ path: String) -> String {
-        let attrs = try? FileManager.default.attributesOfItem(atPath: path)
-        let size = attrs?[.size] as? NSNumber ?? 0
-        let modified = attrs?[.modificationDate] as? Date ?? .distantPast
-        return "\(size.intValue)|\(modified.timeIntervalSince1970)"
     }
 
     public func detectProcessMode(path: String) throws -> FilmProcessMode {
-        let buffer = try LinearDecode.decode(path: path, maxLongEdge: ProcessDetect.detectDecodeLongEdge)
+        // Oversample so detect shares the print-path ImageIO/LibRaw sample (S13d).
+        let buffer = try decode(
+            path: path,
+            maxLongEdge: ProcessDetect.detectDecodeLongEdge,
+            analysisOversample: true
+        )
         return ProcessDetect.detectLite(buffer)
     }
 
@@ -439,6 +428,20 @@ public struct NativePipeline: Sendable {
             return RawDecode.probe(path: path)
         }
         return ImageCoding.probeDimensions(at: URL(fileURLWithPath: path))
+    }
+
+    /// RAW embedded JPEG for first paint. Nil for raster or when the file has no safe thumb.
+    public func splashJPEG(path: String) -> SplashJPEG? {
+        EmbeddedPreview.splashJPEG(path: path)
+    }
+
+    /// ImageIO / embedded-JPEG strip thumb. Not the H&D+Lab print path.
+    public func cheapThumb(
+        path: String,
+        longEdgePx: Int,
+        processMode: FilmProcessMode? = nil
+    ) throws -> LinearRGBBuffer {
+        try EmbeddedPreview.cheapThumb(path: path, longEdgePx: longEdgePx, processMode: processMode)
     }
 
     /// Synthetic linear vs encoded ramp PNGs. Not used by scan preview (S4a wires encode).

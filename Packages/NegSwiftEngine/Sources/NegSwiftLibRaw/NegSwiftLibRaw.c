@@ -5,6 +5,7 @@
 #include <string.h>
 
 #ifdef NEGSWIFT_HAS_LIBRAW
+#include <Accelerate/Accelerate.h>
 #include <libraw/libraw.h>
 #endif
 
@@ -29,6 +30,19 @@ void negswift_raw_free(NegSwiftRawBuffer *buf) {
     buf->used_half_size = 0;
 }
 
+void negswift_raw_free_thumb(NegSwiftRawThumb *thumb) {
+    if (thumb == NULL) {
+        return;
+    }
+    free(thumb->data);
+    thumb->data = NULL;
+    thumb->size = 0;
+    thumb->width = 0;
+    thumb->height = 0;
+    thumb->orientation = 0;
+    thumb->format = 0;
+}
+
 #ifndef NEGSWIFT_HAS_LIBRAW
 
 int negswift_raw_probe(const char *path, int *width, int *height, int *orientation) {
@@ -48,6 +62,17 @@ int negswift_raw_probe(const char *path, int *width, int *height, int *orientati
 int negswift_raw_decode(const char *path, int half_size, NegSwiftRawBuffer *out, char *err, size_t err_len) {
     (void)path;
     (void)half_size;
+    if (out) {
+        memset(out, 0, sizeof(*out));
+    }
+    if (err && err_len) {
+        snprintf(err, err_len, "LibRaw is not linked in this build.");
+    }
+    return -1;
+}
+
+int negswift_raw_extract_thumb(const char *path, NegSwiftRawThumb *out, char *err, size_t err_len) {
+    (void)path;
     if (out) {
         memset(out, 0, sizeof(*out));
     }
@@ -201,7 +226,15 @@ int negswift_raw_decode(const char *path, int half_size, NegSwiftRawBuffer *out,
         return -1;
     }
 
-    if (bits == 16) {
+    if (bits == 16 && colors == 3) {
+        const float scale = 1.0f / 65535.0f;
+        vDSP_vfltu16((const unsigned short *)img->data, 1, pixels, 1, count);
+        vDSP_vsmul(pixels, 1, &scale, pixels, 1, count);
+    } else if (bits == 8 && colors == 3) {
+        const float scale = 1.0f / 255.0f;
+        vDSP_vfltu8(img->data, 1, pixels, 1, count);
+        vDSP_vsmul(pixels, 1, &scale, pixels, 1, count);
+    } else if (bits == 16) {
         const uint16_t *src = (const uint16_t *)img->data;
         const float scale = 1.0f / 65535.0f;
         for (int y = 0; y < height; y++) {
@@ -241,6 +274,83 @@ int negswift_raw_decode(const char *path, int half_size, NegSwiftRawBuffer *out,
     out->count = count;
     out->used_half_size = used_half;
     return 0;
+}
+
+int negswift_raw_extract_thumb(const char *path, NegSwiftRawThumb *out, char *err, size_t err_len) {
+    if (out) {
+        memset(out, 0, sizeof(*out));
+    }
+    if (path == NULL || out == NULL) {
+        fail_msg(err, err_len, "Missing path or output thumb.");
+        return -1;
+    }
+
+    libraw_data_t *raw = libraw_init(0);
+    if (raw == NULL) {
+        fail_msg(err, err_len, "libraw_init failed.");
+        return -1;
+    }
+
+    int rc = libraw_open_file(raw, path);
+    if (rc != LIBRAW_SUCCESS) {
+        fail_msg(err, err_len, libraw_strerror(rc));
+        libraw_close(raw);
+        return rc;
+    }
+
+    rc = libraw_unpack_thumb(raw);
+    if (rc != LIBRAW_SUCCESS) {
+        fail_msg(err, err_len, libraw_strerror(rc));
+        libraw_close(raw);
+        return rc;
+    }
+
+    int flip = raw->sizes.flip;
+    int mem_err = 0;
+    libraw_processed_image_t *thumb = libraw_dcraw_make_mem_thumb(raw, &mem_err);
+    libraw_close(raw);
+    raw = NULL;
+    if (thumb == NULL || mem_err != LIBRAW_SUCCESS) {
+        fail_msg(err, err_len, mem_err ? libraw_strerror(mem_err) : "LibRaw produced no thumbnail.");
+        if (thumb) {
+            libraw_dcraw_clear_mem(thumb);
+        }
+        return mem_err != 0 ? mem_err : -1;
+    }
+
+    out->width = (int)thumb->width;
+    out->height = (int)thumb->height;
+    out->orientation = flip == 0 ? 1 : flip;
+
+    if (thumb->type == LIBRAW_IMAGE_JPEG) {
+        /* Copy JPEG bytes only. BITMAP thumbs are unsafe to read (NegPy). */
+        uint8_t *copy = (uint8_t *)malloc(thumb->data_size);
+        if (copy == NULL) {
+            fail_msg(err, err_len, "Out of memory.");
+            libraw_dcraw_clear_mem(thumb);
+            memset(out, 0, sizeof(*out));
+            return -1;
+        }
+        memcpy(copy, thumb->data, thumb->data_size);
+        out->format = 1;
+        out->data = copy;
+        out->size = thumb->data_size;
+        libraw_dcraw_clear_mem(thumb);
+        return 0;
+    }
+
+    if (thumb->type == LIBRAW_IMAGE_BITMAP) {
+        out->format = 2;
+        out->data = NULL;
+        out->size = 0;
+        libraw_dcraw_clear_mem(thumb);
+        return 0;
+    }
+
+    fail_msg(err, err_len, "Unsupported LibRaw thumbnail format.");
+    libraw_dcraw_clear_mem(thumb);
+    memset(out, 0, sizeof(*out));
+    return -1;
 }
 
 #endif

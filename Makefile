@@ -94,10 +94,13 @@ test-s11-stdio: test-native-engine
 compare-s12:
 	cd Packages/NegSwiftEngine && swift test --filter MetalParityTests
 
-# S13: reprint cache + Metal geometry + resident upload. Skips Metal rows if unavailable.
+# S13: reprint cache + Metal geometry + resident upload + decode reuse + Accelerate + splash/thumbs.
 compare-s13:
 	cd Packages/NegSwiftEngine && swift test --filter ReprintCacheTests
 	cd Packages/NegSwiftEngine && swift test --filter MetalGeometryTests
+	cd Packages/NegSwiftEngine && swift test --filter DecodeReuseTests
+	cd Packages/NegSwiftEngine && swift test --filter AccelerateConvertTests
+	cd Packages/NegSwiftEngine && swift test --filter SplashThumbTests
 
 # S14: TIFF still green; synthetic DNG + skip-if-missing local RAW (NEF/ARW/…).
 compare-s14: sync

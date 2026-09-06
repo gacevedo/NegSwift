@@ -144,6 +144,7 @@ struct NativeEngineBackendTests {
     @Test func openWithSplashSuggestsArmedAutocrop() async throws {
         let url = try writeFrameTIFF(width: 160, height: 120)
         defer { try? FileManager.default.removeItem(at: url) }
+        NativePipeline.resetWorkingSets()
         let backend = NativeEngineBackend()
         var edit = FrameEditState()
         edit.autoCropEnabled = true
@@ -151,6 +152,96 @@ struct NativeEngineBackendTests {
         let result = try await backend.open(path: url.path, includeSplash: true, config: edit)
         #expect(result.suggestedCropRect?.count == 4)
         #expect(result.cropDetectKey?.isEmpty == false)
+    }
+
+    @Test func stripThumbnailDoesNotTakeThePrintPath() async throws {
+        let url = try writeFrameTIFF(width: 48, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        NativePipeline.resetWorkingSets()
+        let backend = NativeEngineBackend()
+        let result = try await backend.render(
+            path: url.path,
+            longEdgePx: 32,
+            preferGPU: false,
+            config: nil,
+            cropPreviewFull: false,
+            stripThumbnail: true,
+            previewFormat: .jpeg,
+            jpegQuality: 90
+        )
+        #expect(result.width > 0 && result.height > 0)
+        #expect(result.nativePreview != nil)
+        #expect(PipelineStats.snapshot().print == 0)
+        #expect(PipelineStats.snapshot().decode == 0)
+    }
+
+    @Test(.enabled(if: RawDecode.isAvailable && localCameraRawPath() != nil))
+    func openIncludeSplashReturnsEmbeddedJPEGOnLocalRAW() async throws {
+        guard let url = localCameraRawPath() else { return }
+        NativePipeline.resetWorkingSets()
+        let backend = NativeEngineBackend()
+        let result = try await backend.open(path: url.path, includeSplash: true, config: nil)
+        #expect(result.splashJPEGBase64?.isEmpty == false)
+        #expect((result.splashWidth ?? 0) > 0)
+        #expect((result.splashHeight ?? 0) > 0)
+        #expect(PipelineStats.snapshot().decode == 0)
+    }
+
+    @Test func queuedStripThumbsCompleteWithoutASiblingDetect() async throws {
+        let urls = try (0..<3).map { _ in try writeFrameTIFF(width: 48, height: 32) }
+        defer {
+            for url in urls {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        NativePipeline.resetWorkingSets()
+        let backend = NativeEngineBackend()
+        let results = try await withThrowingTaskGroup(of: RenderResult.self) { group in
+            for url in urls {
+                group.addTask {
+                    try await backend.render(
+                        path: url.path,
+                        longEdgePx: 32,
+                        preferGPU: false,
+                        config: nil,
+                        cropPreviewFull: false,
+                        stripThumbnail: true,
+                        previewFormat: .jpeg,
+                        jpegQuality: 90
+                    )
+                }
+            }
+            var collected: [RenderResult] = []
+            for try await result in group {
+                collected.append(result)
+            }
+            return collected
+        }
+        #expect(results.count == 3)
+        #expect(results.allSatisfy { $0.width > 0 && $0.nativePreview != nil })
+    }
+
+    @Test func firstSelectFrameDetectOpenRenderDecodesOnce() async throws {
+        let url = try writeFrameTIFF(width: 160, height: 120)
+        defer { try? FileManager.default.removeItem(at: url) }
+        NativePipeline.resetWorkingSets()
+        let backend = NativeEngineBackend()
+        var edit = FrameEditState()
+        edit.autoCropEnabled = true
+        edit.cropFromAuto = true
+        _ = try await backend.detectProcessMode(path: url.path, force: true)
+        _ = try await backend.open(path: url.path, includeSplash: true, config: edit)
+        _ = try await backend.render(
+            path: url.path,
+            longEdgePx: Int(Autocrop.previewRenderSize),
+            preferGPU: false,
+            config: edit,
+            cropPreviewFull: false,
+            stripThumbnail: false,
+            previewFormat: .jpeg,
+            jpegQuality: 90
+        )
+        #expect(PipelineStats.snapshot().decode == 1)
     }
 
     @Test func detectMissingFileIsNotFound() async {
@@ -316,4 +407,16 @@ private func writeFrameTIFF(width: Int, height: Int) throws -> URL {
         .appendingPathComponent("negswift-native-open-\(UUID().uuidString).tif")
     try UncompressedTIFF.writeRGB16(width: width, height: height, samples: samples, to: url)
     return url
+}
+
+private func localCameraRawPath() -> URL? {
+    let keys = ["NEGSWIFT_S14_NEF", "NEGSWIFT_S14_ARW", "NEGSWIFT_S14_RAW"]
+    for key in keys {
+        guard let path = ProcessInfo.processInfo.environment[key], !path.isEmpty else { continue }
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: url.path) {
+            return url
+        }
+    }
+    return nil
 }

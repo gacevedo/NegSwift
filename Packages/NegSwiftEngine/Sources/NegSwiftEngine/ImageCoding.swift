@@ -51,6 +51,36 @@ public enum ImageCoding: Sendable {
         try encode(buffer, type: UTType.jpeg.identifier as CFString, quality: quality)
     }
 
+    public static func jpegDimensions(_ data: Data) -> (width: Int, height: Int)? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = props[kCGImagePropertyPixelWidth] as? Int,
+              let height = props[kCGImagePropertyPixelHeight] as? Int,
+              width > 0, height > 0
+        else {
+            return nil
+        }
+        return (width, height)
+    }
+
+    public static func cgImage(fromJPEG data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCache: false,
+        ]
+        if let thumb = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+            return thumb
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    /// Display-referred sRGB buffer as a tagged `CGImage` (no working-space hop).
+    public static func sRGBDisplayImage(from buffer: LinearRGBBuffer) -> CGImage? {
+        cgImage(from: buffer)
+    }
+
     public static func tiffData(from buffer: LinearRGBBuffer, bitsPerComponent: Int = 8) throws -> Data {
         guard let space = CGColorSpace(name: CGColorSpace.sRGB),
               let image = cgImage(from: buffer, colorSpace: space, bitsPerComponent: bitsPerComponent)

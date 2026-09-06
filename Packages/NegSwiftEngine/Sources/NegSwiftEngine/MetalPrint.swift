@@ -481,13 +481,7 @@ extension MetalPrint {
     }
 
     static func upload(_ buffer: LinearRGBBuffer, to texture: MTLTexture) {
-        var rgba = [Float](repeating: 1, count: buffer.width * buffer.height * 4)
-        let n = buffer.width * buffer.height
-        for i in 0..<n {
-            rgba[i * 4] = buffer.pixels[i * 3]
-            rgba[i * 4 + 1] = buffer.pixels[i * 3 + 1]
-            rgba[i * 4 + 2] = buffer.pixels[i * 3 + 2]
-        }
+        let rgba = AccelerateConvert.rgbToRGBA(buffer.pixels, width: buffer.width, height: buffer.height)
         rgba.withUnsafeBytes { raw in
             texture.replace(
                 region: MTLRegionMake2D(0, 0, buffer.width, buffer.height),
@@ -514,13 +508,7 @@ extension MetalPrint {
                 mipmapLevel: 0
             )
         }
-        var rgb = [Float](repeating: 0, count: width * height * 3)
-        let n = width * height
-        for i in 0..<n {
-            rgb[i * 3] = rgba[i * 4]
-            rgb[i * 3 + 1] = rgba[i * 4 + 1]
-            rgb[i * 3 + 2] = rgba[i * 4 + 2]
-        }
+        let rgb = AccelerateConvert.rgbaToRGB(rgba, width: width, height: height)
         return LinearRGBBuffer(width: width, height: height, pixels: rgb)
     }
 }

@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S14** automated gates are in. **S13** is reopened for first-load performance (S13a–c slider reprints stay done; next is **S13d**). **S15** iOS harness is later — do not start while S13 is open. Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
+Native engine **S0–S14** automated gates are in. **S13** is reopened for first-load performance (S13a–f shipped; next is **S13g**). **S15** iOS harness is later — do not start while S13 is open. Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
 
 **Header template:**
 
@@ -426,7 +426,7 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 
 ### S13 — Interactive + first-load performance
 
-S13a–c (slider reprints) stay done. S13d–l are open. Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE).
+S13a–f (slider reprints + one decode + Accelerate + splash/thumbs) stay done. S13g–l are open. Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE).
 
 - [x] S13a: density-only reprint skips heal / dust / orient / analyze (`make compare-s13` / `ReprintCacheTests`)
 - [ ] S13a human: Print Density / Grade drag on the ~20 MP scan; no look change vs S8
@@ -434,10 +434,10 @@ S13a–c (slider reprints) stay done. S13d–l are open. Not a look gate except 
 - [x] S13b human: 90° and fine-rot on the ~20 MP scan feel in the same class as Python GPU
 - [x] S13c: in-process preview present skips JPEG/base64; slider/rotate does not re-upload linear
 - [x] S13c human: frame switch then slider drag — canvas updates without a JPEG hitch
-- [ ] S13d: one linear decode per file — detect + open + render share one ImageIO/LibRaw pass; `PipelineStats.decode == 1` on first `selectFrame`; `make compare-s13` plus a decode-reuse test
-- [ ] S13e: vImage / vDSP replace extract, sRGB→linear, `areaDownsampled`, Metal RGB↔RGBA swizzle, and LibRaw `uint16→float`; linear/S8/S14 MAE stay green
+- [x] S13d: one linear decode per file — detect + open + render share one ImageIO/LibRaw pass; `PipelineStats.decode == 1` on first `selectFrame`; `make compare-s13` / `DecodeReuseTests`
+- [x] S13e: vImage / vDSP replace extract, sRGB→linear, `areaDownsampled`, Metal RGB↔RGBA swizzle, and LibRaw `uint16→float`; `make compare-s13` / `AccelerateConvertTests`; linear/S8/S14 MAE stay green
 - [ ] S13e human: RAF folder open is in the same class as Python (no crushed lightbox)
-- [ ] S13f: `open(includeSplash: true)` returns embedded JPEG on RAW cold open; strip thumbs use ImageIO thumbnail or RAW embedded JPEG (not a full print)
+- [x] S13f: `open(includeSplash: true)` returns embedded JPEG on RAW cold open; strip thumbs use ImageIO thumbnail or RAW embedded JPEG (not a full print) (`SplashThumbTests`)
 - [ ] S13f human: folder of 20 frames fills thumbs without blocking the selected preview
 - [ ] S13g: progressive first paint (512 or splash, then 1600/2400); `analysisOversample` deferred until Analysis Buffer or refine; settled frame matches S8
 - [ ] S13h: GPU present with no full-buffer `getBytes`; slider reprint upload/download stays 0; CPU-vs-Metal MAE unchanged

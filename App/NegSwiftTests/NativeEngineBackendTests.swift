@@ -14,7 +14,7 @@ struct NativeEngineBackendTests {
     @Test func infoReportsSwiftDecode() async throws {
         let backend = NativeEngineBackend()
         let info = try await backend.info()
-        #expect(info.negpyVersion == "s7-sidecar")
+        #expect(info.negpyVersion == "s8-lab")
         #expect(info.gpuBackend == "swift")
         #expect(info.gpuAvailable == false)
     }

@@ -3,11 +3,11 @@ import Testing
 @testable import NegSwiftEngine
 
 struct NativePipelineTests {
-    @Test func infoReportsS7Identity() {
+    @Test func infoReportsS8Identity() {
         let info = NativePipeline().infoJSON()
         #expect(info["protocol_version"] as? String == EngineVersion.protocolVersion)
         #expect(info["negswift_version"] as? String == EngineVersion.packageVersion)
-        #expect(info["negpy_version"] as? String == "s7-sidecar")
+        #expect(info["negpy_version"] as? String == "s8-lab")
         #expect(info["backend"] as? String == "swift")
         #expect(info["gpu_available"] as? Bool == false)
     }
@@ -112,6 +112,35 @@ struct NativePipelineTests {
         let pinMeans = channelMeans(pin)
         let cmyMeans = channelMeans(cmy)
         #expect(abs(cmyMeans.0 - pinMeans.0) > 1e-4 || abs(cmyMeans.2 - pinMeans.2) > 1e-4)
+    }
+
+    @Test func renderPrintAppliesLabDefaults() throws {
+        let url = try writeOrangeMaskTIFF(width: 40, height: 32)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pipeline = NativePipeline()
+        let s5 = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s5Pin
+        )
+        let s8 = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: .s8Pin
+        )
+        #expect(s5.width == s8.width && s5.height == s8.height)
+        #expect(s5.pixels != s8.pixels)
+        var chroma = PrintConfig.s8Pin
+        chroma.saturation = 1.3
+        let boosted = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: nil,
+            processMode: .colorNegative,
+            config: chroma
+        )
+        #expect(boosted.pixels != s8.pixels)
     }
 
     @Test func printConfigMergesNegPyFlatKeys() {

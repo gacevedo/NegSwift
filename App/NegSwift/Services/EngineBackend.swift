@@ -350,7 +350,7 @@ actor NativeEngineBackend: EngineBackend {
         processMode: FilmProcessMode?,
         printConfig: PrintConfig
     ) {
-        var printConfig = PrintConfig.s4aPin
+        var printConfig = PrintConfig.s8Pin
         guard let config else {
             return (nil, printConfig)
         }
@@ -363,6 +363,7 @@ actor NativeEngineBackend: EngineBackend {
         printConfig.wbCyan = Float(config.wbCyan)
         printConfig.wbMagenta = Float(config.wbMagenta)
         printConfig.wbYellow = Float(config.wbYellow)
+        printConfig.saturation = Float(config.saturation)
         printConfig.analysisBuffer = Float(config.analysisBuffer)
         printConfig.autoExposure = config.autoExposure
         printConfig.autoNormalizeContrast = config.autoNormalizeContrast

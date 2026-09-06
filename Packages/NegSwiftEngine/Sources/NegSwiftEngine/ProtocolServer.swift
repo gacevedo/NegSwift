@@ -266,7 +266,7 @@ public struct ProtocolServer: Sendable {
         try requireExistingFile(path)
         let base = try SidecarStore.baseFlat(forScanPath: path)
         let flat = ConfigJSON.merge(base, overrides)
-        var printConfig = PrintConfig.s5Pin.merging(flat)
+        var printConfig = PrintConfig.s8Pin.merging(flat)
         printConfig.applyPixelCrop = !cropPreviewFull
         let processMode = WorkspaceFlatConfig.processMode(from: flat)
         do {

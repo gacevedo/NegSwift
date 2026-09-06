@@ -1,8 +1,8 @@
 import Foundation
 
-/// Photometric print: H&D + density/grade + zone + CMY + cast + BPC.
+/// Photometric print: H&D + density/grade + zone + CMY + cast + BPC (scene-linear).
 /// Auto Density / Auto Grade run when ``PrintConfig`` flags are on (S5 / app default).
-/// ``PrintConfig.s4aPin`` leaves them off; ``s5Pin`` turns them on. Lab is still off.
+/// ``PrintConfig.s4aPin`` leaves them off; ``s5Pin`` turns them on. Lab + OETF run after this.
 public enum PhotometricPrint: Sendable {
     public struct CurveParams: Sendable {
         public var slopes: (Double, Double, Double)
@@ -143,7 +143,7 @@ public enum PhotometricPrint: Sendable {
         if processMode == .bwNegative {
             printed = collapseToLuma(printed)
         }
-        return WorkingOETF.encode(printed)
+        return printed
     }
 
     public static func perChannelCurveParams(

@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S6** automated gates are in (S5–S6 human A/B still open). **S7–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S8** automated gates are in (S5–S6 / S8 human A/B still worth a pass). **S9–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -289,6 +289,8 @@ Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contras
 
 Pinned S5 config (both backends): S4 pin with `auto_exposure=true`, `auto_normalize_contrast=true`; Lab still off; identity geometry unless testing **Apply Auto Density while cropping**.
 
+Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sharpen=0.25`, `skin_protection=0.5`). This is the first fair default-look A/B.
+
 ### S0 — Scaffold, A/B hook, harness
 
 - [x] `Packages/NegSwiftEngine` builds for macOS (`make test-native-engine`) and iOS Simulator (`make test-native-engine-ios`)
@@ -364,18 +366,19 @@ Pinned S5 config (both backends): S4 pin with `auto_exposure=true`, `auto_normal
 
 ### S7 — Sidecar + stdio
 
-- [ ] Quit/reopen restores edits from `.negpy` on the Swift backend
-- [ ] Python NegSwift opens the same sidecar
-- [ ] NegPy desktop opens the same sidecar (lite keys; hidden keys preserved)
+- [x] Quit/reopen restores edits from `.negpy` on the Swift backend
+- [x] Python NegSwift opens the same sidecar
+- [x] NegPy desktop opens the same sidecar (lite keys; hidden keys preserved)
 - [x] Engine pytest (`make test-s7-stdio`) + `EngineClientIntegrationTests` (set `NEGSWIFT_ENGINE` to the Swift binary) against Swift `serve --stdio`
-- [ ] Still wrong: look (already gated in S4–S6). Desktop CLAHE/toning/HDR sidecars will not match
+- [x] Still wrong: look (already gated in S4–S6). Desktop CLAHE/toning/HDR sidecars will not match
 
 ### S8 — Lab defaults (default look lock)
 
-- [ ] A/B at **app defaults** (autos on + Lab on): Swift no longer softer than Python
-- [ ] Chroma slider matches Python
-- [ ] Default sharpen 0.25 and skin protection 0.5 are on (no extra UI)
-- [ ] Still wrong: export ICC details (S9), heal (S10a)
+- [x] MAE gate: `make compare-s8` MAE ≤ 0.02 on `sample.tif` (defaults + chroma 1.3 ~0.0006) and the real scan at `--long-edge 256` (~0.013) / `--long-edge 1600` (~0.006). PSNR is informational; max-abs can spike on holder/edge pixels
+- [x] A/B at **app defaults** (autos on + Lab on): Swift no longer softer than Python
+- [x] Chroma slider matches Python
+- [x] Default sharpen 0.25 and skin protection 0.5 are on (no extra UI)
+- [x] Still wrong: export ICC details (S9), heal (S10a)
 
 ### S9 — Export
 

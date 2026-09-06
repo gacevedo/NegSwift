@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S6: geometry (90° / flip / fine-rot / stored crop) after S5 print.
+/// In-process pipeline. S8: Lab (sat / skin / USM) after print, before stored crop + OETF.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -85,7 +85,8 @@ public struct NativePipeline: Sendable {
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
-    /// S6 print: orient (90° / flip / fine-rot) → normalize → H&D + autos → OETF → stored crop.
+    /// S8 print: orient → normalize → H&D + autos → Lab → stored crop → OETF.
+    /// Matches NegPy `DarkroomEngine` order (Lab before pixel crop; encode last).
     /// Meters on the oriented full frame (`analysis_rect` / buffer), then crops pixels unless
     /// ``PrintConfig.applyPixelCrop`` is false (`crop_preview_full`). Preview-size decodes
     /// oversample so Analysis Buffer still sees film/holder edges.
@@ -104,10 +105,11 @@ public struct NativePipeline: Sendable {
         )
         let mode = processMode ?? ProcessDetect.detectLite(linear)
         var printed = PhotometricPrint.process(linear: linear, processMode: mode, config: config)
+        printed = PhotoLab.process(printed, config: config)
         if config.applyPixelCrop, let crop = config.cropRect {
             printed = printed.cropped(normalized: crop.tuple)
         }
-        return printed
+        return WorkingOETF.encode(printed)
     }
 
     public func writePrintF32(

@@ -49,6 +49,7 @@ make compare-s4a                           # S4a: working-space OETF MAE at pinn
 make compare-s4b                           # S4b: MAE at one zone-offset and one CMY-offset config
 make compare-s5                            # S5: MAE with autos on, Lab off
 make compare-s6                            # S6: MAE for crop / 90° / flip / fine-rot
+make compare-s8                            # S8: MAE at app defaults (autos + Lab on)
 ```
 
 Never invoke `pytest` or `ruff` directly — use `uv run`.

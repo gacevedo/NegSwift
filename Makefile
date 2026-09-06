@@ -1,5 +1,6 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
+	compare-s8 \
 	test-s7-stdio bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
@@ -51,6 +52,9 @@ compare-s5: sync
 
 compare-s6: sync
 	cd Engine && uv run python scripts/compare_s6_renders.py
+
+compare-s8: sync
+	cd Engine && uv run python scripts/compare_s8_renders.py
 
 # Point Engine pytest at the Swift binary (S7 contract).
 test-s7-stdio: test-native-engine

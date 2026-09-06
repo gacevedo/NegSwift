@@ -54,7 +54,7 @@ struct NegSwiftEngineCLI {
           oetf-ramp --out-dir DIR [--width N] [--height N]
           serve --stdio
 
-        S7: serve --stdio speaks the same NDJSON contract as Python negswift-engine.
+        S8: Lab defaults (sat / sharpen 0.25 / skin 0.5). serve --stdio speaks the Python NDJSON contract.
         """
         print(text)
     }

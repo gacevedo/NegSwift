@@ -106,6 +106,16 @@ struct ExposureMeteringTests {
         #expect(PrintConfig.s5Pin.autoExposure == true)
         #expect(PrintConfig.s5Pin.autoNormalizeContrast == true)
         #expect(PrintConfig.s5Pin.autoDensityUsesCrop == true)
+        #expect(PrintConfig.s5Pin.sharpen == 0)
+        #expect(PrintConfig.s5Pin.skinProtection == 0)
+    }
+
+    @Test func s8PinTurnsLabDefaultsOn() {
+        #expect(PrintConfig.s8Pin.autoExposure == true)
+        #expect(PrintConfig.s8Pin.autoNormalizeContrast == true)
+        #expect(PrintConfig.s8Pin.saturation == 1)
+        #expect(PrintConfig.s8Pin.skinProtection == 0.5)
+        #expect(PrintConfig.s8Pin.sharpen == 0.25)
     }
 
     @Test func autoExposureShiftsPrintVsPin() throws {

@@ -52,6 +52,16 @@ public struct PrintConfig: Sendable, Equatable {
     public var flipVertical: Bool
     /// NegPy `fine_rotation` degrees (cv2/warp, positive CCW). Canvas size stays fixed.
     public var fineRotation: Float
+    /// Lab chroma scale. `1` is a no-op; skin protection still runs when > 0.
+    public var saturation: Float
+    /// Soft chroma ceiling on skin-hued pixels. NegPy default `0.5`.
+    public var skinProtection: Float
+    /// L* USM amount. NegPy default `0.25`; `0` bypasses Lab sharpen.
+    public var sharpen: Float
+    /// USM radius in output pixels (NegPy `sharpen_radius`, default 1).
+    public var sharpenRadius: Float
+    /// Optional edge mask (NegPy `sharpen_masking`, default 0).
+    public var sharpenMasking: Float
 
     public init(
         density: Float = 1,
@@ -82,7 +92,12 @@ public struct PrintConfig: Sendable, Equatable {
         rotation: Int = 0,
         flipHorizontal: Bool = false,
         flipVertical: Bool = false,
-        fineRotation: Float = 0
+        fineRotation: Float = 0,
+        saturation: Float = 1,
+        skinProtection: Float = 0,
+        sharpen: Float = 0,
+        sharpenRadius: Float = 1,
+        sharpenMasking: Float = 0
     ) {
         self.density = density
         self.grade = grade
@@ -113,6 +128,11 @@ public struct PrintConfig: Sendable, Equatable {
         self.flipHorizontal = flipHorizontal
         self.flipVertical = flipVertical
         self.fineRotation = fineRotation
+        self.saturation = saturation
+        self.skinProtection = skinProtection
+        self.sharpen = sharpen
+        self.sharpenRadius = sharpenRadius
+        self.sharpenMasking = sharpenMasking
     }
 
     /// Pinned S4a/S4b base (autos off, Neutral paper, BPC on, cast 0.5, sliders at 0).
@@ -137,6 +157,15 @@ public struct PrintConfig: Sendable, Equatable {
     public static let s5Pin = PrintConfig(
         autoExposure: true,
         autoNormalizeContrast: true
+    )
+
+    /// S8 pin: app defaults — autos on + Lab (sat 1, skin 0.5, sharpen 0.25 USM).
+    public static let s8Pin = PrintConfig(
+        autoExposure: true,
+        autoNormalizeContrast: true,
+        saturation: PhotoLab.defaultSaturation,
+        skinProtection: PhotoLab.defaultSkinProtection,
+        sharpen: PhotoLab.defaultSharpen
     )
 
     public var bpc: Bool { !paperBlack }
@@ -175,6 +204,11 @@ public struct PrintConfig: Sendable, Equatable {
         if let v = Self.boolValue(overrides["flip_horizontal"]) { copy.flipHorizontal = v }
         if let v = Self.boolValue(overrides["flip_vertical"]) { copy.flipVertical = v }
         if let v = Self.floatValue(overrides["fine_rotation"]) { copy.fineRotation = v }
+        if let v = Self.floatValue(overrides["saturation"]) { copy.saturation = v }
+        if let v = Self.floatValue(overrides["skin_protection"]) { copy.skinProtection = v }
+        if let v = Self.floatValue(overrides["sharpen"]) { copy.sharpen = v }
+        if let v = Self.floatValue(overrides["sharpen_radius"]) { copy.sharpenRadius = v }
+        if let v = Self.floatValue(overrides["sharpen_masking"]) { copy.sharpenMasking = v }
         if let v = Self.boolValue(overrides["crop_preview_full"]) { copy.applyPixelCrop = !v }
         return copy.applyingMeteringRemap(from: overrides)
     }

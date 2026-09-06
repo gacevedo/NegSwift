@@ -166,7 +166,6 @@ struct ContentView: View {
             ResetAdjustmentsSheet(session: engineSession)
         }
         .navigationSplitViewStyle(.balanced)
-        .importDropTarget(session: engineSession, isTargeted: $isImportDropTargeted)
         .onAppear {
             wireCommandBridge()
         }
@@ -295,6 +294,7 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .importDropTarget(session: engineSession, isTargeted: $isImportDropTargeted)
         .overlay {
             if engineSession.isPreviewStale {
                 previewLoadingOverlay

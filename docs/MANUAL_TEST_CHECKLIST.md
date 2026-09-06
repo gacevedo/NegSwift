@@ -138,10 +138,10 @@ Native-engine RAW ARW (S14):
 
 ## M11 — Polish ✅
 
-- [x] Drag-and-drop import — folder, single file, or multiple scans onto the window
+- [x] Drag-and-drop import — folder, single file, or multiple scans onto the preview pane
 - [x] Drop mixed folder + files shows an error (not both)
 - [x] Drop multiple folders shows “one folder at a time” error
-- [x] Dashed accent overlay while dragging over the window (engine ready)
+- [x] Dashed accent overlay while dragging over the preview pane only — not the sidebar (engine ready)
 - [x] Process mode picker (C-41 / B&W)
 - [x] Auto-detect C-41 / B&W on new scans (no sidecar); wand button re-runs detect on current frame
 - [x] Preferences (⌘,) — preview quality, GPU toggle, optical dust removal (threshold, size), NegPy data folder (shared `edits.db` with desktop NegPy)

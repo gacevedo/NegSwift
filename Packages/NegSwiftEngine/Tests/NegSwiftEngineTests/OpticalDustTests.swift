@@ -133,6 +133,115 @@ struct OpticalDustTests {
         let a = try pipeline.renderPrint(path: url.path, longEdgePx: nil, processMode: .colorNegative, config: off)
         let b = try pipeline.renderPrint(path: url.path, longEdgePx: nil, processMode: .colorNegative, config: on)
         #expect(speckMean(b, width: a.width) != speckMean(a, width: a.width))
+
+        var offManual = PrintConfig.s4aPin
+        offManual.dustRemove = false
+        var onManual = PrintConfig.s4aPin
+        onManual.dustRemove = true
+        onManual.dustThreshold = 0.66
+        onManual.dustSize = 4
+        let c = try pipeline.renderPrint(path: url.path, longEdgePx: nil, processMode: .colorNegative, config: offManual)
+        let d = try pipeline.renderPrint(path: url.path, longEdgePx: nil, processMode: .colorNegative, config: onManual)
+        #expect(speckMean(d, width: c.width) < speckMean(c, width: c.width))
+    }
+
+    @Test func detectBarIsMonotonic() {
+        #expect(OpticalDust.detectBar(0) < OpticalDust.detectBar(0.5))
+        #expect(OpticalDust.detectBar(0.5) < OpticalDust.detectBar(1))
+    }
+
+    @Test func detectCoversTheSpeckFootprint() {
+        var pixels = [Float](repeating: 0.18, count: 160 * 160 * 3)
+        stampSpeck(&pixels, width: 160, x0: 80, y0: 80, size: 7, level: 0.005)
+        let image = LinearRGBBuffer(width: 160, height: 160, pixels: pixels)
+        let found = OpticalDust.detect(image, threshold: 0.66, size: 4)
+        guard let score = found.score else {
+            Issue.record("expected a speck score")
+            return
+        }
+        var marked = 0
+        for y in 80..<87 {
+            for x in 80..<87 where score[y * 160 + x] < HealInpaint.writeHi {
+                marked += 1
+            }
+        }
+        #expect(Double(marked) / 49 >= 0.9)
+    }
+
+    @Test func detectJoinsAHairIntoOneComponent() {
+        var pixels = grainy(width: 200, height: 200, level: 0.18, sigma: 0.02, seed: 42)
+        for y in 100..<102 {
+            for x in 40..<120 {
+                let i = (y * 200 + x) * 3
+                pixels[i] = 0.02
+                pixels[i + 1] = 0.02
+                pixels[i + 2] = 0.02
+            }
+        }
+        let image = LinearRGBBuffer(width: 200, height: 200, pixels: pixels)
+        let found = OpticalDust.detect(image, threshold: 0.66, size: 4)
+        guard let hair = found.hair else {
+            Issue.record("expected an 80 px hair")
+            return
+        }
+        var covered = 0
+        for y in 100..<102 {
+            for x in 45..<115 where hair[y * 200 + x] != 0 {
+                covered += 1
+            }
+        }
+        #expect(covered == 2 * 70)
+        if let score = found.score {
+            for y in 100..<102 {
+                for x in 40..<120 {
+                    #expect(score[y * 200 + x] >= 1)
+                }
+            }
+        }
+    }
+
+    @Test func textureProtectsACompactMarkButNotAHair() {
+        var pixels = grainy(width: 200, height: 200, level: 0.18, sigma: 0.02, seed: 42)
+        var rng = DustSplitMix64(seed: 5)
+        for by in 0..<25 {
+            for bx in 0..<13 {
+                let gain = 0.85 + rng.nextUnit() * (1.18 - 0.85)
+                for dy in 0..<8 {
+                    for dx in 0..<8 {
+                        let x = 100 + bx * 8 + dx
+                        let y = by * 8 + dy
+                        if x >= 200 || y >= 200 { continue }
+                        let i = (y * 200 + x) * 3
+                        pixels[i] *= gain
+                        pixels[i + 1] *= gain
+                        pixels[i + 2] *= gain
+                    }
+                }
+            }
+        }
+        stampSpeck(&pixels, width: 200, x0: 40, y0: 60, size: 5, level: 0.05)
+        stampSpeck(&pixels, width: 200, x0: 150, y0: 60, size: 5, level: 0.05)
+        for y in 140..<142 {
+            for x in 110..<190 {
+                let i = (y * 200 + x) * 3
+                pixels[i] = 0.005
+                pixels[i + 1] = 0.005
+                pixels[i + 2] = 0.005
+            }
+        }
+        let image = LinearRGBBuffer(width: 200, height: 200, pixels: pixels)
+        let mark = markedPlane(image, threshold: 0.66)
+        #expect(markedIn(image, threshold: 0.66, x0: 40, y0: 60, size: 5))
+        #expect(!markedIn(image, threshold: 0.66, x0: 145, y0: 55, size: 15))
+        var hairHits = 0
+        var hairN = 0
+        for y in 140..<142 {
+            for x in 120..<180 {
+                hairN += 1
+                if mark[y * 200 + x] { hairHits += 1 }
+            }
+        }
+        #expect(Double(hairHits) / Double(hairN) > 0.8)
     }
 
     @Test func hairInpaintLeavesOutsideUntouched() {
@@ -218,12 +327,27 @@ private func speckMean(_ image: LinearRGBBuffer, width: Int, x0: Int = 80, y0: I
     return sum / max(n, 1)
 }
 
-private func markedIn(_ image: LinearRGBBuffer, threshold: Float, x0: Int, y0: Int, size: Int) -> Bool {
+private func markedPlane(_ image: LinearRGBBuffer, threshold: Float) -> [Bool] {
     let found = OpticalDust.detect(image, threshold: threshold, size: 4)
-    guard let score = found.score else { return false }
+    var mark = [Bool](repeating: false, count: image.width * image.height)
+    if let score = found.score {
+        for i in 0..<score.count where score[i] < HealInpaint.writeHi {
+            mark[i] = true
+        }
+    }
+    if let hair = found.hair {
+        for i in 0..<hair.count where hair[i] != 0 {
+            mark[i] = true
+        }
+    }
+    return mark
+}
+
+private func markedIn(_ image: LinearRGBBuffer, threshold: Float, x0: Int, y0: Int, size: Int) -> Bool {
+    let mark = markedPlane(image, threshold: threshold)
     for y in y0..<(y0 + size) {
         for x in x0..<(x0 + size) {
-            if score[y * image.width + x] < HealInpaint.writeHi { return true }
+            if mark[y * image.width + x] { return true }
         }
     }
     return false
@@ -248,6 +372,10 @@ private struct DustSplitMix64 {
         z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
         z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
         return z ^ (z >> 31)
+    }
+
+    mutating func nextUnit() -> Float {
+        Float(next() >> 11) / Float(1 << 53)
     }
 
     mutating func nextGaussian() -> Float {

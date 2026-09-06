@@ -120,7 +120,7 @@ Native-engine RAW ARW (S14):
 
 - [x] Fresh `git clone --recurse-submodules` → `uv sync` → `negswift-engine info` works
 - [x] No sibling `../../NegPy` required for engine to run
-- [x] `Vendor/NegPy` at tag **0.57.0**; `git submodule status` clean
+- [x] `Vendor/NegPy` at tag **0.58.0**; `git submodule status` clean
 - [x] CI workflow checks out submodules and runs engine + Swift unit tests
 - [x] Re-run M9 export smoke — output unchanged from pre-M9b
 

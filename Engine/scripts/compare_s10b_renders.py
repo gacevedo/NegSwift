@@ -1,7 +1,8 @@
 """S10b gate: Python CPU vs Swift MAE with optical dust on a speckled fixture.
 
-Pinned config is S8 (autos + Lab defaults) plus dust_remove / threshold / size.
-Exit 0 when dust-on MAE <= --max-mae and the toggle actually rewrites the speck.
+Look MAE uses S8 (autos + Lab defaults) plus dust_remove / threshold / size.
+The recede toggle uses the S4a pin (autos off) so Auto Density does not remeter
+a filled speck. Exit 0 when dust-on MAE <= --max-mae and the toggle recedes it.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import tifffile
 
-from compare_s4a_renders import _repo_root, compare_print, _python_print, _swift_print
+from compare_s4a_renders import S4A_PIN, _repo_root, compare_print, _python_print, _swift_print
 from compare_s8_renders import S8_PIN
 
 S10B_OFF = dict(S8_PIN)
@@ -23,6 +24,20 @@ S10B_OFF["dust_remove"] = False
 
 S10B_ON = dict(S8_PIN)
 S10B_ON.update(
+    {
+        "dust_remove": True,
+        "dust_threshold": 0.66,
+        "dust_size": 4,
+    }
+)
+
+# Autos remeter a fully filled speck; the recede check uses the S4a pin so it
+# reads the bake, not Auto Density / Shadow Reach moving the print envelope.
+S10B_TOGGLE_OFF = dict(S4A_PIN)
+S10B_TOGGLE_OFF["dust_remove"] = False
+
+S10B_TOGGLE_ON = dict(S4A_PIN)
+S10B_TOGGLE_ON.update(
     {
         "dust_remove": True,
         "dust_threshold": 0.66,
@@ -83,10 +98,10 @@ def main() -> None:
         ),
     ]
 
-    py_off = _python_print(scan, args.long_edge, dict(S10B_OFF))
-    py_on = _python_print(scan, args.long_edge, dict(S10B_ON))
-    sw_off = _swift_print(scan, args.long_edge, dict(S10B_OFF)).reshape(py_off.shape)
-    sw_on = _swift_print(scan, args.long_edge, dict(S10B_ON)).reshape(py_on.shape)
+    py_off = _python_print(scan, args.long_edge, dict(S10B_TOGGLE_OFF))
+    py_on = _python_print(scan, args.long_edge, dict(S10B_TOGGLE_ON))
+    sw_off = _swift_print(scan, args.long_edge, dict(S10B_TOGGLE_OFF)).reshape(py_off.shape)
+    sw_on = _swift_print(scan, args.long_edge, dict(S10B_TOGGLE_ON)).reshape(py_on.shape)
     toggle = {
         "milestone": "S10b-toggle",
         "python_speck_off": _speck_mean(py_off),
@@ -101,7 +116,7 @@ def main() -> None:
             and _speck_mean(py_on) < _speck_mean(py_off)
             and _speck_mean(sw_on) < _speck_mean(sw_off)
         ),
-        "note": "On a C-41 print the dark scan speck is a bright spot; dust on must recede it.",
+        "note": "S4a (autos off): dark scan speck prints bright; dust on must recede it.",
     }
     reports.append(toggle)
     payload = {"ok": all(r["ok"] for r in reports), "scan": str(scan), "reports": reports}

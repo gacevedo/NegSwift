@@ -10,6 +10,12 @@ constant float kInvGamma = 256.0 / 563.0;
 constant float kLabEps = 0.008856;
 constant float kLabKappa = 7.787;
 constant float kLabOffset = 16.0 / 116.0;
+constant float kSharpenShadowFloor = 1.0 / 3.0;
+constant float kSharpenShadowLHi = 35.0;
+
+float sharpen_shadow_gain(float l) {
+    return kSharpenShadowFloor + (1.0 - kSharpenShadowFloor) * smoothstep(0.0, kSharpenShadowLHi, l);
+}
 
 struct NormalizeUniforms {
     float4 floors;
@@ -356,7 +362,7 @@ kernel void lab_apply(
         float diff = l - blur_l;
         float t = saturate((abs(diff) - params.gateLo) / (params.gateHi - params.gateLo));
         float gate = t * t * (3.0 - 2.0 * t);
-        float gain = params.sharpen * 2.5 * gate;
+        float gain = params.sharpen * 2.5 * gate * sharpen_shadow_gain(l);
         if (params.sharpenMasking > 0.0) {
             float grad_box = 0.0;
             for (int j = -1; j <= 1; j++) {

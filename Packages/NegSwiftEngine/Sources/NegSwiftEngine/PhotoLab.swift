@@ -17,6 +17,15 @@ public enum PhotoLab: Sendable {
     public static let sharpenOvershootLight: Float = 1
     public static let sharpenOvershootDark: Float = 2
     public static let sharpenMaskTHi: Float = 10
+    /// NegPy `SHARPEN_SHADOW_FLOOR` — gain floor at paper black (Gallagher & Gindele).
+    public static let sharpenShadowFloor: Float = 1.0 / 3.0
+    /// NegPy `SHARPEN_SHADOW_L_HI` — full gain from this L* up.
+    public static let sharpenShadowLHi: Float = 35
+
+    /// Per-pixel sharpen gain multiplier from L*; mirrors `sharpen_shadow_gain`.
+    public static func sharpenShadowGain(_ l: Float) -> Float {
+        sharpenShadowFloor + (1 - sharpenShadowFloor) * smoothstep(0, sharpenShadowLHi, l)
+    }
 
     public static let skinHueCenterDeg: Float = 52
     public static let skinHueWidthDeg: Float = 20
@@ -119,7 +128,7 @@ public enum PhotoLab: Sendable {
         for i in 0..<count {
             let l = lChan[i]
             let diff = l - lBlur[i]
-            var gain = amount * 2.5 * smoothstep(sharpenGateLo, sharpenGateHi, abs(diff))
+            var gain = amount * 2.5 * smoothstep(sharpenGateLo, sharpenGateHi, abs(diff)) * sharpenShadowGain(l)
             if let edge {
                 gain *= edge[i]
             }

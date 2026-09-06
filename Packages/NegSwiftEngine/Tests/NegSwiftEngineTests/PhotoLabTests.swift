@@ -120,6 +120,14 @@ struct PhotoLabTests {
         #expect(outMax <= inMax + 1.1)
     }
 
+    @Test func sharpenShadowGainRollsOffTowardPaperBlack() {
+        let mid = PhotoLab.sharpenShadowGain(0.5 * PhotoLab.sharpenShadowLHi)
+        #expect(abs(PhotoLab.sharpenShadowGain(0) - PhotoLab.sharpenShadowFloor) < 1e-5)
+        #expect(abs(PhotoLab.sharpenShadowGain(PhotoLab.sharpenShadowLHi) - 1) < 1e-5)
+        #expect(PhotoLab.sharpenShadowGain(100) == 1)
+        #expect(mid > PhotoLab.sharpenShadowFloor && mid < 1)
+    }
+
     @Test func sharpenFlatBelowGatePassthrough() {
         var pixels = [Float](repeating: 0, count: 64 * 64 * 3)
         var seed: UInt64 = 3

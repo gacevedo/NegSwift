@@ -114,13 +114,28 @@ public struct ProtocolServer: Sendable {
         }
         try requireExistingFile(path)
         let dims = NativePipeline().probeSource(at: path) ?? (1, 1)
-        return [
+        var result: [String: Any] = [
             "path": path,
             "hash": Self.fileToken(path),
             "width": dims.width,
             "height": dims.height,
             "has_sidecar": SidecarStore.exists(forScanPath: path),
         ]
+        var overrides: [String: Any] = [:]
+        if let dict = params["config"] as? [String: Any] {
+            overrides = dict
+        }
+        let base = try SidecarStore.baseFlat(forScanPath: path)
+        let flat = ConfigJSON.merge(base, overrides)
+        let printConfig = PrintConfig.s8Pin.merging(flat)
+        if Autocrop.isArmed(printConfig), printConfig.cropRect == nil {
+            let preview = try NativePipeline().decode(path: path, maxLongEdge: Autocrop.detectResolution)
+            if let rect = Autocrop.resolveRect(preview, config: printConfig) {
+                result["suggested_crop_rect"] = rect.arrayValue
+                result["crop_detect_key"] = Autocrop.detectionKey(printConfig)
+            }
+        }
+        return result
     }
 
     private func cmdDiscover(_ params: [String: Any]) throws -> [String: Any] {
@@ -270,12 +285,13 @@ public struct ProtocolServer: Sendable {
         printConfig.applyPixelCrop = !cropPreviewFull
         let processMode = WorkspaceFlatConfig.processMode(from: flat)
         do {
-            let buffer = try NativePipeline().renderPrint(
+            let printed = try NativePipeline().renderPrintDetailed(
                 path: path,
                 longEdgePx: longEdge,
                 processMode: processMode,
                 config: printConfig
             )
+            let buffer = printed.buffer
             let data: Data
             if previewFormat == "jpeg" {
                 data = try ImageCoding.jpegDataFromWorkingSpace(
@@ -285,11 +301,19 @@ public struct ProtocolServer: Sendable {
             } else {
                 data = try ImageCoding.pngDataFromWorkingSpace(buffer)
             }
+            var metrics: [String: Any] = [:]
+            if let resolved = printed.resolvedAutocrop {
+                metrics["autocrop_resolved_rect"] = resolved.arrayValue
+                metrics["autocrop_resolved_key"] = resolved.key
+            }
+            if cropPreviewFull, let crop = printed.cropRect {
+                metrics["detected_crop_rect"] = crop.arrayValue
+            }
             var result: [String: Any] = [
                 "width": buffer.width,
                 "height": buffer.height,
                 "preview_format": previewFormat,
-                "metrics": [String: Any](),
+                "metrics": metrics,
             ]
             let encoded = data.base64EncodedString()
             if previewFormat == "jpeg" {

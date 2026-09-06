@@ -110,7 +110,7 @@ struct ExportTests {
         }
         let server = ProtocolServer()
         let jpegLine = """
-        {"id":"export-jpeg","method":"export","params":{"path":"\(frame.path)","dest_dir":"\(dest.path)","prefer_gpu":false,"export":{"export_fmt":"JPEG","export_color_space":"sRGB","export_resolution_mode":"original","jpeg_quality":90}}}
+        {"id":"export-jpeg","method":"export","params":{"path":"\(frame.path)","dest_dir":"\(dest.path)","prefer_gpu":false,"config":{"crop_from_auto":false,"auto_crop_enabled":false},"export":{"export_fmt":"JPEG","export_color_space":"sRGB","export_resolution_mode":"original","jpeg_quality":90}}}
         """
         let jpeg = server.handleMessage(jpegLine)
         #expect(jpeg["ok"] as? Bool == true, "\(jpeg)")

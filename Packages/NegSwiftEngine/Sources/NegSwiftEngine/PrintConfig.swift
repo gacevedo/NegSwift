@@ -45,6 +45,19 @@ public struct PrintConfig: Sendable, Equatable {
     public var cropRect: NormalizedCropRect?
     public var cropFromAuto: Bool
     public var autoCropEnabled: Bool
+    /// `autocrop_detection_key` the auto rect was found under. Empty for a manual rect.
+    public var cropDetectKey: String
+    /// NegPy `autocrop_ratio` (`Free` reads the film format off the detected frame).
+    public var autocropRatio: String
+    /// `image` (exposed area) or `film` (rebate kept).
+    public var autocropMode: String
+    /// Fraction of detected rebate to cut. Image mode only. Default `1`.
+    public var autocropRebateTrim: Float
+    /// Extra inset in preview pixels, re-applied every render (not in the detect key).
+    public var autocropOffset: Int
+    /// Desktop keystone. Unused in lite; still part of the detect key.
+    public var convergeV: Float
+    public var convergeH: Float
     /// False for crop-tool preview (`crop_preview_full`); output stays full-bleed.
     public var applyPixelCrop: Bool
     public var rotation: Int
@@ -98,6 +111,13 @@ public struct PrintConfig: Sendable, Equatable {
         cropRect: NormalizedCropRect? = nil,
         cropFromAuto: Bool = false,
         autoCropEnabled: Bool = false,
+        cropDetectKey: String = "",
+        autocropRatio: String = Autocrop.defaultRatio,
+        autocropMode: String = Autocrop.defaultMode,
+        autocropRebateTrim: Float = 1,
+        autocropOffset: Int = 0,
+        convergeV: Float = 0,
+        convergeH: Float = 0,
         applyPixelCrop: Bool = true,
         rotation: Int = 0,
         flipHorizontal: Bool = false,
@@ -138,6 +158,13 @@ public struct PrintConfig: Sendable, Equatable {
         self.cropRect = cropRect
         self.cropFromAuto = cropFromAuto
         self.autoCropEnabled = autoCropEnabled
+        self.cropDetectKey = cropDetectKey
+        self.autocropRatio = autocropRatio
+        self.autocropMode = autocropMode == Autocrop.filmMode ? Autocrop.filmMode : Autocrop.defaultMode
+        self.autocropRebateTrim = autocropRebateTrim
+        self.autocropOffset = autocropOffset
+        self.convergeV = convergeV
+        self.convergeH = convergeH
         self.applyPixelCrop = applyPixelCrop
         self.rotation = rotation
         self.flipHorizontal = flipHorizontal
@@ -220,6 +247,15 @@ public struct PrintConfig: Sendable, Equatable {
         }
         if let v = Self.boolValue(overrides["crop_from_auto"]) { copy.cropFromAuto = v }
         if let v = Self.boolValue(overrides["auto_crop_enabled"]) { copy.autoCropEnabled = v }
+        if let v = overrides["crop_detect_key"] as? String { copy.cropDetectKey = v }
+        if let v = overrides["autocrop_ratio"] as? String, !v.isEmpty { copy.autocropRatio = v }
+        if let v = overrides["autocrop_mode"] as? String, !v.isEmpty {
+            copy.autocropMode = v == Autocrop.filmMode ? Autocrop.filmMode : Autocrop.defaultMode
+        }
+        if let v = Self.floatValue(overrides["autocrop_rebate_trim"]) { copy.autocropRebateTrim = v }
+        if let v = Self.intValue(overrides["autocrop_offset"]) { copy.autocropOffset = v }
+        if let v = Self.floatValue(overrides["converge_v"]) { copy.convergeV = v }
+        if let v = Self.floatValue(overrides["converge_h"]) { copy.convergeH = v }
         if let v = Self.intValue(overrides["rotation"]) { copy.rotation = v }
         if let v = Self.boolValue(overrides["flip_horizontal"]) { copy.flipHorizontal = v }
         if let v = Self.boolValue(overrides["flip_vertical"]) { copy.flipVertical = v }

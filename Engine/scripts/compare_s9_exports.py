@@ -20,7 +20,7 @@ from compare_s4a_renders import _repo_root
 from compare_s8_renders import S8_PIN
 from negswift_engine.export import export_asset
 
-# Stored-crop only (S11 detect is later). NegPy defaults arm autocrop_offset=1
+# Stored-crop only. NegPy defaults arm autocrop_offset=1
 # and crop_from_auto, which shrink the file before Swift has detect.
 S9_PIN = dict(S8_PIN)
 S9_PIN.update(

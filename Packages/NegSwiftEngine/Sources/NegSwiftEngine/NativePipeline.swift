@@ -1,6 +1,20 @@
 import Foundation
 
-/// In-process pipeline. S10b: optical dust + heal on linear, then Lab / crop / OETF.
+public struct RenderPrintResult: Sendable {
+    public var buffer: LinearRGBBuffer
+    /// Present only when this render ran border detection and produced a new rect.
+    public var resolvedAutocrop: AutocropResolved?
+    /// Crop after resolve (stored or newly detected). Used for `detected_crop_rect`.
+    public var cropRect: NormalizedCropRect?
+
+    public init(buffer: LinearRGBBuffer, resolvedAutocrop: AutocropResolved?, cropRect: NormalizedCropRect?) {
+        self.buffer = buffer
+        self.resolvedAutocrop = resolvedAutocrop
+        self.cropRect = cropRect
+    }
+}
+
+/// In-process pipeline. S11: autocrop detect-once, then dust / heal / Lab / crop / OETF.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -85,35 +99,88 @@ public struct NativePipeline: Sendable {
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
-    /// S10b print: optical dust + heal on decoded linear → orient → normalize → H&D + autos → Lab → crop → OETF.
+    /// S11 print: optical dust + heal on decoded linear → detect-once autocrop → orient →
+    /// normalize → H&D + autos → Lab → crop → OETF.
     /// Matches NegPy `DarkroomEngine` order (dust/heals before geometry; Lab before pixel crop).
-    /// Meters on the oriented full frame (`analysis_rect` / buffer), then crops pixels unless
-    /// ``PrintConfig.applyPixelCrop`` is false (`crop_preview_full`). Preview-size decodes
-    /// oversample so Analysis Buffer still sees film/holder edges.
+    /// Autocrop runs on the pre-geometry buffer and freezes `crop_rect` so preview and export
+    /// share one rect. Meters on the oriented full frame, then crops pixels unless
+    /// ``PrintConfig.applyPixelCrop`` is false (`crop_preview_full`).
     public func renderPrint(
         path: String,
         longEdgePx: Int?,
         processMode: FilmProcessMode? = nil,
         config: PrintConfig = .s4aPin
     ) throws -> LinearRGBBuffer {
+        try renderPrintDetailed(
+            path: path,
+            longEdgePx: longEdgePx,
+            processMode: processMode,
+            config: config
+        ).buffer
+    }
+
+    public func renderPrintDetailed(
+        path: String,
+        longEdgePx: Int?,
+        processMode: FilmProcessMode? = nil,
+        config: PrintConfig = .s4aPin
+    ) throws -> RenderPrintResult {
         var linear = try decodeForPrint(path: path, longEdgePx: longEdgePx)
         if config.dustRemove {
             linear = OpticalDust.bake(linear, threshold: config.dustThreshold, size: config.dustSize)
         }
         linear = HealInpaint.bake(linear, strokes: config.healStrokes, spots: config.dustSpots)
+        let armed = Autocrop.resolveArmed(linear, config: config)
+        let printConfig = armed.config
         linear = linear.oriented(
-            rotation: config.rotation,
-            flipHorizontal: config.flipHorizontal,
-            flipVertical: config.flipVertical,
-            fineRotation: config.fineRotation
+            rotation: printConfig.rotation,
+            flipHorizontal: printConfig.flipHorizontal,
+            flipVertical: printConfig.flipVertical,
+            fineRotation: printConfig.fineRotation
         )
         let mode = processMode ?? ProcessDetect.detectLite(linear)
-        var printed = PhotometricPrint.process(linear: linear, processMode: mode, config: config)
-        printed = PhotoLab.process(printed, config: config)
-        if config.applyPixelCrop, let crop = config.cropRect {
-            printed = printed.cropped(normalized: crop.tuple)
+        var printed = PhotometricPrint.process(linear: linear, processMode: mode, config: printConfig)
+        printed = PhotoLab.process(printed, config: printConfig)
+        if printConfig.applyPixelCrop, let crop = printConfig.cropRect {
+            printed = applyStoredCrop(printed, rect: crop, offsetPx: printConfig.autocropOffset)
         }
-        return WorkingOETF.encode(printed)
+        return RenderPrintResult(
+            buffer: WorkingOETF.encode(printed),
+            resolvedAutocrop: armed.resolved,
+            cropRect: printConfig.cropRect
+        )
+    }
+
+    /// Stored rect plus Crop Offset (preview-px, scaled to this buffer's long edge).
+    private func applyStoredCrop(_ image: LinearRGBBuffer, rect: NormalizedCropRect, offsetPx: Int) -> LinearRGBBuffer {
+        if offsetPx <= 0 {
+            return image.cropped(normalized: rect.tuple)
+        }
+        let scale = Double(max(image.width, image.height)) / Autocrop.previewRenderSize
+        guard let roi = LinearRGBBuffer.storedCropPixelROI(
+            width: image.width,
+            height: image.height,
+            rect: rect.tuple
+        ) else {
+            return image
+        }
+        let inset = Autocrop.applyMargin(
+            PixelROI(y1: roi.y1, y2: roi.y2, x1: roi.x1, x2: roi.x2),
+            height: image.height,
+            width: image.width,
+            margin: Double(offsetPx) * scale
+        )
+        if inset.isEmpty { return image.cropped(normalized: rect.tuple) }
+        let w = Double(image.width)
+        let h = Double(image.height)
+        return image.cropped(
+            normalized: (
+                Double(inset.x1) / w,
+                Double(inset.y1) / h,
+                Double(inset.x2) / w,
+                Double(inset.y2) / h
+            )
+        )
     }
 
     public func writePrintF32(

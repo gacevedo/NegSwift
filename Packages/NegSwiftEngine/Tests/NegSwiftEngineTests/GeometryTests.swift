@@ -179,6 +179,9 @@ struct GeometryTests {
             "fine_rotation": 4.5,
             "crop_rect": [0.1, 0.2, 0.8, 0.9],
             "crop_preview_full": true,
+            "crop_detect_key": "1|1|1|4.5000|0.0|0.0|Free|image|1.0",
+            "autocrop_ratio": "5:4",
+            "autocrop_mode": "film",
         ])
         #expect(merged.rotation == 1)
         #expect(merged.flipHorizontal)
@@ -186,6 +189,9 @@ struct GeometryTests {
         #expect(merged.fineRotation == 4.5)
         #expect(merged.applyPixelCrop == false)
         #expect(merged.cropRect == NormalizedCropRect(x1: 0.1, y1: 0.2, x2: 0.8, y2: 0.9))
+        #expect(merged.cropDetectKey == "1|1|1|4.5000|0.0|0.0|Free|image|1.0")
+        #expect(merged.autocropRatio == "5:4")
+        #expect(merged.autocropMode == "film")
     }
 }
 

@@ -2,7 +2,7 @@
 
 A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing engine. The shipping path has no algorithm fork: NegSwift owns UI, orchestration, and packaging; NegPy owns pixels, pipeline, and file formats.
 
-**Native engine exception:** `Packages/NegSwiftEngine` is an approved third implementation of the **NegSwift lite** path (CPU-first, Python as oracle). Do not copy NegPy sources into `App/`. Milestones **S0–S15** live in the native-engine plan; this file keeps the M0–M15 lite-shell roadmap and a pointer.
+**Native engine exception:** `Packages/NegSwiftEngine` is an approved third implementation of the **NegSwift lite** path (CPU-first, Python as oracle). Do not copy NegPy sources into `App/`. Milestones **S0–S15** are in §14; this file also keeps the M0–M15 lite-shell roadmap.
 
 **License:** GPL-3.0 for the whole shipped product (Swift shell + bundled engine). NegPy is GPL-3.0; combining and distributing them requires the same license and source availability for NegSwift’s own code.
 
@@ -29,9 +29,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 | **M14** Batch export | **Done** | Sheet scope + tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
-| **S0–S15** Native Swift engine | **S14 done** | LibRaw camera RAW. Next: S15 iOS later. See §14 |
+| **S0–S15** Native Swift engine | **S13 reopened** | S13a–c (slider reprints) done. Next: **S13d** first-load. S14 RAW look is in. S15 later. See §14 |
 
-**Resume here:** Native engine **S15** (iOS harness, later). S14 camera RAW is in (LibRaw sensor-native; not limited to NEF/ARW). See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Resume here:** Native engine **S13d** (one linear decode per file). S13a–c optimized slider reprints, not first open. S14 camera RAW is in (oracle for S13i). S15 iOS stays later while S13 is open. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -985,7 +985,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 3. **M15:** Wire zone tone sliders (shadows/highlights density + ISO-R split grade) per §7 M15. — **Done**
 4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
-5. **Native engine S15:** iOS harness is later — see §14. S14 camera RAW (LibRaw) is in.
+5. **Native engine S13:** First-load performance — start at **S13d** (one decode per file). S13a–c stay done. Do not start S15 while S13 is open. See §14.
 
 ---
 
@@ -993,7 +993,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 
 Approved exception to “never reimplement pipeline math”: **`Packages/NegSwiftEngine` only**. Python stays the default backend and the oracle until each vertical’s goldens pass.
 
-Full cards (goal, pinned config, automated gate, human procedure, still-wrong, exit) live in the sibling native-engine plan (`../negswift-engine/PLAN.md` when that folder is checked out next to this repo). Human rows are in [`docs/MANUAL_TEST_CHECKLIST.md`](docs/MANUAL_TEST_CHECKLIST.md) § S0–S15.
+S13 phase cards live in this section. Human rows are in [`docs/MANUAL_TEST_CHECKLIST.md`](docs/MANUAL_TEST_CHECKLIST.md) § S0–S15. First-load timers are in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
 | Milestone | Focus | First human gate |
 |-----------|--------|------------------|
@@ -1012,11 +1012,34 @@ Full cards (goal, pinned config, automated gate, human procedure, still-wrong, e
 | **S10b** | Optical dust | **Done** — Preferences toggle vs Python on a dirty scan |
 | **S11** | Autocrop detect-once | **Done** — holder fixture + detect-once stdio; human holder-scan A/B done |
 | **S12** | Metal (optional) | **Done** — CPU-vs-Metal MAE (`make compare-s12`); slider feel on ~20 MP. Not a look gate. |
-| **S13** | Interactive performance | **Done** — reprint cache, Metal geometry, resident texture + skip JPEG present (`make compare-s13`). Not a look gate. |
+| **S13** | Interactive + first-load performance | **Reopened** — S13a–c done (slider reprints). S13d–l open (first open). Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE). |
 | **S14** | Camera RAW (LibRaw) | **Done** — sensor-native linear for NegPy’s camera RAW list; ImageIO is not the look path. Preview/thumb uses LibRaw `half_size` (Bayer) like NegPy |
-| **S15** | iOS harness (later) | After S4a; not an App Store product |
+| **S15** | iOS harness (later) | After S4a; not an App Store product. Do not start while S13 is open. |
 
-Do not start S12–S15 before S4a. Do not start S11 before S6. Do not compare Swift-at-S4 to Python-at-app-defaults.
+Do not start S12–S15 before S4a. Do not start S11 before S6. Do not start S15 while S13 is open. Do not compare Swift-at-S4 to Python-at-app-defaults.
+
+### S13 — Interactive + first-load performance
+
+S13a–c optimized **slider reprints**. First open on the Swift backend is still slower than Python: three serial decodes (detect 512 → autocrop 1800 → print, TIFF `analysisOversample` ≥ 4096), no splash, naive Swift `areaDownsampled` (X-Trans is full-size AHD), Metal `rgba32Float` upload/download + ColorSync `CGImage`, and full-print strip thumbs at 256 px. Python reuses `PreviewManager`, shows an embedded JPEG splash, resizes with OpenCV, and keeps the GPU path on GPU.
+
+Sequence: **S13d → S13e → S13f → S13g** in parallel with **S13i → S13h → S13j → S13k**. **S13l** only if Instruments still shows those stages after S13d–h.
+
+| Phase | Focus | Gate |
+|-------|--------|------|
+| **S13a** | Reprint cache | **Done** — density-only reprint skips heal / dust / orient / analyze (`make compare-s13` / `ReprintCacheTests`) |
+| **S13b** | Metal geometry | **Done** — MAE vs CPU (`MetalGeometryTests`, S6 variants including fine-rot) |
+| **S13c** | Resident texture + skip JPEG present | **Done** — in-process `CGImage`; slider/rotate does not re-upload linear |
+| **S13d** | One linear decode per file | Fuse detect + autocrop + preview onto one ImageIO/LibRaw pass. LRU of linear buffers (not only `lastPrintDecode` keyed by exact long-edge). Drop the extra 1800 px decode in `NativeEngineBackend.open` once `renderPrint` already resolves autocrop. `PipelineStats.decode == 1` on first `selectFrame` (detect + open + render). `make compare-s13` plus a decode-reuse test. Model: Python `PreviewManager`. |
+| **S13e** | Accelerate convert and resize | Replace `extractUInt16` / `extractUInt8`, `srgbToLinear`, Swift `areaDownsampled` / `areaResized`, Metal RGB↔RGBA swizzle, and the LibRaw `uint16→float` loop in `NegSwiftLibRaw.c` with vImage / vDSP. Existing linear/S8/S14 MAE stay green. Human: RAF folder open in the same class as Python (no crushed lightbox). |
+| **S13f** | Splash and cheap thumbs | Port embedded-preview splash (Python `load_splash_and_linear`). `open(includeSplash: true)` returns JPEG for first paint. Strip thumbs use ImageIO thumbnail or RAW embedded JPEG, not a full H&D+Lab print. Splash on RAW cold open; folder of 20 frames fills thumbs without blocking the selected preview. |
+| **S13g** | Progressive / draft first paint | Show 512 (or splash) processed preview, then 1600/2400. Defer `analysisOversample` (≥4096) until Analysis Buffer moves or the refine pass. Optional draft: skip Lab sharpen and dust on the first paint. `NEGSWIFT_PERF_LOG` first-paint vs full-preview; no S8 look change on the settled frame. |
+| **S13h** | GPU present, no float readback | Keep the working set on GPU (S13c upload already exists). Present `IOSurface` / `MTLTexture` / `CIImage` to SwiftUI. Precompile `LiteKernels.metallib`. Reuse ping/pong textures. Preview may use `rgba16Float`. Skip ColorSync when the view can be tagged Adobe RGB. `PipelineStats` upload/download on slider reprint stays 0; first present does not `getBytes` the full float buffer; CPU-vs-Metal MAE unchanged. |
+| **S13i** | RAW decode | X-Trans preview: PPG (NegPy), not AHD. One `libraw` handle per file (`open`/`unpack` shared). Optional: disable OpenMP and allow parallel RAW with one handle per job. S14 MAE on named NEF/ARW/RAF; X-Trans preview faster than AHD with no crushed crop. |
+| **S13j** | Queue split and prefetch | Decode TIFF/JPEG in parallel; RAW as in S13i. Selected-frame preview outranks strip jobs. Prefetch neighbor **linear** buffers, not only `open(includeSplash: false)` probes. Importing 20+ TIFFs keeps UI responsive; clicking frame B cancels queued thumbs. |
+| **S13k** | Longer-lived caches | Disk cache of processed preview (path + mtime + config fingerprint). Multi-frame reprint / Metal working-set beyond 8 / 6. Reuse canvas preview as strip thumb (already done for the selected frame). Quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged. |
+| **S13l** | Later GPU stages and UX knobs | After S13d–h: Metal dust / autocrop / histograms if still hot. Defaults: Swift Fast (1200) until caches exist; autocrop after first paint; process-mode from splash. Optional; only if Instruments still shows those stages after S13d–h. |
+
+S14 RAW look gates stay closed; S13 consumes them as oracles. `make compare-s13` stays reprint + geometry until S13d adds decode-reuse tests.
 
 ---
 
@@ -1065,4 +1088,4 @@ flowchart LR
   M6 --> M15
 ```
 
-M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work. Native engine **S0–S15** is a parallel track (§14); S11 depends on S6 stored-crop, S12–S15 depend on S4a goldens.
+M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work. Native engine **S0–S15** is a parallel track (§14); S11 depends on S6 stored-crop, S12–S15 depend on S4a goldens. **S13** first-load is open; do not start S15 while S13 is open.

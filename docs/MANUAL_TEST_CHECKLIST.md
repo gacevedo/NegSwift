@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S14** automated gates are in. **S15** iOS harness is later. Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
+Native engine **S0–S14** automated gates are in. **S13** is reopened for first-load performance (S13a–c slider reprints stay done; next is **S13d**). **S15** iOS harness is later — do not start while S13 is open. Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
 
 **Header template:**
 
@@ -424,7 +424,9 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 - [x] S12: CPU-vs-Metal MAE on used WGSL stages (`make compare-s12` + Swift `MetalParityTests`). App Swift backend uses Metal when available; CLI/stdio stay CPU
 - [x] S12 human: slider drag stays interactive on a ~20 MP scan (Swift backend)
 
-### S13 — Interactive performance
+### S13 — Interactive + first-load performance
+
+S13a–c (slider reprints) stay done. S13d–l are open. Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE).
 
 - [x] S13a: density-only reprint skips heal / dust / orient / analyze (`make compare-s13` / `ReprintCacheTests`)
 - [ ] S13a human: Print Density / Grade drag on the ~20 MP scan; no look change vs S8
@@ -432,7 +434,22 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 - [x] S13b human: 90° and fine-rot on the ~20 MP scan feel in the same class as Python GPU
 - [x] S13c: in-process preview present skips JPEG/base64; slider/rotate does not re-upload linear
 - [x] S13c human: frame switch then slider drag — canvas updates without a JPEG hitch
-- [x] Still wrong: not a look gate; export may stay JPEG/TIFF; Python IPC is M12
+- [ ] S13d: one linear decode per file — detect + open + render share one ImageIO/LibRaw pass; `PipelineStats.decode == 1` on first `selectFrame`; `make compare-s13` plus a decode-reuse test
+- [ ] S13e: vImage / vDSP replace extract, sRGB→linear, `areaDownsampled`, Metal RGB↔RGBA swizzle, and LibRaw `uint16→float`; linear/S8/S14 MAE stay green
+- [ ] S13e human: RAF folder open is in the same class as Python (no crushed lightbox)
+- [ ] S13f: `open(includeSplash: true)` returns embedded JPEG on RAW cold open; strip thumbs use ImageIO thumbnail or RAW embedded JPEG (not a full print)
+- [ ] S13f human: folder of 20 frames fills thumbs without blocking the selected preview
+- [ ] S13g: progressive first paint (512 or splash, then 1600/2400); `analysisOversample` deferred until Analysis Buffer or refine; settled frame matches S8
+- [ ] S13h: GPU present with no full-buffer `getBytes`; slider reprint upload/download stays 0; CPU-vs-Metal MAE unchanged
+- [ ] S13i: X-Trans preview uses PPG (not AHD); one `libraw` handle per file; S14 MAE on named NEF/ARW/RAF
+- [ ] S13j: TIFF/JPEG decode in parallel; selected-frame preview outranks strip jobs; neighbor prefetch loads linear buffers
+- [ ] S13j human: import 20+ TIFFs stays responsive; clicking frame B cancels queued thumbs
+- [ ] S13k: quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged
+- [ ] S13l: optional — Metal dust / autocrop / histograms or Fast-preview defaults only if Instruments still shows those stages after S13d–h
+- [ ] Stage timers in `NEGSWIFT_PERF_LOG` / `PipelineStats`: detect, open-autocrop, LibRaw, `areaDownsampled`, Metal upload+download, ColorSync
+- [ ] Human: Swift backend, 16-bit TIFF ≥16 MP — first open in the same class as Python
+- [ ] Human: Swift backend, folder of 3+ RAF — thumbs fill; first preview auto-crops; clicking another frame leaves “Loading image…” and shows a preview
+- [ ] Still wrong until later phases: JXL / Coolscan NEF / Noritsu / FFF / Pakon special loaders (S14); export may stay CPU readback; Python IPC remains M12
 
 ### S14 — Camera RAW (LibRaw)
 
@@ -444,12 +461,12 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 - [x] S8 working-space MAE on those files at `--long-edge 256` (MAE ~1e-7)
 - [x] Human: Swift backend, NEF — orange mask still orange; A/B at app defaults vs Python
 - [x] Human: same for ARW (and any other camera RAW you have)
-- [ ] Human: Swift backend, Import Folder of 3+ RAWs — strip thumbs fill; first preview is auto-cropped; clicking another frame leaves “Loading image…” and shows a preview
+- [ ] Human: Swift backend, Import Folder of 3+ RAWs — tracked under S13f / S13j (thumbs + first-open), not a closed S14 look gate
 - [x] Still wrong: JXL, Coolscan NEF, Noritsu / FFF / Pakon special loaders, demosaic picker, IR sidecars
 
 ### S15 — iOS (later)
 
-- [ ] S15: tiny in-process harness only — not an App Store product; do not start before S4a
+- [ ] S15: tiny in-process harness only — not an App Store product; do not start before S4a, or while S13 is open
 
 ---
 

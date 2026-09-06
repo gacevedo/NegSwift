@@ -34,6 +34,8 @@ Swift UI timings (Debug only, env `NEGSWIFT_PERF_LOG=1`):
 
 View Swift logs in **Console.app** (subsystem `com.negswift`, category `perf`) or Xcode debug console.
 
+Native Swift first-load timers (S13d+, when wired) are in [Native Swift engine (S13 first-load)](#native-swift-engine-s13-first-load). They are not M12 Python IPC metrics.
+
 ## Engine benchmark (CLI)
 
 From the repo root:
@@ -149,3 +151,25 @@ Refresh after Phase 1 engine + Swift bug fixes:
 make bench-engine
 cd Engine && uv run pytest tests/test_perf.py -v
 ```
+
+## Native Swift engine (S13 first-load)
+
+Separate from the M12 Python IPC harness above. S13a–c optimized slider reprints (`make compare-s13` = reprint cache + Metal geometry). First open on the Swift backend is still a different path: serial detect / autocrop / print decodes, CPU convert/resize, Metal upload/download, ColorSync present.
+
+`make compare-s13` stays reprint + geometry until S13d adds decode-reuse tests. Do not add a `make bench-native` target until a script exists.
+
+When `NEGSWIFT_PERF_LOG=1` and `PipelineStats` grow stage timers, record:
+
+| Metric | What it measures |
+|--------|------------------|
+| `native_detect_ms` | `detect_process_mode` including its decode |
+| `native_open_autocrop_ms` | `open` armed-crop decode |
+| `native_decode_ms` | Print-path ImageIO/LibRaw + convert + resize |
+| `native_analyze_ms` | Bounds + metering |
+| `native_metal_upload_ms` | RGB→RGBA swizzle + GPU upload |
+| `native_metal_download_ms` | GPU `getBytes` + RGBA→RGB |
+| `native_present_ms` | ColorSync / CGImage / texture present |
+| `native_first_open_ms` | `selectFrame` cold (no preview memo) |
+| `native_thumb_ms` | One strip thumb |
+
+S13 phase order and gates: [PLAN.md](../PLAN.md) §14. Human rows: [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) § S13.

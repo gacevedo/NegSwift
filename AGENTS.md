@@ -51,7 +51,7 @@ make compare-s5                            # S5: MAE with autos on, Lab off
 make compare-s6                            # S6: MAE for crop / 90° / flip / fine-rot
 make compare-s8                            # S8: MAE at app defaults (autos + Lab on)
 make compare-s12                           # S12: CPU-vs-Metal MAE on used WGSL stages
-make compare-s13                           # S13: reprint cache + Metal geometry + resident upload
+make compare-s13                           # S13a–c: reprint cache + Metal geometry + resident upload (S13d decode-reuse tests later)
 make compare-s14                           # S14: RAW linear + S8 MAE (synthetic DNG; skip-if-missing locals)
 make compare-s9                            # S9: Python vs Swift export dimensions
 make test-s9-stdio                         # S9: test_export.py against Swift serve --stdio
@@ -107,9 +107,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
-| **S0–S15** | Native Swift engine — **S14 done**. Next **S15** iOS. Checklist § S0–S15 |
+| **S0–S15** | Native Swift engine — **S13 reopened**. Next **S13d** first-load. S14 RAW look is in. S15 later. Checklist § S0–S15 |
 
-**Current status (2026-09-06):** M0–M15 feature complete. Native engine **S14** is in (LibRaw sensor-native camera RAW; ImageIO TIFF/JPEG unchanged). Preview/thumb RAW uses LibRaw `half_size` (Bayer; X-Trans stays full-size). Python remains the default. Next vertical is **S15** iOS host. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Camera RAW on the Swift backend needs Homebrew `libraw` (`brew install libraw`). `NEGSWIFT_LIBRAW=0 swift test` still builds the stub.
+**Current status (2026-09-06):** M0–M15 feature complete. Native engine **S14** is in (LibRaw sensor-native camera RAW; ImageIO TIFF/JPEG unchanged). Preview/thumb RAW uses LibRaw `half_size` (Bayer; X-Trans stays full-size). Python remains the default. **S13** is reopened for first-load performance (S13a–c slider reprints stay done; next is **S13d** one decode per file). Do not start S15 while S13 is open. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Camera RAW on the Swift backend needs Homebrew `libraw` (`brew install libraw`). `NEGSWIFT_LIBRAW=0 swift test` still builds the stub.
 
 ## Architecture rules
 
@@ -118,7 +118,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 - **Do not copy** `negpy/features/*/logic.py`, shaders, or processors into `App/` or `Engine/`.
 - **Do not reimplement** density curves, normalization, CLAHE, etc. in the Swift UI target.
 - Engine Python code **imports** NegPy and wraps it. If an API is awkward, prefer a **small upstream PR** to NegPy over a local fork.
-- **Exception:** `Packages/NegSwiftEngine` may reimplement the NegSwift-lite path against Python goldens. Gate each vertical with the S0–S15 cards (pinned config, MAE, human A/B). Do not start an iOS host (S15) before S4a.
+- **Exception:** `Packages/NegSwiftEngine` may reimplement the NegSwift-lite path against Python goldens. Gate each vertical with the S0–S15 cards (pinned config, MAE, human A/B). Do not start an iOS host (S15) before S4a, or while S13 is open.
 
 ### 2. Engine = orchestration only
 

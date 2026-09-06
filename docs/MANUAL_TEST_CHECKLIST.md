@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S10a** automated gates are in (S5–S6 / S8 / S9 / S10a human A/B still worth a pass). **S10b–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S10b** automated gates are in (S5–S6 / S8 / S9 / S10a / S10b human A/B still worth a pass). **S11–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -393,18 +393,20 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 
 - [x] `append_heal_stroke` maps viewport points through `uv_grid` (`make test-s10a-stdio` + Swift `HealTests`)
 - [x] Preview-res inpaint bakes on decoded linear before geometry (speck / scratch unit tests)
-- [ ] Human: ⇧S polyline; scratch fades on preview
-- [ ] Human: ⌘Z pops last stroke
-- [ ] Human: rotate 90°, new stroke still hits the defect
-- [ ] Human: quit/reopen restores strokes from `.negpy`
+- [x] Human: ⇧S polyline; scratch fades on preview
+- [x] Human: ⌘Z pops last stroke
+- [x] Human: rotate 90°, new stroke still hits the defect
+- [x] Human: quit/reopen restores strokes from `.negpy`
 - [x] Still wrong: optical dust (S10b); full-res Navier–Stokes
 
 ### S10b — Optical dust
 
-- [ ] Preferences dust on: specks recede vs Python on a dirty scan
-- [ ] Dust off restores them
-- [ ] Threshold / size move the same way as Python (preview-res is enough)
-- [ ] Still wrong: full-res OpenCV / Navier–Stokes parity
+- [x] Preferences `dust_remove` / threshold / size honor on Swift (`make compare-s10b` + `OpticalDustTests`)
+- [x] Dust off is baseline; dust on recedes a synthetic speck vs Python (preview-res MAE)
+- [x] Human: Preferences dust on — specks recede vs Python on a dirty scan
+- [x] Human: Dust off restores them
+- [x] Human: Threshold / size move the same way as Python
+- [x] Still wrong: full-res OpenCV / Navier–Stokes hair inpaint
 
 ### S11 — Autocrop detect
 

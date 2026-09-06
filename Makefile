@@ -1,7 +1,7 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
-	compare-s8 compare-s9 \
-	test-s7-stdio test-s9-stdio test-s10a-stdio bench-engine bundle-engine build-app build-release \
+	compare-s8 compare-s9 compare-s10b \
+	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -73,6 +73,14 @@ test-s9-stdio: test-native-engine
 test-s10a-stdio: test-native-engine
 	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
 		cd Engine && uv run pytest tests/test_append_heal_stroke.py tests/test_undo_last_heal.py -v
+
+compare-s10b: sync
+	cd Engine && uv run python scripts/compare_s10b_renders.py
+
+# S10b: optical dust keys against Swift serve --stdio.
+test-s10b-stdio: test-native-engine
+	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
+		cd Engine && uv run pytest tests/test_config.py -k 'dust' -v
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

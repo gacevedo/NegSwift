@@ -34,12 +34,22 @@ struct AboutView: View {
             VStack(alignment: .leading, spacing: 8) {
                 creditRow(title: "NegSwift source", url: AppMetadata.negSwiftSourceURL)
                 creditRow(title: "NegPy upstream", url: AppMetadata.negPySourceURL)
+                creditRow(title: "LibRaw", url: AppMetadata.libRawSourceURL)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(
                 "NegSwift and the bundled NegPy engine are free software under "
                     + "GNU GPL v3. Corresponding source must be offered with any binary distribution."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+
+            Text(
+                "Camera RAW decoding uses LibRaw, Copyright © 2008–2025 LibRaw LLC, "
+                    + "available under LGPL-2.1 or CDDL-1.0."
             )
             .font(.caption)
             .foregroundStyle(.secondary)

@@ -156,7 +156,6 @@ actor PythonEngineBackend: EngineBackend {
 }
 
 actor NativeEngineBackend: EngineBackend {
-    private static let scanExtensions: Set<String> = ["tif", "tiff", "jpg", "jpeg"]
     /// Bumped on ``stop`` so an in-flight detached render is discarded.
     private var workGeneration = 0
 
@@ -475,8 +474,7 @@ actor NativeEngineBackend: EngineBackend {
     }
 
     private static func isSupportedScan(_ path: String) -> Bool {
-        let ext = (path as NSString).pathExtension.lowercased()
-        return scanExtensions.contains(ext)
+        ScanFormat.isSupportedScan(path)
     }
 
     private static func fileToken(_ path: String) -> String {
@@ -509,7 +507,7 @@ actor NativeEngineBackend: EngineBackend {
         switch error {
         case .fileNotFound:
             .engine(EngineErrorPayload(code: "NOT_FOUND", message: error.localizedDescription))
-        case .unsupported, .decodeFailed:
+        case .unsupported, .decodeFailed, .rawUnavailable, .rawDecodeFailed:
             .engine(EngineErrorPayload(code: "DECODE_FAILED", message: error.localizedDescription))
         }
     }

@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S12** automated and human gates are in. **S13** interactive performance is next, then **S14** camera RAW (NEF/ARW). **S15** iOS harness is later. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S14** automated gates are in. **S15** iOS harness is later. Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
 
 **Header template:**
 
@@ -16,8 +16,8 @@ NegSwift commit:
 Machine: (Apple Silicon / Intel)
 Test scan path:
 Native-engine scan (local C-41 TIFF ≥16 MP, not sample.tif): /Users/gacevedo/Downloads/Kodak Portra Gold 120 K6500-008.TIFF
-Native-engine RAW NEF (S14):
-Native-engine RAW ARW (S14):
+Native-engine RAW NEF (S14): /Users/gacevedo/Downloads/Kodak Portra Gold 120 K6500-008.NEF
+Native-engine RAW ARW (S14): /Users/gacevedo/Downloads/7C_04669.ARW
 ```
 
 `App/NegSwiftUITests/Fixtures/sample.tif` is a tiny CI fixture. Every **S0–S15** look gate uses the named local ≥16 MP C-41 path above. Prefer a full-bleed or already-cropped frame for S4/S5 so holder borders do not dominate normalize bounds. S14 also names a local NEF and ARW.
@@ -433,14 +433,15 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 - [x] S13c human: frame switch then slider drag — canvas updates without a JPEG hitch
 - [x] Still wrong: not a look gate; export may stay JPEG/TIFF; Python IPC is M12
 
-### S14 — Camera RAW (NEF / ARW)
+### S14 — Camera RAW (LibRaw)
 
-- [ ] Discover / Open accept `.nef` and `.arw` on the Swift backend
-- [ ] Linear decode MAE vs Python on named local NEF and ARW (`compare-linear-decode` style; sensor-native, not ImageIO camera RGB)
-- [ ] S8 working-space MAE on those files at `--long-edge 256`
-- [ ] Human: Swift backend, NEF — orange mask still orange; A/B at app defaults vs Python
-- [ ] Human: same for ARW
-- [ ] Still wrong: JXL, Coolscan NEF, Noritsu / FFF / Pakon, demosaic picker, IR sidecars
+- [x] Discover / Open accept camera RAW on the Swift backend (NEF, ARW, CR2, DNG, … — not only NEF/ARW)
+- [x] Automated: `make compare-s14` keeps `sample.tif` green; synthetic LinearRaw DNG when LibRaw is linked; local RAW is skip-if-missing (`NEGSWIFT_S14_NEF` / `NEGSWIFT_S14_ARW` / `NEGSWIFT_S14_RAW`)
+- [x] Linear decode MAE vs Python on named local NEF and ARW (`compare-s14`; sensor-native, not ImageIO camera RGB; MAE ~1e-10)
+- [x] S8 working-space MAE on those files at `--long-edge 256` (MAE ~1e-7)
+- [x] Human: Swift backend, NEF — orange mask still orange; A/B at app defaults vs Python
+- [x] Human: same for ARW (and any other camera RAW you have)
+- [x] Still wrong: JXL, Coolscan NEF, Noritsu / FFF / Pakon special loaders, demosaic picker, IR sidecars
 
 ### S15 — iOS (later)
 

@@ -39,6 +39,43 @@ public enum UncompressedTIFF: Sendable {
         try data.write(to: url, options: .atomic)
     }
 
+    /// LinearRaw DNG for S14 CI (photometric 34892 + DNGVersion). LibRaw rejects edges under 22.
+    public static func writeLinearRawDNG16(width: Int, height: Int, samples: [UInt16], to url: URL) throws {
+        precondition(samples.count == width * height * 3)
+        var data = Data()
+        data.append(contentsOf: [0x49, 0x49, 0x2A, 0x00])
+        appendU32(&data, 8)
+        let entryCount = 14
+        let bitsPerSampleOffset = 8 + 2 + entryCount * 12 + 4
+        let stripOffset = bitsPerSampleOffset + 6
+        let stripBytes = width * height * 6
+        var ifd = Data()
+        appendU16(&ifd, UInt16(entryCount))
+        writeEntry(&ifd, tag: 254, type: 4, count: 1, value: 0)
+        writeEntry(&ifd, tag: 256, type: 3, count: 1, value: UInt32(width))
+        writeEntry(&ifd, tag: 257, type: 3, count: 1, value: UInt32(height))
+        writeEntry(&ifd, tag: 258, type: 3, count: 3, value: UInt32(bitsPerSampleOffset))
+        writeEntry(&ifd, tag: 259, type: 3, count: 1, value: 1)
+        writeEntry(&ifd, tag: 262, type: 3, count: 1, value: 34892)
+        writeEntry(&ifd, tag: 273, type: 4, count: 1, value: UInt32(stripOffset))
+        writeEntry(&ifd, tag: 274, type: 3, count: 1, value: 1)
+        writeEntry(&ifd, tag: 277, type: 3, count: 1, value: 3)
+        writeEntry(&ifd, tag: 278, type: 4, count: 1, value: UInt32(height))
+        writeEntry(&ifd, tag: 279, type: 4, count: 1, value: UInt32(stripBytes))
+        writeEntry(&ifd, tag: 284, type: 3, count: 1, value: 1)
+        writeEntry(&ifd, tag: 296, type: 3, count: 1, value: 2)
+        writeEntry(&ifd, tag: 50706, type: 1, count: 4, value: 0x0000_0401)
+        appendU32(&ifd, 0)
+        data.append(ifd)
+        appendU16(&data, 16)
+        appendU16(&data, 16)
+        appendU16(&data, 16)
+        for sample in samples {
+            appendU16(&data, sample)
+        }
+        try data.write(to: url, options: .atomic)
+    }
+
     public static func writeRGB8(width: Int, height: Int, samples: [UInt8], to url: URL) throws {
         precondition(samples.count == width * height * 3)
         var data = Data()

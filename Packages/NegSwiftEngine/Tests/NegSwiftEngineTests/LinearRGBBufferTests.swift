@@ -93,6 +93,26 @@ struct LinearRGBBufferTests {
         #expect(rotated.pixels[0] == 0)
     }
 
+    @Test func applyingExifOrientationMatchesNegPy() {
+        var pixels = [Float](repeating: 0, count: 2 * 3 * 3)
+        pixels[0] = 1
+        let buffer = LinearRGBBuffer(width: 2, height: 3, pixels: pixels)
+        #expect(buffer.applyingExifOrientation(1).pixels[0] == 1)
+        let flippedH = buffer.applyingExifOrientation(2)
+        #expect(flippedH.width == 2)
+        #expect(flippedH.pixels[1 * 3] == 1)
+        let rot180 = buffer.applyingExifOrientation(3)
+        #expect(rot180.pixels[(2 * 3 - 1) * 3] == 1)
+        let cw = buffer.applyingExifOrientation(6)
+        #expect(cw.width == 3)
+        #expect(cw.height == 2)
+        #expect(cw.pixels[2 * 3] == 1)
+        let ccw = buffer.applyingExifOrientation(8)
+        #expect(ccw.width == 3)
+        #expect(ccw.height == 2)
+        #expect(ccw.pixels[(1 * 3 + 0) * 3] == 1)
+    }
+
     @Test func stridedDownsampleUsesCeilStep() {
         let buffer = LinearRGBBuffer.stub(width: 300, height: 200)
         let down = buffer.stridedDownsample(maxDim: 256)

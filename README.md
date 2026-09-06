@@ -2,7 +2,7 @@
 
 macOS-native app for **quick film scan processing** — import negatives, adjust crop, tone and color, export. All rendering, color science, and export math run through upstream [NegPy](https://github.com/marcinz606/NegPy) (GPU pipeline, density curves, white balance, crop, heal strokes, and more). No forked algorithms: the bundled engine imports NegPy directly.
 
-**Platform:** macOS 14+ only. **License:** GPL-3.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)).
+**Platform:** macOS 14+ only. **License:** GPL-3.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). Camera RAW uses [LibRaw](https://www.libraw.org/) (LGPL-2.1 or CDDL-1.0).
 
 <img width="1317" height="836" alt="image" src="https://github.com/user-attachments/assets/a016a10e-1fdc-4238-967d-4d50a2520064" />
 

@@ -103,6 +103,8 @@ Optional `config` — flat edit overrides used to decide whether armed auto-crop
 
 List supported scan files in folder(s). One directory level — matches NegPy desktop discovery.
 
+Supported extensions: TIFF/JPEG plus camera RAW (NEF, ARW, CR2, CR3, DNG, RAF, and the rest of NegPy’s RAW list). JPEG-XL is not accepted yet. IR sidecars are not hidden on the Swift backend.
+
 **Params:** `{ "paths": ["/absolute/path/to/folder"] }`  
 **Result:** `{ "assets": [{ "path": "...", "name": "frame.tif" }, ...] }`
 

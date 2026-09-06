@@ -1,6 +1,6 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
-	compare-s8 compare-s9 compare-s10b compare-s11 compare-s12 compare-s13 \
+	compare-s8 compare-s9 compare-s10b compare-s11 compare-s12 compare-s13 compare-s14 \
 	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
@@ -98,6 +98,10 @@ compare-s12:
 compare-s13:
 	cd Packages/NegSwiftEngine && swift test --filter ReprintCacheTests
 	cd Packages/NegSwiftEngine && swift test --filter MetalGeometryTests
+
+# S14: TIFF still green; synthetic DNG + skip-if-missing local RAW (NEF/ARW/…).
+compare-s14: sync
+	cd Engine && uv run python scripts/compare_s14_raw.py
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

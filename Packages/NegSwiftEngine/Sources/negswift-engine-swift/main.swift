@@ -52,13 +52,14 @@ struct NegSwiftEngineCLI {
                  [--crop-preview-full] [--pixel-backend cpu|metal|auto]
                  [--config-json FILE]
           decode --path PATH --out-f32 FILE
+                 (TIFF/JPEG via ImageIO; camera RAW via LibRaw)
           detect --path PATH
           oetf-ramp --out-dir DIR [--width N] [--height N]
           export --path PATH --dest-dir DIR [--fmt JPEG|TIFF] [--quality N] [--overwrite]
                  [--config-json FILE]
           serve --stdio
 
-        S13: reprint cache + Metal geometry. serve --stdio stays CPU (oracle).
+        S14: camera RAW via LibRaw. serve --stdio stays CPU (oracle).
         """
         print(text)
     }

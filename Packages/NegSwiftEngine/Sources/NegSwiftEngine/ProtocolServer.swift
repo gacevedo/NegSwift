@@ -4,7 +4,7 @@ import Foundation
 public struct ProtocolServer: Sendable {
     public static let previewFormats: Set<String> = ["png", "jpeg"]
     public static let defaultJPEGQuality = 90
-    public static let scanExtensions: Set<String> = ["tif", "tiff", "jpg", "jpeg"]
+    public static let scanExtensions: Set<String> = ScanFormat.scanExtensions
 
     public init() {}
 
@@ -460,7 +460,7 @@ public struct ProtocolServer: Sendable {
     }
 
     private static func isSupportedScan(_ path: String) -> Bool {
-        scanExtensions.contains((path as NSString).pathExtension.lowercased())
+        ScanFormat.isSupportedScan(path)
     }
 
     private static func fileToken(_ path: String) -> String {
@@ -474,7 +474,7 @@ public struct ProtocolServer: Sendable {
         switch error {
         case .fileNotFound:
             ProtocolFailure(code: "NOT_FOUND", message: error.localizedDescription)
-        case .unsupported, .decodeFailed:
+        case .unsupported, .decodeFailed, .rawUnavailable, .rawDecodeFailed:
             ProtocolFailure(code: "LOAD_FAILED", message: error.localizedDescription)
         }
     }

@@ -11,6 +11,7 @@ enum AppMetadata {
     static let authorURL = URL(string: "https://gabrielacevedo.com")!
     static let negSwiftSourceURL = URL(string: "https://github.com/gacevedo/NegSwift")!
     static let negPySourceURL = URL(string: "https://github.com/marcinz606/NegPy")!
+    static let libRawSourceURL = URL(string: "https://www.libraw.org/")!
 
     static var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"

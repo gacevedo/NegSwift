@@ -1,0 +1,91 @@
+import Foundation
+import Testing
+@testable import NegSwiftEngine
+
+struct RawDecodeTests {
+    @Test func scanFormatListsNegPyCameraRawNotJXL() {
+        #expect(ScanFormat.isCameraRaw("roll/frame.NEF"))
+        #expect(ScanFormat.isCameraRaw("roll/frame.arw"))
+        #expect(ScanFormat.isCameraRaw("roll/frame.cr2"))
+        #expect(ScanFormat.isCameraRaw("roll/frame.cr3"))
+        #expect(ScanFormat.isCameraRaw("roll/frame.dng"))
+        #expect(ScanFormat.isCameraRaw("roll/frame.raf"))
+        #expect(ScanFormat.isCameraRaw("roll/frame.rw2"))
+        #expect(ScanFormat.isSupportedScan("roll/scan.TIFF"))
+        #expect(ScanFormat.isRaster("roll/scan.jpg"))
+        #expect(!ScanFormat.isCameraRaw("roll/scan.tif"))
+        #expect(!ScanFormat.isSupportedScan("roll/frame.jxl"))
+        #expect(!ScanFormat.isSupportedScan("roll/notes.txt"))
+    }
+
+    @Test func infoReportsLibRawFlag() {
+        let info = NativePipeline().infoJSON()
+        #expect(info["libraw"] as? Bool == RawDecode.isAvailable)
+        #expect(info["negpy_version"] as? String == "s14-raw")
+    }
+
+    @Test func missingRawThrows() {
+        #expect(throws: LinearDecodeError.self) {
+            _ = try LinearDecode.decode(path: "/no/such/scan.nef")
+        }
+    }
+
+    @Test func rasterPathUnchangedOnSampleShape() throws {
+        let samples = [UInt16](repeating: 40_000, count: 8 * 6 * 3)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s14-raster-\(UUID().uuidString).tif")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try UncompressedTIFF.writeRGB16(width: 8, height: 6, samples: samples, to: url)
+        let buffer = try LinearDecode.decode(url: url)
+        #expect(buffer.width == 8)
+        #expect(buffer.height == 6)
+        #expect(abs(buffer.pixels[0] - 40_000 / 65535) < 1.5 / 65535)
+    }
+
+    @Test(.enabled(if: RawDecode.isAvailable))
+    func linearRawDNGDecodesWhenLibRawLinked() throws {
+        // LibRaw rejects DNG smaller than 22 px on either edge.
+        let width = 32
+        let height = 32
+        var samples = [UInt16](repeating: 0, count: width * height * 3)
+        for i in 0..<(width * height) {
+            samples[i * 3] = 40_000
+            samples[i * 3 + 1] = 22_000
+            samples[i * 3 + 2] = 10_000
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s14-\(UUID().uuidString).dng")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try UncompressedTIFF.writeLinearRawDNG16(width: width, height: height, samples: samples, to: url)
+
+        #expect(ScanFormat.isCameraRaw(url.path))
+        let probed = NativePipeline().probeSource(at: url.path)
+        #expect(probed?.width == width)
+        #expect(probed?.height == height)
+
+        let buffer = try LinearDecode.decode(url: url)
+        #expect(buffer.width == width)
+        #expect(buffer.height == height)
+        #expect(abs(buffer.pixels[0] - 40_000 / 65535) < 2 / 65535)
+        #expect(abs(buffer.pixels[1] - 22_000 / 65535) < 2 / 65535)
+        #expect(abs(buffer.pixels[2] - 10_000 / 65535) < 2 / 65535)
+        let down = try LinearDecode.decode(url: url, maxLongEdge: 16)
+        #expect(max(down.width, down.height) <= 16)
+    }
+
+    @Test(.enabled(if: !RawDecode.isAvailable))
+    func rawUnavailableWhenStubbed() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s14-stub-\(UUID().uuidString).dng")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("not-a-raw".utf8).write(to: url)
+        do {
+            _ = try LinearDecode.decode(url: url)
+            Issue.record("expected rawUnavailable")
+        } catch LinearDecodeError.rawUnavailable {
+            #expect(Bool(true))
+        } catch {
+            Issue.record("wrong error: \(error)")
+        }
+    }
+}

@@ -7,6 +7,8 @@ public enum LinearDecodeError: Error, LocalizedError, Sendable {
     case fileNotFound(URL)
     case unsupported
     case decodeFailed
+    case rawUnavailable
+    case rawDecodeFailed(String)
 
     public var errorDescription: String? {
         switch self {
@@ -15,7 +17,11 @@ public enum LinearDecodeError: Error, LocalizedError, Sendable {
         case .unsupported:
             "Unsupported image format or pixel layout."
         case .decodeFailed:
-            "ImageIO could not decode the scan."
+            "Could not decode the scan."
+        case .rawUnavailable:
+            "Camera RAW requires LibRaw (brew install libraw)."
+        case let .rawDecodeFailed(message):
+            message
         }
     }
 }
@@ -37,6 +43,13 @@ public enum LinearDecode: Sendable {
     ) throws -> LinearRGBBuffer {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw LinearDecodeError.fileNotFound(url)
+        }
+        if ScanFormat.isCameraRaw(url.path) {
+            var buffer = try RawDecode.decode(url: url)
+            if let maxLongEdge, maxLongEdge > 0 {
+                buffer = buffer.downsampled(toLongEdge: maxLongEdge)
+            }
+            return buffer
         }
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw LinearDecodeError.decodeFailed

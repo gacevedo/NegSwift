@@ -230,6 +230,36 @@ public struct LinearRGBBuffer: Sendable, Equatable {
         return LinearRGBBuffer(width: dstW, height: dstH, pixels: out)
     }
 
+    /// NegPy `apply_exif_orientation` (1–8). LibRaw `sizes.flip` of 0 is treated as 1.
+    public func applyingExifOrientation(_ orientation: Int) -> LinearRGBBuffer {
+        switch orientation {
+        case 0, 1: self
+        case 2: flipped(horizontal: true)
+        case 3: rotatedQuarterTurnsCCW(2)
+        case 4: flipped(horizontal: false)
+        case 5: transposed()
+        case 6: rotatedQuarterTurnsCCW(3)
+        case 7: transposed().rotatedQuarterTurnsCCW(2)
+        case 8: rotatedQuarterTurnsCCW(1)
+        default: self
+        }
+    }
+
+    /// `np.swapaxes(arr, 0, 1)` on HxWxC — dest[x, y] = src[y, x].
+    public func transposed() -> LinearRGBBuffer {
+        var out = [Float](repeating: 0, count: pixels.count)
+        for y in 0..<height {
+            for x in 0..<width {
+                let src = (y * width + x) * 3
+                let dst = (x * height + y) * 3
+                out[dst] = pixels[src]
+                out[dst + 1] = pixels[src + 1]
+                out[dst + 2] = pixels[src + 2]
+            }
+        }
+        return LinearRGBBuffer(width: height, height: width, pixels: out)
+    }
+
     public func flipped(horizontal: Bool) -> LinearRGBBuffer {
         var out = [Float](repeating: 0, count: pixels.count)
         for y in 0..<height {

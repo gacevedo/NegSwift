@@ -7,7 +7,7 @@ struct NativePipelineTests {
         let info = NativePipeline().infoJSON()
         #expect(info["protocol_version"] as? String == EngineVersion.protocolVersion)
         #expect(info["negswift_version"] as? String == EngineVersion.packageVersion)
-        #expect(info["negpy_version"] as? String == "s13-interactive")
+        #expect(info["negpy_version"] as? String == "s14-raw")
         #expect(info["backend"] as? String == "swift")
         #expect(info["gpu_available"] as? Bool == MetalDevice.isAvailable)
         if MetalDevice.isAvailable {

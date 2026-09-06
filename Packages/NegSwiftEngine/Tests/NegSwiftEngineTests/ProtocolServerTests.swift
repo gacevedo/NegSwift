@@ -13,7 +13,7 @@ struct ProtocolServerTests {
         let info = server.handleMessage(#"{"id":1,"method":"info"}"#)
         let payload = info["result"] as? [String: Any]
         #expect(payload?["protocol_version"] as? String == "0.1")
-        #expect(payload?["negpy_version"] as? String == "s13-interactive")
+        #expect(payload?["negpy_version"] as? String == "s14-raw")
         #expect(info["id"] as? Int == 1 || (info["id"] as? NSNumber)?.intValue == 1)
     }
 
@@ -93,6 +93,25 @@ struct ProtocolServerTests {
         #expect(result?["width"] as? Int == 8 || (result?["width"] as? NSNumber)?.intValue == 8)
         #expect(result?["height"] as? Int == 8 || (result?["height"] as? NSNumber)?.intValue == 8)
         #expect(result?["has_sidecar"] as? Bool == false)
+    }
+
+    @Test func discoverListsCameraRawExtensions() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s14-discover-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for name in ["frame.nef", "frame.arw", "frame.cr2", "frame.dng", "notes.txt", "scan.tif"] {
+            try Data("x".utf8).write(to: folder.appendingPathComponent(name))
+        }
+        let server = ProtocolServer()
+        let line = """
+        {"id":"disc-raw","method":"discover","params":{"paths":["\(folder.path)"]}}
+        """
+        let msg = server.handleMessage(line)
+        #expect(msg["ok"] as? Bool == true, "\(msg)")
+        let assets = (msg["result"] as? [String: Any])?["assets"] as? [[String: Any]] ?? []
+        let names = assets.compactMap { $0["name"] as? String }.sorted()
+        #expect(names == ["frame.arw", "frame.cr2", "frame.dng", "frame.nef", "scan.tif"])
     }
 }
 

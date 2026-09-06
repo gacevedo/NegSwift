@@ -61,6 +61,7 @@ public struct NativePipeline: Sendable {
             "gpu_backend": gpu ? MetalDevice.backendName : NSNull(),
             "backend": EngineVersion.backendName,
             "pixel_backend": pixelBackend.resolved().rawValue,
+            "libraw": RawDecode.isAvailable,
         ]
     }
 
@@ -434,7 +435,10 @@ public struct NativePipeline: Sendable {
     }
 
     public func probeSource(at path: String) -> (width: Int, height: Int)? {
-        ImageCoding.probeDimensions(at: URL(fileURLWithPath: path))
+        if ScanFormat.isCameraRaw(path) {
+            return RawDecode.probe(path: path)
+        }
+        return ImageCoding.probeDimensions(at: URL(fileURLWithPath: path))
     }
 
     /// Synthetic linear vs encoded ramp PNGs. Not used by scan preview (S4a wires encode).

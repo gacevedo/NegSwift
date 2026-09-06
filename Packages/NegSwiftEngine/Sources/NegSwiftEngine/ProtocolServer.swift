@@ -94,7 +94,7 @@ public struct ProtocolServer: Sendable {
         case "undo_last_heal":
             try cmdUndoHeal(params)
         case "export":
-            throw ProtocolFailure(code: "NOT_IMPLEMENTED", message: "Export is S9.")
+            try cmdExport(params)
         default:
             throw ProtocolFailure(code: "INVALID_REQUEST", message: "Unknown method: \(method)")
         }
@@ -278,9 +278,12 @@ public struct ProtocolServer: Sendable {
             )
             let data: Data
             if previewFormat == "jpeg" {
-                data = try ImageCoding.jpegData(from: buffer, quality: Double(jpegQuality) / 100)
+                data = try ImageCoding.jpegDataFromWorkingSpace(
+                    buffer,
+                    quality: Double(jpegQuality) / 100
+                )
             } else {
-                data = try ImageCoding.pngData(from: buffer)
+                data = try ImageCoding.pngDataFromWorkingSpace(buffer)
             }
             var result: [String: Any] = [
                 "width": buffer.width,
@@ -299,6 +302,58 @@ public struct ProtocolServer: Sendable {
             throw ProtocolFailure(code: Self.mapDecode(error).code, message: error.localizedDescription)
         } catch {
             throw ProtocolFailure(code: "RENDER_FAILED", message: error.localizedDescription)
+        }
+    }
+
+    private func cmdExport(_ params: [String: Any]) throws -> [String: Any] {
+        let path = try requiredPath(params)
+        guard let destDir = params["dest_dir"] as? String, !destDir.isEmpty else {
+            throw ProtocolFailure(code: "INVALID_REQUEST", message: "params.dest_dir is required")
+        }
+        let overrides = try optionalObject(params["config"], name: "config") ?? [:]
+        var exportDict: [String: Any]?
+        if params["export"] != nil {
+            exportDict = try optionalObject(params["export"], name: "export")
+        }
+        if params["prefer_gpu"] != nil {
+            guard ConfigJSON.isJSONBool(params["prefer_gpu"]!) else {
+                throw ProtocolFailure(code: "INVALID_REQUEST", message: "params.prefer_gpu must be a boolean")
+            }
+        }
+        var overwrite = false
+        if params["overwrite"] != nil {
+            guard ConfigJSON.isJSONBool(params["overwrite"]!) else {
+                throw ProtocolFailure(code: "INVALID_REQUEST", message: "params.overwrite must be a boolean")
+            }
+            overwrite = ConfigJSON.boolValue(params["overwrite"]) ?? false
+        }
+        try requireExistingFile(path)
+        var settings = try NativeExportSettings.parse(exportDict)
+        settings.overwrite = overwrite
+        let base = try SidecarStore.baseFlat(forScanPath: path)
+        let flat = ConfigJSON.merge(base, overrides)
+        let printConfig = PrintConfig.s8Pin.merging(flat)
+        let processMode = WorkspaceFlatConfig.processMode(from: flat)
+        do {
+            let result = try NativePipeline().export(
+                path: path,
+                destDir: destDir,
+                processMode: processMode,
+                config: printConfig,
+                settings: settings
+            )
+            return [
+                "output_path": result.url.path,
+                "width": result.width,
+                "height": result.height,
+                "format": result.format,
+            ]
+        } catch let error as LinearDecodeError {
+            throw ProtocolFailure(code: Self.mapDecode(error).code, message: error.localizedDescription)
+        } catch let failure as ProtocolFailure {
+            throw failure
+        } catch {
+            throw ProtocolFailure(code: "EXPORT_FAILED", message: error.localizedDescription)
         }
     }
 

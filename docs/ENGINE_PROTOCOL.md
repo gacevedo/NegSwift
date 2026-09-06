@@ -230,15 +230,18 @@ Full-resolution export.
   "config": { },
   "export": {
     "export_fmt": "JPEG",
-    "color_space": "sRGB",
-    "export_resolution_mode": "original"
+    "export_color_space": "sRGB",
+    "export_resolution_mode": "original",
+    "jpeg_quality": 90
   },
   "dest_dir": "/absolute/output/dir",
   "overwrite": false
 }
 ```
 
-**Result:** `{ "output_path": "/absolute/output/dir/scan.jpg" }`
+Lite Swift (S9) honors JPEG/TIFF, sRGB, original resolution, and the `stem` / `stem_2` overwrite suffix. Other formats are `INVALID_REQUEST`.
+
+**Result:** `{ "output_path": "/absolute/output/dir/scan.jpg", "width": 4000, "height": 3000, "format": "JPEG" }`
 
 ### `cancel`
 

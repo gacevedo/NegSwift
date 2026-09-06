@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S8: Lab (sat / skin / USM) after print, before stored crop + OETF.
+/// In-process pipeline. S9: Lab after print, then stored crop + OETF; export is sRGB.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -154,8 +154,46 @@ public struct NativePipeline: Sendable {
             at: outURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try ImageCoding.writePNG(buffer, to: outURL)
+        let data = try ImageCoding.pngDataFromWorkingSpace(buffer)
+        try ImageCoding.writeData(data, to: outURL)
         return (buffer.width, buffer.height)
+    }
+
+    /// Full-res sRGB JPEG/TIFF. Same print config as preview; no long-edge downsample.
+    public func export(
+        path: String,
+        destDir: String,
+        processMode: FilmProcessMode? = nil,
+        config: PrintConfig = .s8Pin,
+        settings: NativeExportSettings = NativeExportSettings()
+    ) throws -> (url: URL, width: Int, height: Int, format: String) {
+        let buffer = try renderPrint(
+            path: path,
+            longEdgePx: nil,
+            processMode: processMode,
+            config: config
+        )
+        let dest = try ExportNaming.outputURL(
+            sourcePath: path,
+            destDir: destDir,
+            format: settings.format,
+            overwrite: settings.overwrite
+        )
+        let data: Data
+        switch settings.format {
+        case .jpeg:
+            data = try ImageCoding.jpegDataFromWorkingSpace(
+                buffer,
+                quality: Double(settings.jpegQuality) / 100
+            )
+        case .tiff:
+            data = try ImageCoding.tiffDataFromWorkingSpace(
+                buffer,
+                bitsPerComponent: settings.tiffBitDepth
+            )
+        }
+        try ImageCoding.writeData(data, to: dest)
+        return (dest.resolvingSymlinksInPath(), buffer.width, buffer.height, settings.format.rawValue)
     }
 
     public func writeLinearF32(path: String, to outURL: URL) throws -> (width: Int, height: Int) {

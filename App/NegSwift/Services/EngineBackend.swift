@@ -334,12 +334,50 @@ actor NativeEngineBackend: EngineBackend {
         export settings: ExportSettings,
         preferGPU: Bool
     ) async throws -> ExportResult {
-        _ = path
-        _ = destDir
-        _ = config
-        _ = settings
         _ = preferGPU
-        throw Self.notImplemented("Export is S9. The Swift backend is an S0 stub.")
+        let generation = workGeneration
+        let mapped = Self.printInputs(from: config)
+        let nativeSettings = NativeExportSettings(
+            format: settings.format == .tiff ? .tiff : .jpeg,
+            jpegQuality: settings.jpegQuality,
+            overwrite: false
+        )
+        let result: ExportResult
+        do {
+            result = try await withCheckedThrowingContinuation { continuation in
+                Self.workQueue.async {
+                    do {
+                        let exported = try NativePipeline().export(
+                            path: path,
+                            destDir: destDir,
+                            processMode: mapped.processMode,
+                            config: mapped.printConfig,
+                            settings: nativeSettings
+                        )
+                        continuation.resume(
+                            returning: ExportResult(
+                                outputPath: exported.url.path,
+                                width: exported.width,
+                                height: exported.height,
+                                format: exported.format
+                            )
+                        )
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        } catch let error as LinearDecodeError {
+            throw Self.mapDecode(error)
+        } catch let failure as ProtocolFailure {
+            throw EngineClientError.engine(EngineErrorPayload(code: failure.code, message: failure.message))
+        } catch {
+            throw EngineClientError.engine(
+                EngineErrorPayload(code: "EXPORT_FAILED", message: error.localizedDescription)
+            )
+        }
+        guard generation == workGeneration else { throw CancellationError() }
+        return result
     }
 
     func cancel(jobID: String) async throws {
@@ -411,10 +449,13 @@ actor NativeEngineBackend: EngineBackend {
         let format: String
         switch previewFormat {
         case .jpeg:
-            data = try ImageCoding.jpegData(from: buffer, quality: Double(jpegQuality) / 100)
+            data = try ImageCoding.jpegDataFromWorkingSpace(
+                buffer,
+                quality: Double(jpegQuality) / 100
+            )
             format = PreviewTransportFormat.jpeg.rawValue
         case .png:
-            data = try ImageCoding.pngData(from: buffer)
+            data = try ImageCoding.pngDataFromWorkingSpace(buffer)
             format = PreviewTransportFormat.png.rawValue
         }
         let encoded = data.base64EncodedString()

@@ -50,6 +50,8 @@ make compare-s4b                           # S4b: MAE at one zone-offset and one
 make compare-s5                            # S5: MAE with autos on, Lab off
 make compare-s6                            # S6: MAE for crop / 90° / flip / fine-rot
 make compare-s8                            # S8: MAE at app defaults (autos + Lab on)
+make compare-s9                            # S9: Python vs Swift export dimensions
+make test-s9-stdio                         # S9: test_export.py against Swift serve --stdio
 ```
 
 Never invoke `pytest` or `ruff` directly — use `uv run`.
@@ -102,9 +104,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
-| **S0–S13** | Native Swift engine — **S6 done** (stored geometry). Next **S7** sidecar + stdio. Checklist § S0–S13 |
+| **S0–S13** | Native Swift engine — **S9 done** (sRGB JPEG/TIFF export). Next **S10a** heal. Checklist § S0–S13 |
 
-**Current status (2026-09-05):** M0–M15 feature complete. Native engine **S6** is in (stored crop / 90° / flip / fine-rot / `crop_preview_full`). Python remains the default. Next vertical is **S7**. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-09-05):** M0–M15 feature complete. Native engine **S9** is in (sRGB JPEG/TIFF export + preview display transform). Python remains the default. Next vertical is **S10a**. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 

@@ -14,7 +14,7 @@ struct NativeEngineBackendTests {
     @Test func infoReportsSwiftDecode() async throws {
         let backend = NativeEngineBackend()
         let info = try await backend.info()
-        #expect(info.negpyVersion == "s8-lab")
+        #expect(info.negpyVersion == "s9-export")
         #expect(info.gpuBackend == "swift")
         #expect(info.gpuAvailable == false)
     }
@@ -205,6 +205,50 @@ struct NativeEngineBackendTests {
         )
         #expect(base.width == out.height)
         #expect(base.height == out.width)
+    }
+
+    @Test func exportJPEGWritesFileAndReportsDimensions() async throws {
+        let backend = NativeEngineBackend()
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s9-be-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dest) }
+        let result = try await backend.export(
+            path: sampleTIFFPath,
+            destDir: dest.path,
+            config: FrameEditState(),
+            export: .quickExport,
+            preferGPU: false
+        )
+        #expect(result.width > 0)
+        #expect(result.height > 0)
+        #expect(result.format == "JPEG")
+        #expect(FileManager.default.fileExists(atPath: result.outputPath))
+        #expect(result.outputPath.hasSuffix(".jpg"))
+    }
+
+    @Test func exportAppliesCropAndShrinksPixels() async throws {
+        let backend = NativeEngineBackend()
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s9-be-crop-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dest) }
+        let full = try await backend.export(
+            path: sampleTIFFPath,
+            destDir: dest.appendingPathComponent("full").path,
+            config: FrameEditState(),
+            export: .quickExport,
+            preferGPU: false
+        )
+        var cropped = FrameEditState()
+        cropped.manualCropRect = NormalizedRect(x1: 0.25, y1: 0.25, x2: 0.75, y2: 0.75)
+        cropped.cropFromAuto = false
+        let cut = try await backend.export(
+            path: sampleTIFFPath,
+            destDir: dest.appendingPathComponent("crop").path,
+            config: cropped,
+            export: .quickExport,
+            preferGPU: false
+        )
+        #expect(cut.width * cut.height < full.width * full.height)
     }
 
     @Test func normalizedRenderReturnsPNG() async throws {

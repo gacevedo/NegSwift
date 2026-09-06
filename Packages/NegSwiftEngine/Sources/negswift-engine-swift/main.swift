@@ -23,6 +23,8 @@ struct NegSwiftEngineCLI {
                 try runOETFRamp(Array(args.dropFirst()))
             case "serve":
                 try runServe(Array(args.dropFirst()))
+            case "export":
+                try runExport(Array(args.dropFirst()))
             case "-h", "--help":
                 printUsage()
             default:
@@ -52,9 +54,11 @@ struct NegSwiftEngineCLI {
           decode --path PATH --out-f32 FILE
           detect --path PATH
           oetf-ramp --out-dir DIR [--width N] [--height N]
+          export --path PATH --dest-dir DIR [--fmt JPEG|TIFF] [--quality N] [--overwrite]
+                 [--config-json FILE]
           serve --stdio
 
-        S8: Lab defaults (sat / sharpen 0.25 / skin 0.5). serve --stdio speaks the Python NDJSON contract.
+        S9: sRGB JPEG/TIFF export. serve --stdio speaks the Python NDJSON contract.
         """
         print(text)
     }
@@ -166,6 +170,74 @@ struct NegSwiftEngineCLI {
             "skipped": false,
             "detected_mode": mode.rawValue,
             "process_mode": mode.liteMode.rawValue,
+        ])
+    }
+
+    private static func runExport(_ args: [String]) throws {
+        var path: String?
+        var destDir: String?
+        var format = NativeExportFormat.jpeg
+        var quality = 90
+        var overwrite = false
+        var configJSON: String?
+        var i = 0
+        while i < args.count {
+            switch args[i] {
+            case "--path":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--path") }
+                path = args[i]
+            case "--dest-dir":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--dest-dir") }
+                destDir = args[i]
+            case "--fmt":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--fmt") }
+                let raw = args[i].uppercased()
+                if raw == "JPG" { format = .jpeg }
+                else if let parsed = NativeExportFormat(rawValue: raw) { format = parsed }
+                else { throw CLIError.usage("--fmt must be JPEG or TIFF") }
+            case "--quality":
+                i += 1
+                guard i < args.count, let value = Int(args[i]), (1 ... 100).contains(value) else {
+                    throw CLIError.missingValue("--quality")
+                }
+                quality = value
+            case "--overwrite":
+                overwrite = true
+            case "--config-json":
+                i += 1
+                guard i < args.count else { throw CLIError.missingValue("--config-json") }
+                configJSON = args[i]
+            default:
+                throw CLIError.unknownFlag(args[i])
+            }
+            i += 1
+        }
+        guard let path, let destDir else {
+            throw CLIError.usage("export requires --path and --dest-dir")
+        }
+        var config = PrintConfig.s8Pin
+        if let configJSON {
+            let data = try Data(contentsOf: URL(fileURLWithPath: configJSON))
+            let obj = try JSONSerialization.jsonObject(with: data)
+            guard let dict = obj as? [String: Any] else {
+                throw CLIError.usage("--config-json must be a JSON object")
+            }
+            config = config.merging(dict)
+        }
+        let result = try NativePipeline().export(
+            path: path,
+            destDir: destDir,
+            config: config,
+            settings: NativeExportSettings(format: format, jpegQuality: quality, overwrite: overwrite)
+        )
+        try writeJSON([
+            "output_path": result.url.path,
+            "width": result.width,
+            "height": result.height,
+            "format": result.format,
         ])
     }
 

@@ -1,7 +1,7 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
-	compare-s8 \
-	test-s7-stdio bench-engine bundle-engine build-app build-release \
+	compare-s8 compare-s9 \
+	test-s7-stdio test-s9-stdio bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -56,10 +56,18 @@ compare-s6: sync
 compare-s8: sync
 	cd Engine && uv run python scripts/compare_s8_renders.py
 
+compare-s9: sync
+	cd Engine && uv run python scripts/compare_s9_exports.py
+
 # Point Engine pytest at the Swift binary (S7 contract).
 test-s7-stdio: test-native-engine
 	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
 		cd Engine && uv run pytest tests/test_protocol.py tests/test_config.py -v
+
+# S9: reuse test_export.py against Swift serve --stdio.
+test-s9-stdio: test-native-engine
+	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
+		cd Engine && uv run pytest tests/test_export.py -v
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

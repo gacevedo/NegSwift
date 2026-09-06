@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S8** automated gates are in (S5–S6 / S8 human A/B still worth a pass). **S9–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S9** automated gates are in (S5–S6 / S8 / S9 human A/B still worth a pass). **S10a–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -382,10 +382,12 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 
 ### S9 — Export
 
-- [ ] JPEG then TIFF, original resolution; Preview.app / Photos open the files
-- [ ] Crop and pixel size match Python export of the same sidecar
-- [ ] Overwrite suffix matches current NegSwift behavior
-- [ ] `test_export.py` (or equivalent) passes against Swift
+- [x] JPEG then TIFF, original resolution (`make compare-s9` on `sample.tif`: full 48×32, crop 24×16). Preview.app / Photos still a human open
+- [x] Crop shrinks export pixels (`test_export_applies_crop` + Swift `exportAppliesStoredCrop`)
+- [x] Overwrite suffix is `stem` then `stem_2` (same as Python `export.py`)
+- [x] `make test-s9-stdio` — `test_export.py` against Swift `serve --stdio`
+- [ ] Human: Preview.app / Photos open the files; pixel size matches Python export of the same sidecar
+- [x] Still wrong: heal/dust/autocrop (S10–S11)
 
 ### S10a — Heal
 

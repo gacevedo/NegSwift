@@ -13,7 +13,7 @@ struct ProtocolServerTests {
         let info = server.handleMessage(#"{"id":1,"method":"info"}"#)
         let payload = info["result"] as? [String: Any]
         #expect(payload?["protocol_version"] as? String == "0.1")
-        #expect(payload?["negpy_version"] as? String == "s8-lab")
+        #expect(payload?["negpy_version"] as? String == "s9-export")
         #expect(info["id"] as? Int == 1 || (info["id"] as? NSNumber)?.intValue == 1)
     }
 
@@ -96,7 +96,7 @@ struct ProtocolServerTests {
     }
 }
 
-private func writeProtocolTIFF() throws -> URL {
+func writeProtocolTIFF() throws -> URL {
     let samples = [UInt16](repeating: 40_000, count: 8 * 8 * 3)
     let url = FileManager.default.temporaryDirectory
         .appendingPathComponent("negswift-s7-proto-\(UUID().uuidString).tif")

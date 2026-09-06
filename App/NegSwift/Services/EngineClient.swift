@@ -3,6 +3,7 @@
 //  NegSwift
 //
 
+import CoreGraphics
 import Foundation
 
 struct SaveConfigResult: Codable, Sendable {
@@ -134,6 +135,11 @@ struct RenderMetrics: Codable, Sendable {
     }
 }
 
+/// In-process CGImage present. Not part of the NDJSON contract.
+struct NativePreview: @unchecked Sendable {
+    let cgImage: CGImage
+}
+
 struct RenderResult: Codable, Sendable {
     let width: Int
     let height: Int
@@ -141,6 +147,8 @@ struct RenderResult: Codable, Sendable {
     let pngBase64: String?
     let jpegBase64: String?
     let metrics: RenderMetrics?
+    /// Set by the in-process Swift backend. CLI / `serve --stdio` stay encoded.
+    let nativePreview: NativePreview?
 
     enum CodingKeys: String, CodingKey {
         case width
@@ -149,6 +157,45 @@ struct RenderResult: Codable, Sendable {
         case pngBase64 = "png_base64"
         case jpegBase64 = "jpeg_base64"
         case metrics
+    }
+
+    init(
+        width: Int,
+        height: Int,
+        previewFormat: String?,
+        pngBase64: String?,
+        jpegBase64: String?,
+        metrics: RenderMetrics?,
+        nativePreview: NativePreview? = nil
+    ) {
+        self.width = width
+        self.height = height
+        self.previewFormat = previewFormat
+        self.pngBase64 = pngBase64
+        self.jpegBase64 = jpegBase64
+        self.metrics = metrics
+        self.nativePreview = nativePreview
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        width = try container.decode(Int.self, forKey: .width)
+        height = try container.decode(Int.self, forKey: .height)
+        previewFormat = try container.decodeIfPresent(String.self, forKey: .previewFormat)
+        pngBase64 = try container.decodeIfPresent(String.self, forKey: .pngBase64)
+        jpegBase64 = try container.decodeIfPresent(String.self, forKey: .jpegBase64)
+        metrics = try container.decodeIfPresent(RenderMetrics.self, forKey: .metrics)
+        nativePreview = nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(width, forKey: .width)
+        try container.encode(height, forKey: .height)
+        try container.encodeIfPresent(previewFormat, forKey: .previewFormat)
+        try container.encodeIfPresent(pngBase64, forKey: .pngBase64)
+        try container.encodeIfPresent(jpegBase64, forKey: .jpegBase64)
+        try container.encodeIfPresent(metrics, forKey: .metrics)
     }
 
     var imageBase64: String? {

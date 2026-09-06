@@ -28,7 +28,7 @@ Swift UI timings (Debug only, env `NEGSWIFT_PERF_LOG=1`):
 | `frame_switch_total` | `selectFrame` end-to-end |
 | `frame_switch_memo_hit` | `selectFrame` when preview memo restores canvas (Phase 5+) |
 | `render_ipc` | Engine `render` IPC wait |
-| `render_decode` | Base64 decode + `NSImage` creation (PNG or JPEG) |
+| `render_decode` | Base64 decode + `NSImage` creation (PNG or JPEG). In-process Swift present skips this (S13c CGImage). |
 | `render_decode_png` | PNG decode only (when `preview_format` is `png`) |
 | `render_decode_jpeg` | JPEG decode only (when `preview_format` is `jpeg`) |
 

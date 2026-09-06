@@ -1012,7 +1012,7 @@ Full cards (goal, pinned config, automated gate, human procedure, still-wrong, e
 | **S10b** | Optical dust | **Done** — Preferences toggle vs Python on a dirty scan |
 | **S11** | Autocrop detect-once | **Done** — holder fixture + detect-once stdio; human holder-scan A/B done |
 | **S12** | Metal (optional) | **Done** — CPU-vs-Metal MAE (`make compare-s12`); slider feel on ~20 MP. Not a look gate. |
-| **S13** | Interactive performance | Reprint cache; Metal geometry; resident texture + skip JPEG present. Not a look gate. |
+| **S13** | Interactive performance | **Done** — reprint cache, Metal geometry, resident texture + skip JPEG present (`make compare-s13`). Not a look gate. |
 | **S14** | Camera RAW (NEF / ARW) | LibRaw sensor-native linear; ImageIO is not the look path |
 | **S15** | iOS harness (later) | After S4a; not an App Store product |
 

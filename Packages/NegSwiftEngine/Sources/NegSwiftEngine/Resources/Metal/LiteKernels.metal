@@ -403,3 +403,94 @@ kernel void output_encode(
     float3 color = clamp(inputTex.read(gid).rgb, 0.0, 1.0);
     outputTex.write(float4(pow(color, float3(kInvGamma)), 1.0), gid);
 }
+
+// S13b: inverse of CPU oriented() — rot90 CCW, then flips, then fine-rot
+// (cv2 getRotationMatrix2D / warpAffine INTER_LINEAR BORDER_REPLICATE).
+struct GeometryUniforms {
+    int rotation;
+    int flip_h;
+    int flip_v;
+    int src_width;
+    int src_height;
+    int dst_width;
+    int dst_height;
+    float fine_rotation;
+};
+
+inline float4 sample_replicate(
+    texture2d<float, access::read> tex,
+    float sx,
+    float sy,
+    int max_x,
+    int max_y
+) {
+    float x0 = floor(sx);
+    float y0 = floor(sy);
+    float fx = sx - x0;
+    float fy = sy - y0;
+    int ix0 = clamp(int(x0), 0, max_x);
+    int iy0 = clamp(int(y0), 0, max_y);
+    int ix1 = clamp(int(x0) + 1, 0, max_x);
+    int iy1 = clamp(int(y0) + 1, 0, max_y);
+    float4 p00 = tex.read(uint2(ix0, iy0));
+    float4 p10 = tex.read(uint2(ix1, iy0));
+    float4 p01 = tex.read(uint2(ix0, iy1));
+    float4 p11 = tex.read(uint2(ix1, iy1));
+    float w00 = (1.0 - fx) * (1.0 - fy);
+    float w10 = fx * (1.0 - fy);
+    float w01 = (1.0 - fx) * fy;
+    float w11 = fx * fy;
+    return p00 * w00 + p10 * w10 + p01 * w01 + p11 * w11;
+}
+
+kernel void geometry_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant GeometryUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= uint(params.dst_width) || gid.y >= uint(params.dst_height)) {
+        return;
+    }
+    float px = float(gid.x);
+    float py = float(gid.y);
+    if (params.fine_rotation != 0.0) {
+        float cx = float(params.dst_width) * 0.5;
+        float cy = float(params.dst_height) * 0.5;
+        float dx = px - cx;
+        float dy = py - cy;
+        float rad = params.fine_rotation * (3.14159265358979323846 / 180.0);
+        float c = cos(rad);
+        float s = sin(rad);
+        px = cx + c * dx - s * dy;
+        py = cy + s * dx + c * dy;
+    }
+    if (params.flip_v != 0) {
+        py = float(params.dst_height - 1) - py;
+    }
+    if (params.flip_h != 0) {
+        px = float(params.dst_width - 1) - px;
+    }
+    int k = params.rotation % 4;
+    if (k < 0) {
+        k += 4;
+    }
+    float sx;
+    float sy;
+    if (k == 0) {
+        sx = px;
+        sy = py;
+    } else if (k == 1) {
+        sx = float(params.dst_height - 1) - py;
+        sy = px;
+    } else if (k == 2) {
+        sx = float(params.dst_width - 1) - px;
+        sy = float(params.dst_height - 1) - py;
+    } else {
+        sx = py;
+        sy = float(params.dst_width - 1) - px;
+    }
+    int max_x = params.src_width - 1;
+    int max_y = params.src_height - 1;
+    outputTex.write(sample_replicate(inputTex, sx, sy, max_x, max_y), gid);
+}

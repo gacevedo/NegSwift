@@ -1,7 +1,7 @@
-/// Where per-pixel stages (normalize, H&D, Lab, OETF) run.
+/// Where per-pixel stages (geometry, normalize, H&D, Lab, OETF) run.
 ///
 /// Analysis (bounds, metering, curve params) always stays on CPU. `.auto` uses
-/// Metal when a device and the S12 kernels compiled; otherwise CPU.
+/// Metal when a device and the S12/S13 kernels compiled; otherwise CPU.
 public enum PixelBackend: String, Sendable, Equatable {
     case cpu
     case metal

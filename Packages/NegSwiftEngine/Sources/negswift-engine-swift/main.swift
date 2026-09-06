@@ -58,7 +58,7 @@ struct NegSwiftEngineCLI {
                  [--config-json FILE]
           serve --stdio
 
-        S12: optional Metal for used WGSL stages. serve --stdio stays CPU (oracle).
+        S13: reprint cache + Metal geometry. serve --stdio stays CPU (oracle).
         """
         print(text)
     }

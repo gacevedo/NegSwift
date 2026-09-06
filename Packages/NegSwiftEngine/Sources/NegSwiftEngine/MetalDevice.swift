@@ -34,6 +34,7 @@ public enum MetalDevice: Sendable {
         let labSharpenV: MTLComputePipelineState
         let labApply: MTLComputePipelineState
         let outputEncode: MTLComputePipelineState
+        let geometry: MTLComputePipelineState
 
         static func make() -> Runtime? {
             guard let device = MTLCreateSystemDefaultDevice(),
@@ -52,7 +53,8 @@ public enum MetalDevice: Sendable {
                   let labSharpenH = pipeline("lab_sharpen_h"),
                   let labSharpenV = pipeline("lab_sharpen_v"),
                   let labApply = pipeline("lab_apply"),
-                  let outputEncode = pipeline("output_encode")
+                  let outputEncode = pipeline("output_encode"),
+                  let geometry = pipeline("geometry_main")
             else {
                 return nil
             }
@@ -64,7 +66,8 @@ public enum MetalDevice: Sendable {
                 labSharpenH: labSharpenH,
                 labSharpenV: labSharpenV,
                 labApply: labApply,
-                outputEncode: outputEncode
+                outputEncode: outputEncode,
+                geometry: geometry
             )
         }
 
@@ -76,7 +79,8 @@ public enum MetalDevice: Sendable {
             labSharpenH: MTLComputePipelineState,
             labSharpenV: MTLComputePipelineState,
             labApply: MTLComputePipelineState,
-            outputEncode: MTLComputePipelineState
+            outputEncode: MTLComputePipelineState,
+            geometry: MTLComputePipelineState
         ) {
             self.device = device
             self.queue = queue
@@ -86,6 +90,7 @@ public enum MetalDevice: Sendable {
             self.labSharpenV = labSharpenV
             self.labApply = labApply
             self.outputEncode = outputEncode
+            self.geometry = geometry
         }
 
         private static func kernelSource() -> String? {

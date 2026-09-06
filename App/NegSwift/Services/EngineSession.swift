@@ -1490,18 +1490,19 @@ final class EngineSession {
                 )
             }
             guard generation == previewGeneration else { return }
-            guard let base64 = result.imageBase64 else {
-                previewError = "Engine returned no preview image."
-                await finishCropCloseThumbnailRefresh(
-                    for: path,
-                    generation: generation,
-                    refreshAfterClose: refreshThumbnailAfterClose
+            let image: NSImage?
+            if let native = result.nativePreview {
+                image = NSImage(
+                    cgImage: native.cgImage,
+                    size: NSSize(width: native.cgImage.width, height: native.cgImage.height)
                 )
-                return
+            } else if let base64 = result.imageBase64 {
+                image = await decodePreviewImage(base64: base64, format: result.previewFormat)
+            } else {
+                image = nil
             }
-            let image = await decodePreviewImage(base64: base64, format: result.previewFormat)
             guard let image else {
-                previewError = "Engine returned an invalid preview image."
+                previewError = "Engine returned no preview image."
                 await finishCropCloseThumbnailRefresh(
                     for: path,
                     generation: generation,

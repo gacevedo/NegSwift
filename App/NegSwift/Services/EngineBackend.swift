@@ -174,8 +174,8 @@ actor NativeEngineBackend: EngineBackend {
             negswiftVersion: EngineVersion.packageVersion,
             negpyVersion: EngineVersion.oracleLabel,
             python: "n/a",
-            gpuAvailable: false,
-            gpuBackend: EngineVersion.backendName
+            gpuAvailable: MetalDevice.isAvailable,
+            gpuBackend: MetalDevice.isAvailable ? MetalDevice.backendName : EngineVersion.backendName
         )
     }
 
@@ -445,33 +445,32 @@ actor NativeEngineBackend: EngineBackend {
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int
     ) throws -> RenderResult {
-        let buffer = try NativePipeline(pixelBackend: .auto).renderPrint(
+        let detailed = try NativePipeline(pixelBackend: .auto).renderPrintDetailed(
             path: path,
             longEdgePx: longEdgePx,
             processMode: processMode,
             config: printConfig
         )
-        let data: Data
-        let format: String
-        switch previewFormat {
-        case .jpeg:
-            data = try ImageCoding.jpegDataFromWorkingSpace(
-                buffer,
-                quality: Double(jpegQuality) / 100
+        let buffer = detailed.buffer
+        var metrics: RenderMetrics?
+        if detailed.resolvedAutocrop != nil || detailed.cropRect != nil {
+            metrics = RenderMetrics(
+                detectedCropRect: detailed.cropRect?.arrayValue,
+                autocropResolvedRect: detailed.resolvedAutocrop?.arrayValue,
+                autocropResolvedKey: detailed.resolvedAutocrop?.key
             )
-            format = PreviewTransportFormat.jpeg.rawValue
-        case .png:
-            data = try ImageCoding.pngDataFromWorkingSpace(buffer)
-            format = PreviewTransportFormat.png.rawValue
         }
-        let encoded = data.base64EncodedString()
+        let cgImage = try DisplayTransform.sRGBImage(fromWorkingSpace: buffer, bitsPerComponent: 8)
+        _ = previewFormat
+        _ = jpegQuality
         return RenderResult(
             width: buffer.width,
             height: buffer.height,
-            previewFormat: format,
-            pngBase64: previewFormat == .png ? encoded : nil,
-            jpegBase64: previewFormat == .jpeg ? encoded : nil,
-            metrics: nil
+            previewFormat: "cgimage",
+            pngBase64: nil,
+            jpegBase64: nil,
+            metrics: metrics,
+            nativePreview: NativePreview(cgImage: cgImage)
         )
     }
 

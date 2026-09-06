@@ -322,4 +322,29 @@ public struct LinearRGBBuffer: Sendable, Equatable {
         if x2 - x1 <= 0 || y2 - y1 <= 0 { return nil }
         return (x1, y1, x2, y2)
     }
+
+    /// Stored crop plus Crop Offset (preview-px, scaled to this buffer's long edge).
+    public static func storedCropPixelROI(
+        width: Int,
+        height: Int,
+        rect: NormalizedCropRect,
+        offsetPx: Int
+    ) -> (x1: Int, y1: Int, x2: Int, y2: Int)? {
+        guard var roi = storedCropPixelROI(width: width, height: height, rect: rect.tuple) else {
+            return nil
+        }
+        if offsetPx > 0 {
+            let scale = Double(max(width, height)) / Autocrop.previewRenderSize
+            let inset = Autocrop.applyMargin(
+                PixelROI(y1: roi.y1, y2: roi.y2, x1: roi.x1, x2: roi.x2),
+                height: height,
+                width: width,
+                margin: Double(offsetPx) * scale
+            )
+            if inset.isEmpty { return storedCropPixelROI(width: width, height: height, rect: rect.tuple) }
+            roi = (inset.x1, inset.y1, inset.x2, inset.y2)
+        }
+        if roi.x2 - roi.x1 <= 0 || roi.y2 - roi.y1 <= 0 { return nil }
+        return roi
+    }
 }

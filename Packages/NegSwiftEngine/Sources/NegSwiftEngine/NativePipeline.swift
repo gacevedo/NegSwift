@@ -6,20 +6,48 @@ public struct RenderPrintResult: Sendable {
     public var resolvedAutocrop: AutocropResolved?
     /// Crop after resolve (stored or newly detected). Used for `detected_crop_rect`.
     public var cropRect: NormalizedCropRect?
+    /// S13a: bake (dust/heal) reused from the reprint cache.
+    public var reusedBake: Bool
+    /// S13a: orient + bounds + metering reused from the reprint cache.
+    public var reusedAnalysis: Bool
+    /// S13c: this render uploaded post-dust/heal linear to Metal.
+    public var uploadedLinear: Bool
 
-    public init(buffer: LinearRGBBuffer, resolvedAutocrop: AutocropResolved?, cropRect: NormalizedCropRect?) {
+    public init(
+        buffer: LinearRGBBuffer,
+        resolvedAutocrop: AutocropResolved?,
+        cropRect: NormalizedCropRect?,
+        reusedBake: Bool = false,
+        reusedAnalysis: Bool = false,
+        uploadedLinear: Bool = false
+    ) {
         self.buffer = buffer
         self.resolvedAutocrop = resolvedAutocrop
         self.cropRect = cropRect
+        self.reusedBake = reusedBake
+        self.reusedAnalysis = reusedAnalysis
+        self.uploadedLinear = uploadedLinear
     }
 }
 
-/// In-process pipeline. S12: optional Metal for used WGSL stages after CPU goldens.
+/// In-process pipeline. S13: reprint cache, Metal geometry, resident GPU present.
 public struct NativePipeline: Sendable {
     public var pixelBackend: PixelBackend
 
     public init(pixelBackend: PixelBackend = .cpu) {
         self.pixelBackend = pixelBackend
+    }
+
+    /// Drop decode / reprint / resident GPU caches. Tests call this between cases.
+    public static func resetWorkingSets() {
+        decodeLock.lock()
+        lastPrintDecode = nil
+        decodeLock.unlock()
+        ReprintCache.shared.reset()
+        #if canImport(Metal)
+        MetalWorkingSet.shared.reset()
+        #endif
+        PipelineStats.reset()
     }
 
     public func infoJSON() -> [String: Any] {
@@ -53,6 +81,7 @@ public struct NativePipeline: Sendable {
             return buffer
         }
         Self.decodeLock.unlock()
+        PipelineStats.increment(.decode)
         let buffer = try LinearDecode.decode(
             path: path,
             maxLongEdge: longEdgePx,
@@ -105,12 +134,10 @@ public struct NativePipeline: Sendable {
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
-    /// S12 print: optical dust + heal on decoded linear → detect-once autocrop → orient →
-    /// normalize → H&D + autos → Lab → crop → OETF. Pixel stages may run on Metal.
+    /// S13 print: bake (dust/heal) → detect-once autocrop → orient → analyze →
+    /// normalize → H&D + autos → Lab → crop → OETF. Slider reprints reuse the
+    /// bake/orient/analyze working set. Pixel stages may run on Metal.
     /// Matches NegPy `DarkroomEngine` order (dust/heals before geometry; Lab before pixel crop).
-    /// Autocrop runs on the pre-geometry buffer and freezes `crop_rect` so preview and export
-    /// share one rect. Meters on the oriented full frame, then crops pixels unless
-    /// ``PrintConfig.applyPixelCrop`` is false (`crop_preview_full`).
     public func renderPrint(
         path: String,
         longEdgePx: Int?,
@@ -131,34 +158,150 @@ public struct NativePipeline: Sendable {
         processMode: FilmProcessMode? = nil,
         config: PrintConfig = .s4aPin
     ) throws -> RenderPrintResult {
-        var linear = try decodeForPrint(path: path, longEdgePx: longEdgePx)
-        if config.dustRemove {
-            linear = OpticalDust.bake(linear, threshold: config.dustThreshold, size: config.dustSize)
-        }
-        linear = HealInpaint.bake(linear, strokes: config.healStrokes, spots: config.dustSpots)
-        let armed = Autocrop.resolveArmed(linear, config: config)
-        let printConfig = armed.config
-        linear = linear.oriented(
-            rotation: printConfig.rotation,
-            flipHorizontal: printConfig.flipHorizontal,
-            flipVertical: printConfig.flipVertical,
-            fineRotation: printConfig.fineRotation
+        let stamp = ReprintCache.fileStamp(path)
+        let bakeKey = ReprintCache.bakeKey(
+            path: path,
+            stamp: stamp,
+            longEdgePx: longEdgePx,
+            config: config
         )
-        let mode = processMode ?? ProcessDetect.detectLite(linear)
-        if pixelBackend.resolved() == .metal,
-           let gpu = MetalPrint.process(linear: linear, processMode: mode, config: printConfig)
-        {
-            var printed = gpu
-            if printConfig.applyPixelCrop, let crop = printConfig.cropRect {
-                printed = applyStoredCrop(printed, rect: crop, offsetPx: printConfig.autocropOffset)
+        let analysisKey = ReprintCache.analysisKey(
+            bakeKey: bakeKey,
+            config: config,
+            processMode: processMode
+        )
+
+        let shouldCache = longEdgePx != nil
+        let cached = shouldCache ? ReprintCache.shared.lookup(analysisKey: analysisKey) : nil
+        let priorBaked = cached?.baked ?? (shouldCache ? ReprintCache.shared.lookupBaked(bakeKey: bakeKey) : nil)
+        let reusedAnalysis = cached != nil
+        let reusedBake = priorBaked != nil
+        let baked: LinearRGBBuffer
+        if let priorBaked {
+            baked = priorBaked
+        } else {
+            var linear = try decodeForPrint(path: path, longEdgePx: longEdgePx)
+            if config.dustRemove {
+                PipelineStats.increment(.dust)
+                linear = OpticalDust.bake(linear, threshold: config.dustThreshold, size: config.dustSize)
             }
+            if !config.healStrokes.isEmpty || !config.dustSpots.isEmpty {
+                PipelineStats.increment(.heal)
+            }
+            linear = HealInpaint.bake(linear, strokes: config.healStrokes, spots: config.dustSpots)
+            baked = linear
+        }
+
+        let armed: AutocropArmedResult
+        let oriented: LinearRGBBuffer
+        let mode: FilmProcessMode
+        let bounds: LogNegativeBounds
+        let analysis: PhotometricPrint.MeteringAnalysis
+        if let cached {
+            var reprint = config
+            if let crop = cached.armed.config.cropRect {
+                reprint.cropRect = crop
+                reprint.cropDetectKey = cached.armed.config.cropDetectKey
+                reprint.cropFromAuto = cached.armed.config.cropFromAuto
+                reprint.autoCropEnabled = cached.armed.config.autoCropEnabled
+            }
+            armed = AutocropArmedResult(config: reprint, resolved: cached.armed.resolved)
+            oriented = cached.oriented
+            mode = cached.processMode
+            bounds = cached.bounds
+            analysis = cached.analysis
+        } else {
+            armed = Autocrop.resolveArmed(baked, config: config)
+            PipelineStats.increment(.orient)
+            if pixelBackend.resolved() == .metal,
+               let gpuOriented = MetalGeometry.oriented(
+                   baked,
+                   rotation: armed.config.rotation,
+                   flipHorizontal: armed.config.flipHorizontal,
+                   flipVertical: armed.config.flipVertical,
+                   fineRotation: armed.config.fineRotation
+               )
+            {
+                oriented = gpuOriented
+            } else {
+                oriented = baked.oriented(
+                    rotation: armed.config.rotation,
+                    flipHorizontal: armed.config.flipHorizontal,
+                    flipVertical: armed.config.flipVertical,
+                    fineRotation: armed.config.fineRotation
+                )
+            }
+            mode = processMode ?? ProcessDetect.detectLite(oriented)
+            PipelineStats.increment(.analyze)
+            let remapped = armed.config.applyingMeteringRemap()
+            let region = remapped.resolvedAnalysisRegion()
+            bounds = LogNormalization.analyzeBounds(
+                linear: oriented,
+                processMode: mode,
+                analysisBuffer: region.buffer,
+                analysisRect: region.rect
+            )
+            analysis = PhotometricPrint.analyzeMetering(
+                linear: oriented,
+                bounds: bounds,
+                processMode: mode,
+                config: remapped
+            )
+            if shouldCache {
+                ReprintCache.shared.store(
+                    ReprintCache.Entry(
+                        bakeKey: bakeKey,
+                        analysisKey: analysisKey,
+                        baked: baked,
+                        oriented: oriented,
+                        processMode: mode,
+                        bounds: bounds,
+                        analysis: analysis,
+                        armed: armed
+                    )
+                )
+            }
+        }
+
+        let printConfig = armed.config.applyingMeteringRemap()
+        let params = PhotometricPrint.resolvePixelParams(
+            linear: oriented,
+            bounds: bounds,
+            processMode: mode,
+            config: printConfig,
+            analysis: analysis
+        )
+        PipelineStats.increment(.print)
+        let persistResident = longEdgePx != nil
+        if pixelBackend.resolved() == .metal,
+           let gpu = MetalPrint.processDetailed(
+               linear: oriented,
+               processMode: mode,
+               config: printConfig,
+               bounds: bounds,
+               params: params,
+               baked: baked,
+               bakeKey: bakeKey,
+               persistResident: persistResident
+           )
+        {
             return RenderPrintResult(
-                buffer: printed,
+                buffer: gpu.buffer,
                 resolvedAutocrop: armed.resolved,
-                cropRect: printConfig.cropRect
+                cropRect: printConfig.cropRect,
+                reusedBake: reusedBake,
+                reusedAnalysis: reusedAnalysis,
+                uploadedLinear: gpu.uploaded
             )
         }
-        var printed = PhotometricPrint.process(linear: linear, processMode: mode, config: printConfig)
+        let normalized = LogNormalization.process(
+            linear: oriented,
+            processMode: mode,
+            analysisBuffer: printConfig.resolvedAnalysisRegion().buffer,
+            analysisRect: printConfig.resolvedAnalysisRegion().rect,
+            bounds: bounds
+        )
+        var printed = PhotometricPrint.apply(normalized: normalized, params: params)
         printed = PhotoLab.process(printed, config: printConfig)
         if printConfig.applyPixelCrop, let crop = printConfig.cropRect {
             printed = applyStoredCrop(printed, rect: crop, offsetPx: printConfig.autocropOffset)
@@ -166,38 +309,31 @@ public struct NativePipeline: Sendable {
         return RenderPrintResult(
             buffer: WorkingOETF.encode(printed),
             resolvedAutocrop: armed.resolved,
-            cropRect: printConfig.cropRect
+            cropRect: printConfig.cropRect,
+            reusedBake: reusedBake,
+            reusedAnalysis: reusedAnalysis,
+            uploadedLinear: false
         )
     }
 
     /// Stored rect plus Crop Offset (preview-px, scaled to this buffer's long edge).
     private func applyStoredCrop(_ image: LinearRGBBuffer, rect: NormalizedCropRect, offsetPx: Int) -> LinearRGBBuffer {
-        if offsetPx <= 0 {
-            return image.cropped(normalized: rect.tuple)
-        }
-        let scale = Double(max(image.width, image.height)) / Autocrop.previewRenderSize
         guard let roi = LinearRGBBuffer.storedCropPixelROI(
             width: image.width,
             height: image.height,
-            rect: rect.tuple
+            rect: rect,
+            offsetPx: offsetPx
         ) else {
             return image
         }
-        let inset = Autocrop.applyMargin(
-            PixelROI(y1: roi.y1, y2: roi.y2, x1: roi.x1, x2: roi.x2),
-            height: image.height,
-            width: image.width,
-            margin: Double(offsetPx) * scale
-        )
-        if inset.isEmpty { return image.cropped(normalized: rect.tuple) }
         let w = Double(image.width)
         let h = Double(image.height)
         return image.cropped(
             normalized: (
-                Double(inset.x1) / w,
-                Double(inset.y1) / h,
-                Double(inset.x2) / w,
-                Double(inset.y2) / h
+                Double(roi.x1) / w,
+                Double(roi.y1) / h,
+                Double(roi.x2) / w,
+                Double(roi.y2) / h
             )
         )
     }

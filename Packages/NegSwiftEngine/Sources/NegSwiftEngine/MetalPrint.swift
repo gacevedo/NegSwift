@@ -7,33 +7,73 @@ import Metal
 /// S12 GPU path for used WGSL stages: normalize, H&D exposure, Lab sharpen, OETF.
 /// Analysis stays on CPU. Returns nil when Metal is unavailable so callers keep CPU.
 public enum MetalPrint: Sendable {
+    public struct Output: Sendable {
+        public var buffer: LinearRGBBuffer
+        public var uploaded: Bool
+    }
+
     public static func process(
         linear: LinearRGBBuffer,
         processMode: FilmProcessMode,
-        config: PrintConfig
+        config: PrintConfig,
+        bounds: LogNegativeBounds? = nil,
+        params: PhotometricPrint.PixelParams? = nil,
+        baked: LinearRGBBuffer? = nil,
+        bakeKey: String? = nil,
+        persistResident: Bool = false
     ) -> LinearRGBBuffer? {
+        processDetailed(
+            linear: linear,
+            processMode: processMode,
+            config: config,
+            bounds: bounds,
+            params: params,
+            baked: baked,
+            bakeKey: bakeKey,
+            persistResident: persistResident
+        )?.buffer
+    }
+
+    public static func processDetailed(
+        linear: LinearRGBBuffer,
+        processMode: FilmProcessMode,
+        config: PrintConfig,
+        bounds: LogNegativeBounds? = nil,
+        params: PhotometricPrint.PixelParams? = nil,
+        baked: LinearRGBBuffer? = nil,
+        bakeKey: String? = nil,
+        persistResident: Bool = false
+    ) -> Output? {
         #if canImport(Metal)
         guard MetalDevice.isAvailable else { return nil }
         let remapped = config.applyingMeteringRemap()
-        let region = remapped.resolvedAnalysisRegion()
-        let bounds = LogNormalization.analyzeBounds(
+        let resolvedBounds: LogNegativeBounds
+        if let bounds {
+            resolvedBounds = bounds
+        } else {
+            let region = remapped.resolvedAnalysisRegion()
+            resolvedBounds = LogNormalization.analyzeBounds(
+                linear: linear,
+                processMode: processMode,
+                analysisBuffer: region.buffer,
+                analysisRect: region.rect
+            )
+        }
+        let resolvedParams = params ?? PhotometricPrint.resolvePixelParams(
             linear: linear,
-            processMode: processMode,
-            analysisBuffer: region.buffer,
-            analysisRect: region.rect
-        )
-        let params = PhotometricPrint.resolvePixelParams(
-            linear: linear,
-            bounds: bounds,
+            bounds: resolvedBounds,
             processMode: processMode,
             config: remapped
         )
         return run(
             linear: linear,
-            bounds: bounds,
-            params: params,
+            bounds: resolvedBounds,
+            params: resolvedParams,
             lab: remapped,
-            encode: true
+            encode: true,
+            baked: persistResident ? baked : nil,
+            bakeKey: persistResident ? bakeKey : nil,
+            geometry: remapped
         )
         #else
         return nil
@@ -42,7 +82,7 @@ public enum MetalPrint: Sendable {
 
     public static func normalize(_ linear: LinearRGBBuffer, bounds: LogNegativeBounds) -> LinearRGBBuffer? {
         #if canImport(Metal)
-        run(linear: linear, bounds: bounds, params: nil, lab: nil, encode: false, stopAfter: .normalize)
+        run(linear: linear, bounds: bounds, params: nil, lab: nil, encode: false, stopAfter: .normalize)?.buffer
         #else
         return nil
         #endif
@@ -53,7 +93,7 @@ public enum MetalPrint: Sendable {
         params: PhotometricPrint.PixelParams
     ) -> LinearRGBBuffer? {
         #if canImport(Metal)
-        run(linear: normalized, bounds: nil, params: params, lab: nil, encode: false, stopAfter: .exposure, inputIsNormalized: true)
+        run(linear: normalized, bounds: nil, params: params, lab: nil, encode: false, stopAfter: .exposure, inputIsNormalized: true)?.buffer
         #else
         return nil
         #endif
@@ -61,7 +101,7 @@ public enum MetalPrint: Sendable {
 
     public static func applyLab(_ image: LinearRGBBuffer, config: PrintConfig) -> LinearRGBBuffer? {
         #if canImport(Metal)
-        run(linear: image, bounds: nil, params: nil, lab: config, encode: false, stopAfter: .lab, inputIsNormalized: true)
+        run(linear: image, bounds: nil, params: nil, lab: config, encode: false, stopAfter: .lab, inputIsNormalized: true)?.buffer
         #else
         return nil
         #endif
@@ -69,7 +109,7 @@ public enum MetalPrint: Sendable {
 
     public static func encodeOETF(_ image: LinearRGBBuffer) -> LinearRGBBuffer? {
         #if canImport(Metal)
-        run(linear: image, bounds: nil, params: nil, lab: nil, encode: true, stopAfter: .encode, inputIsNormalized: true)
+        run(linear: image, bounds: nil, params: nil, lab: nil, encode: true, stopAfter: .encode, inputIsNormalized: true)?.buffer
         #else
         return nil
         #endif
@@ -132,6 +172,8 @@ extension MetalPrint {
         var pad1: Float = 0
     }
 
+    private static let encodeLock = NSLock()
+
     private static func run(
         linear: LinearRGBBuffer,
         bounds: LogNegativeBounds?,
@@ -139,17 +181,49 @@ extension MetalPrint {
         lab: PrintConfig?,
         encode: Bool,
         stopAfter: Stage = .encode,
-        inputIsNormalized: Bool = false
-    ) -> LinearRGBBuffer? {
+        inputIsNormalized: Bool = false,
+        baked: LinearRGBBuffer? = nil,
+        bakeKey: String? = nil,
+        geometry: PrintConfig? = nil
+    ) -> Output? {
+        encodeLock.lock()
+        defer { encodeLock.unlock() }
         guard let gpu = MetalDevice.runtime() else { return nil }
-        let width = linear.width
-        let height = linear.height
-        guard let src = gpu.makeTexture(width: width, height: height),
-              let dst = gpu.makeTexture(width: width, height: height)
+
+        let source: MTLTexture
+        let width: Int
+        let height: Int
+        var uploaded = false
+        if let baked, let bakeKey {
+            guard let prepared = MetalWorkingSet.shared.orientedSource(
+                gpu: gpu,
+                bakeKey: bakeKey,
+                baked: baked,
+                config: geometry ?? .s4aPin
+            ) else {
+                return nil
+            }
+            source = prepared.texture
+            width = prepared.width
+            height = prepared.height
+            uploaded = prepared.uploaded
+        } else {
+            width = linear.width
+            height = linear.height
+            guard let src = gpu.makeTexture(width: width, height: height) else {
+                return nil
+            }
+            upload(linear, to: src)
+            PipelineStats.increment(.upload)
+            uploaded = true
+            source = src
+        }
+
+        guard let ping = gpu.makeTexture(width: width, height: height),
+              let pong = gpu.makeTexture(width: width, height: height)
         else {
             return nil
         }
-        upload(linear, to: src)
 
         guard let command = gpu.queue.makeCommandBuffer(),
               let encoder = command.makeComputeCommandEncoder()
@@ -157,10 +231,17 @@ extension MetalPrint {
             return nil
         }
 
-        var current = src
-        var scratch = dst
+        var current = source
+        var scratch = ping
+        var sourceStillCurrent = true
         func swapTextures() {
-            swap(&current, &scratch)
+            if sourceStillCurrent {
+                current = scratch
+                scratch = pong
+                sourceStillCurrent = false
+            } else {
+                swap(&current, &scratch)
+            }
         }
         func dispatch(_ pipeline: MTLComputePipelineState) {
             let w = pipeline.threadExecutionWidth
@@ -186,7 +267,7 @@ extension MetalPrint {
                 encoder.endEncoding()
                 command.commit()
                 command.waitUntilCompleted()
-                return download(current, width: width, height: height)
+                return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
             }
         }
 
@@ -205,7 +286,7 @@ extension MetalPrint {
                 encoder.endEncoding()
                 command.commit()
                 command.waitUntilCompleted()
-                return download(current, width: width, height: height)
+                return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
             }
         }
 
@@ -248,13 +329,13 @@ extension MetalPrint {
                 encoder.endEncoding()
                 command.commit()
                 command.waitUntilCompleted()
-                return download(current, width: width, height: height)
+                return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
             }
         } else if stopAfter == .lab {
             encoder.endEncoding()
             command.commit()
             command.waitUntilCompleted()
-            return download(current, width: width, height: height)
+            return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
         }
 
         if encode {
@@ -268,7 +349,26 @@ extension MetalPrint {
         encoder.endEncoding()
         command.commit()
         command.waitUntilCompleted()
-        return download(current, width: width, height: height)
+        if encode, let geometry, geometry.applyPixelCrop, let crop = geometry.cropRect,
+           let roi = LinearRGBBuffer.storedCropPixelROI(
+               width: width,
+               height: height,
+               rect: crop,
+               offsetPx: geometry.autocropOffset
+           )
+        {
+            return Output(
+                buffer: download(
+                    current,
+                    width: roi.x2 - roi.x1,
+                    height: roi.y2 - roi.y1,
+                    originX: roi.x1,
+                    originY: roi.y1
+                ),
+                uploaded: uploaded
+            )
+        }
+        return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
     }
 
     private static func normalizeUniforms(_ bounds: LogNegativeBounds) -> NormalizeUniforms {
@@ -380,7 +480,7 @@ extension MetalPrint {
         SIMD4(Float(t.0), Float(t.1), Float(t.2), 0)
     }
 
-    private static func upload(_ buffer: LinearRGBBuffer, to texture: MTLTexture) {
+    static func upload(_ buffer: LinearRGBBuffer, to texture: MTLTexture) {
         var rgba = [Float](repeating: 1, count: buffer.width * buffer.height * 4)
         let n = buffer.width * buffer.height
         for i in 0..<n {
@@ -398,13 +498,19 @@ extension MetalPrint {
         }
     }
 
-    private static func download(_ texture: MTLTexture, width: Int, height: Int) -> LinearRGBBuffer {
+    static func download(
+        _ texture: MTLTexture,
+        width: Int,
+        height: Int,
+        originX: Int = 0,
+        originY: Int = 0
+    ) -> LinearRGBBuffer {
         var rgba = [Float](repeating: 0, count: width * height * 4)
         rgba.withUnsafeMutableBytes { raw in
             texture.getBytes(
                 raw.baseAddress!,
                 bytesPerRow: width * 16,
-                from: MTLRegionMake2D(0, 0, width, height),
+                from: MTLRegionMake2D(originX, originY, width, height),
                 mipmapLevel: 0
             )
         }
@@ -416,6 +522,109 @@ extension MetalPrint {
             rgb[i * 3 + 2] = rgba[i * 4 + 2]
         }
         return LinearRGBBuffer(width: width, height: height, pixels: rgb)
+    }
+}
+
+/// S13c: last uploaded post-dust/heal linear, plus oriented texture after geometry.
+final class MetalWorkingSet: @unchecked Sendable {
+    static let shared = MetalWorkingSet()
+
+    private struct Slot {
+        var baked: MTLTexture
+        var geometryKey: String?
+        var oriented: MTLTexture?
+    }
+
+    private let lock = NSLock()
+    private var slots: [String: Slot] = [:]
+    private var order: [String] = []
+    private let limit = 6
+
+    func reset() {
+        lock.lock()
+        slots.removeAll()
+        order.removeAll()
+        lock.unlock()
+    }
+
+    func orientedSource(
+        gpu: MetalDevice.Runtime,
+        bakeKey: String,
+        baked linear: LinearRGBBuffer,
+        config: PrintConfig
+    ) -> (texture: MTLTexture, width: Int, height: Int, uploaded: Bool)? {
+        let dest = MetalGeometry.outputSize(
+            width: linear.width,
+            height: linear.height,
+            rotation: config.rotation
+        )
+        let geomKey = ReprintCache.geometryKey(config)
+        let identity = MetalGeometry.isIdentity(
+            rotation: config.rotation,
+            flipHorizontal: config.flipHorizontal,
+            flipVertical: config.flipVertical,
+            fineRotation: config.fineRotation
+        )
+
+        lock.lock()
+        let existing = slots[bakeKey]
+        lock.unlock()
+
+        let bakedTex: MTLTexture
+        var uploaded = false
+        if let existing {
+            bakedTex = existing.baked
+        } else {
+            guard let tex = gpu.makeTexture(width: linear.width, height: linear.height) else {
+                return nil
+            }
+            MetalPrint.upload(linear, to: tex)
+            PipelineStats.increment(.upload)
+            uploaded = true
+            bakedTex = tex
+            lock.lock()
+            rememberLocked(bakeKey, Slot(baked: tex, geometryKey: nil, oriented: nil))
+            lock.unlock()
+        }
+
+        if identity {
+            return (bakedTex, linear.width, linear.height, uploaded)
+        }
+        if let existing, existing.geometryKey == geomKey, let oriented = existing.oriented {
+            return (oriented, dest.width, dest.height, uploaded)
+        }
+        guard let destTex = gpu.makeTexture(width: dest.width, height: dest.height) else {
+            return nil
+        }
+        guard MetalGeometry.apply(
+            gpu: gpu,
+            source: bakedTex,
+            destination: destTex,
+            rotation: config.rotation,
+            flipHorizontal: config.flipHorizontal,
+            flipVertical: config.flipVertical,
+            fineRotation: config.fineRotation
+        ) else {
+            return nil
+        }
+        lock.lock()
+        if var slot = slots[bakeKey] {
+            slot.geometryKey = geomKey
+            slot.oriented = destTex
+            slots[bakeKey] = slot
+        }
+        lock.unlock()
+        return (destTex, dest.width, dest.height, uploaded)
+    }
+
+    private func rememberLocked(_ key: String, _ slot: Slot) {
+        slots[key] = slot
+        order.removeAll { $0 == key }
+        order.insert(key, at: 0)
+        while order.count > limit {
+            let evicted = order.removeLast()
+            slots.removeValue(forKey: evicted)
+        }
     }
 }
 #endif

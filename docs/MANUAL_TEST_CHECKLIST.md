@@ -425,13 +425,13 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 
 ### S13 — Interactive performance
 
-- [ ] S13a: density-only reprint skips heal / dust / orient / analyze (`make compare-s13` or stage counters)
+- [x] S13a: density-only reprint skips heal / dust / orient / analyze (`make compare-s13` / `ReprintCacheTests`)
 - [ ] S13a human: Print Density / Grade drag on the ~20 MP scan; no look change vs S8
-- [ ] S13b: Metal geometry MAE vs CPU (`compare-s6` variants, including fine-rot)
-- [ ] S13b human: 90° and fine-rot on the ~20 MP scan feel in the same class as Python GPU
-- [ ] S13c: in-process preview present skips JPEG/base64; slider/rotate does not re-upload linear
-- [ ] S13c human: frame switch then slider drag — canvas updates without a JPEG hitch
-- [ ] Still wrong: not a look gate; export may stay JPEG/TIFF; Python IPC is M12
+- [x] S13b: Metal geometry MAE vs CPU (`MetalGeometryTests`, S6 variants including fine-rot)
+- [x] S13b human: 90° and fine-rot on the ~20 MP scan feel in the same class as Python GPU
+- [x] S13c: in-process preview present skips JPEG/base64; slider/rotate does not re-upload linear
+- [x] S13c human: frame switch then slider drag — canvas updates without a JPEG hitch
+- [x] Still wrong: not a look gate; export may stay JPEG/TIFF; Python IPC is M12
 
 ### S14 — Camera RAW (NEF / ARW)
 

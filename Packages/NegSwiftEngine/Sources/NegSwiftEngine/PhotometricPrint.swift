@@ -10,6 +10,38 @@ public enum PhotometricPrint: Sendable {
         public var curvatures: (Double, Double, Double)
     }
 
+    /// Image-dependent meters. Slider keys (density / grade / CMY / zone) apply after this.
+    public struct MeteringAnalysis: Sendable {
+        public var lumRange: Double?
+        public var strength: Double
+        public var shadowNorm: (Double, Double, Double)?
+        public var axis: NeutralAxisRefs?
+        public var meteredAnchor: Double?
+        public var texturalRange: Double?
+        public var shadowPoint: Double?
+        public var highlightPoint: Double?
+
+        public init(
+            lumRange: Double? = nil,
+            strength: Double = 0,
+            shadowNorm: (Double, Double, Double)? = nil,
+            axis: NeutralAxisRefs? = nil,
+            meteredAnchor: Double? = nil,
+            texturalRange: Double? = nil,
+            shadowPoint: Double? = nil,
+            highlightPoint: Double? = nil
+        ) {
+            self.lumRange = lumRange
+            self.strength = strength
+            self.shadowNorm = shadowNorm
+            self.axis = axis
+            self.meteredAnchor = meteredAnchor
+            self.texturalRange = texturalRange
+            self.shadowPoint = shadowPoint
+            self.highlightPoint = highlightPoint
+        }
+    }
+
     /// Per-pixel print-curve inputs. Analysis stays on CPU; S12 Metal applies these.
     public struct PixelParams: Sendable {
         public var processMode: FilmProcessMode
@@ -52,13 +84,12 @@ public enum PhotometricPrint: Sendable {
         return applyPrint(normalized: normalized, linear: linear, bounds: bounds, processMode: processMode, config: resolved)
     }
 
-    public static func resolvePixelParams(
+    public static func analyzeMetering(
         linear: LinearRGBBuffer,
         bounds: LogNegativeBounds,
         processMode: FilmProcessMode,
         config: PrintConfig
-    ) -> PixelParams {
-        let lumRange = PrintCurve.luminanceDensityRange(bounds)
+    ) -> MeteringAnalysis {
         let region = config.resolvedAnalysisRegion()
         let grid = CastMetering.analysisGrid(
             linear: linear,
@@ -79,33 +110,52 @@ public enum PhotometricPrint: Sendable {
             shadowNorm = nil
             axis = nil
         }
+        return MeteringAnalysis(
+            lumRange: PrintCurve.luminanceDensityRange(bounds),
+            strength: strength,
+            shadowNorm: shadowNorm,
+            axis: axis,
+            meteredAnchor: config.autoExposure
+                ? ExposureMetering.measureAnchorFromLog(grid, bounds: bounds)
+                : nil,
+            texturalRange: config.autoNormalizeContrast
+                ? ExposureMetering.measureTexturalRangeFromLog(grid)
+                : nil,
+            shadowPoint: config.autoNormalizeContrast
+                ? ExposureMetering.measureShadowPointFromLog(grid, bounds: bounds)
+                : nil,
+            highlightPoint: config.autoNormalizeContrast
+                ? ExposureMetering.measureHighlightPointFromLog(grid, bounds: bounds)
+                : nil
+        )
+    }
 
-        let meteredAnchor = config.autoExposure
-            ? ExposureMetering.measureAnchorFromLog(grid, bounds: bounds)
-            : nil
-        let texturalRange = config.autoNormalizeContrast
-            ? ExposureMetering.measureTexturalRangeFromLog(grid)
-            : nil
-        let shadowPoint = config.autoNormalizeContrast
-            ? ExposureMetering.measureShadowPointFromLog(grid, bounds: bounds)
-            : nil
-        let highlightPoint = config.autoNormalizeContrast
-            ? ExposureMetering.measureHighlightPointFromLog(grid, bounds: bounds)
-            : nil
-
+    public static func resolvePixelParams(
+        linear: LinearRGBBuffer,
+        bounds: LogNegativeBounds,
+        processMode: FilmProcessMode,
+        config: PrintConfig,
+        analysis: MeteringAnalysis? = nil
+    ) -> PixelParams {
+        let meters = analysis ?? analyzeMetering(
+            linear: linear,
+            bounds: bounds,
+            processMode: processMode,
+            config: config
+        )
         let params = perChannelCurveParams(
             grade: Double(config.grade),
             density: Double(config.density),
-            lumRange: lumRange,
-            strength: strength,
-            shadowRefsNorm: shadowNorm,
-            axis: axis,
+            lumRange: meters.lumRange,
+            strength: meters.strength,
+            shadowRefsNorm: meters.shadowNorm,
+            axis: meters.axis,
             bounds: bounds,
             dMin: config.dMin,
             autoNormalizeContrast: config.autoNormalizeContrast,
-            texturalRange: texturalRange,
-            anchor: meteredAnchor,
-            shadowPoint: shadowPoint
+            texturalRange: meters.texturalRange,
+            anchor: meters.meteredAnchor,
+            shadowPoint: meters.shadowPoint
         )
         let (toeEff, shEff) = PrintCurve.gradeCoupledShape(
             slopeG: params.slopes.1,
@@ -118,7 +168,7 @@ public enum PhotometricPrint: Sendable {
             highlightGrade: Double(config.highlightGrade)
         )
         let highlightHold: Double
-        if config.autoNormalizeContrast, let highlightPoint {
+        if config.autoNormalizeContrast, let highlightPoint = meters.highlightPoint {
             highlightHold = PrintCurve.highlightHoldOffset(
                 slope: params.slopes.1,
                 pivot: params.pivots.1,

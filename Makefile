@@ -1,6 +1,6 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
-	compare-s8 compare-s9 compare-s10b compare-s11 compare-s12 \
+	compare-s8 compare-s9 compare-s10b compare-s11 compare-s12 compare-s13 \
 	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
@@ -93,6 +93,11 @@ test-s11-stdio: test-native-engine
 # S12: CPU-vs-Metal MAE (used WGSL stages). Skips if Metal is unavailable.
 compare-s12:
 	cd Packages/NegSwiftEngine && swift test --filter MetalParityTests
+
+# S13: reprint cache + Metal geometry + resident upload. Skips Metal rows if unavailable.
+compare-s13:
+	cd Packages/NegSwiftEngine && swift test --filter ReprintCacheTests
+	cd Packages/NegSwiftEngine && swift test --filter MetalGeometryTests
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

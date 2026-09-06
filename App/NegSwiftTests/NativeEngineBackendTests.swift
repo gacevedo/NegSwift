@@ -15,9 +15,9 @@ struct NativeEngineBackendTests {
     @Test func infoReportsSwiftDecode() async throws {
         let backend = NativeEngineBackend()
         let info = try await backend.info()
-        #expect(info.negpyVersion == "s10b-optical-dust")
-        #expect(info.gpuBackend == "swift")
-        #expect(info.gpuAvailable == false)
+        #expect(info.negpyVersion == EngineVersion.oracleLabel)
+        #expect(info.gpuBackend == (MetalDevice.isAvailable ? MetalDevice.backendName : EngineVersion.backendName))
+        #expect(info.gpuAvailable == MetalDevice.isAvailable)
     }
 
     @Test func stopDoesNotWaitForInFlightRender() async throws {
@@ -42,7 +42,7 @@ struct NativeEngineBackendTests {
         }
     }
 
-    @Test func normalizedRenderReturnsJPEG() async throws {
+    @Test func normalizedRenderReturnsNativePreview() async throws {
         let backend = NativeEngineBackend()
         let result = try await backend.render(
             path: sampleTIFFPath,
@@ -56,8 +56,10 @@ struct NativeEngineBackendTests {
         )
         #expect(result.width > 0)
         #expect(result.height > 0)
-        #expect(result.imageData != nil)
-        #expect(!(result.imageData?.isEmpty ?? true))
+        #expect(result.nativePreview != nil)
+        #expect(result.jpegBase64 == nil)
+        #expect(result.pngBase64 == nil)
+        #expect(result.imageData == nil)
     }
 
     @Test func detectC41OnSampleTIFF() async throws {
@@ -264,7 +266,7 @@ struct NativeEngineBackendTests {
         #expect(mapped.printConfig.healStrokes[0].points[0].y == 0.55)
     }
 
-    @Test func normalizedRenderReturnsPNG() async throws {
+    @Test func normalizedRenderSkipsEncodedPNG() async throws {
         let backend = NativeEngineBackend()
         let result = try await backend.render(
             path: sampleTIFFPath,
@@ -276,8 +278,8 @@ struct NativeEngineBackendTests {
             previewFormat: .png,
             jpegQuality: 90
         )
-        #expect(result.previewFormat == PreviewTransportFormat.png.rawValue)
-        #expect(result.pngData != nil)
-        #expect(!(result.pngData?.isEmpty ?? true))
+        #expect(result.nativePreview != nil)
+        #expect(result.pngBase64 == nil)
+        #expect(result.pngData == nil)
     }
 }

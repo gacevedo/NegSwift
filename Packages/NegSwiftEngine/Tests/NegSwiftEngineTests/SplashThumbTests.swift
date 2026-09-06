@@ -30,9 +30,11 @@ struct SplashThumbTests {
         #expect(stats.orient == 0)
     }
 
-    @Test func cheapThumbInvertsOrangeMask() throws {
+    @Test func cheapThumbLogNormalizeIsNotBlue() throws {
         let url = try writeOrangeMaskTIFF(width: 64, height: 48)
         defer { try? FileManager.default.removeItem(at: url) }
+        var config = PrintConfig.s8Pin
+        config.cropRect = NormalizedCropRect(x1: 0, y1: 0, x2: 1, y2: 1)
         let source = try ImageCoding.buffer(
             from: EmbeddedPreview.imageIOThumbnail(
                 url: url,
@@ -43,21 +45,67 @@ struct SplashThumbTests {
         let thumb = try EmbeddedPreview.cheapThumb(
             path: url.path,
             longEdgePx: 64,
-            processMode: .colorNegative
+            processMode: .colorNegative,
+            config: config
         )
-        #expect(meanChannel(thumb, 2) > meanChannel(thumb, 0))
         #expect(meanChannel(source, 0) > meanChannel(source, 2))
+        let sourceRB = meanChannel(source, 0) / max(meanChannel(source, 2), 1e-6)
+        let thumbRB = meanChannel(thumb, 0) / max(meanChannel(thumb, 2), 1e-6)
+        #expect(thumbRB < sourceRB)
+        #expect(meanChannel(thumb, 2) < meanChannel(thumb, 0) * 1.25)
     }
 
-    @Test func cheapThumbLeavesTransparencyAlone() throws {
+    @Test func cheapThumbAppliesStoredCropAndRotation() throws {
+        let url = try writeOrangeMaskTIFF(width: 64, height: 48)
+        defer { try? FileManager.default.removeItem(at: url) }
+        var cropped = PrintConfig.s8Pin
+        cropped.cropRect = NormalizedCropRect(x1: 0.25, y1: 0.25, x2: 0.75, y2: 0.75)
+        let cut = try EmbeddedPreview.cheapThumb(
+            path: url.path,
+            longEdgePx: 64,
+            processMode: .colorNegative,
+            config: cropped
+        )
+        var rotated = cropped
+        rotated.rotation = 1
+        let spun = try EmbeddedPreview.cheapThumb(
+            path: url.path,
+            longEdgePx: 64,
+            processMode: .colorNegative,
+            config: rotated
+        )
+        #expect(cut.width * cut.height < 64 * 48)
+        #expect(spun.width == cut.height)
+        #expect(spun.height == cut.width)
+    }
+
+    @Test func cheapThumbCropsLightboxOnSmallBuffer() throws {
+        let url = try writeLightboxTIFF(width: 160, height: 120)
+        defer { try? FileManager.default.removeItem(at: url) }
+        NativePipeline.resetWorkingSets()
+        let thumb = try EmbeddedPreview.cheapThumb(
+            path: url.path,
+            longEdgePx: 160,
+            processMode: .colorNegative
+        )
+        #expect(thumb.width * thumb.height < 160 * 120 * 3 / 4)
+        #expect(PipelineStats.snapshot().print == 0)
+        #expect(PipelineStats.snapshot().decode == 0)
+    }
+
+    @Test func cheapThumbLeavesTransparencyReadable() throws {
         let url = try writePositiveJPEG()
         defer { try? FileManager.default.removeItem(at: url) }
+        var config = PrintConfig.s8Pin
+        config.cropRect = NormalizedCropRect(x1: 0, y1: 0, x2: 1, y2: 1)
         let thumb = try EmbeddedPreview.cheapThumb(
             path: url.path,
             longEdgePx: 16,
-            processMode: .transparency
+            processMode: .transparency,
+            config: config
         )
-        #expect(meanChannel(thumb, 0) > meanChannel(thumb, 2))
+        #expect(thumb.width > 0 && thumb.height > 0)
+        #expect(meanChannel(thumb, 0) + meanChannel(thumb, 1) > meanChannel(thumb, 2))
     }
 
     @Test func protocolOpenSplashOnRasterOmitsPayload() throws {
@@ -164,6 +212,26 @@ private func writeOrangeMaskTIFF(width: Int, height: Int) throws -> URL {
     }
     let url = FileManager.default.temporaryDirectory
         .appendingPathComponent("negswift-s13f-\(UUID().uuidString).tif")
+    try UncompressedTIFF.writeRGB16(width: width, height: height, samples: samples, to: url)
+    return url
+}
+
+private func writeLightboxTIFF(width: Int, height: Int) throws -> URL {
+    var samples = [UInt16](repeating: 65_535, count: width * height * 3)
+    let y1 = Int((0.12 * Double(height)).rounded())
+    let y2 = Int((0.88 * Double(height)).rounded())
+    let x1 = Int((0.10 * Double(width)).rounded())
+    let x2 = Int((0.90 * Double(width)).rounded())
+    for y in y1..<y2 {
+        for x in x1..<x2 {
+            let i = (y * width + x) * 3
+            samples[i] = 45_000
+            samples[i + 1] = 22_000
+            samples[i + 2] = 8_000
+        }
+    }
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("negswift-s13f-box-\(UUID().uuidString).tif")
     try UncompressedTIFF.writeRGB16(width: width, height: height, samples: samples, to: url)
     return url
 }

@@ -301,6 +301,7 @@ public struct ProtocolServer: Sendable {
                 path: path,
                 longEdge: longEdge,
                 processMode: processMode,
+                printConfig: printConfig,
                 previewFormat: previewFormat,
                 jpegQuality: jpegQuality
             )
@@ -354,6 +355,7 @@ public struct ProtocolServer: Sendable {
         path: String,
         longEdge: Int?,
         processMode: FilmProcessMode?,
+        printConfig: PrintConfig,
         previewFormat: String,
         jpegQuality: Int
     ) throws -> [String: Any] {
@@ -361,7 +363,8 @@ public struct ProtocolServer: Sendable {
             let buffer = try NativePipeline().cheapThumb(
                 path: path,
                 longEdgePx: longEdge ?? 256,
-                processMode: processMode
+                processMode: processMode,
+                config: printConfig
             )
             let data: Data
             if previewFormat == "jpeg" {

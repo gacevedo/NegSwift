@@ -252,7 +252,8 @@ actor NativeEngineBackend: EngineBackend {
                     try Self.performCheapThumb(
                         path: path,
                         longEdgePx: longEdgePx,
-                        processMode: mapped.processMode
+                        processMode: mapped.processMode,
+                        printConfig: printConfig
                     )
                 }
             } else {
@@ -551,12 +552,14 @@ actor NativeEngineBackend: EngineBackend {
     private static func performCheapThumb(
         path: String,
         longEdgePx: Int?,
-        processMode: FilmProcessMode?
+        processMode: FilmProcessMode?,
+        printConfig: PrintConfig
     ) throws -> RenderResult {
         let buffer = try NativePipeline().cheapThumb(
             path: path,
             longEdgePx: longEdgePx ?? 256,
-            processMode: processMode
+            processMode: processMode,
+            config: printConfig
         )
         guard let cgImage = ImageCoding.sRGBDisplayImage(from: buffer) else {
             throw LinearDecodeError.decodeFailed

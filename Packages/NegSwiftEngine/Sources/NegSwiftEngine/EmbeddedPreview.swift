@@ -11,9 +11,9 @@ public struct SplashJPEG: Sendable, Equatable {
 
 /// S13f: camera embedded JPEG splash and cheap strip thumbs (not H&D+Lab).
 ///
-/// Matches NegPy `embedded_preview` / `get_thumbnail_worker`: JPEG thumbs from LibRaw,
-/// TIFF preview page when the thumb is BITMAP, ImageIO thumbnail for raster. Cheap
-/// invert (`preview_positive`) makes C-41 strip cells read as photographs.
+/// JPEG thumbs from LibRaw, TIFF preview page when the thumb is BITMAP, ImageIO
+/// thumbnail for raster. Geometry + log-normalize on that 256 px buffer so the
+/// strip is readable (crop, orientation, not a cyan invert) without a print.
 public enum EmbeddedPreview: Sendable {
     public static let splashLongEdge = Int(Autocrop.previewRenderSize)
     public static let splashJPEGQuality = 0.85
@@ -33,39 +33,77 @@ public enum EmbeddedPreview: Sendable {
         return jpegPayload(from: image)
     }
 
-    /// Display-referred sRGB 0…1, already inverted when the frame is a negative.
+    /// 256 px thumb: geometry + log-normalize + invert. Not H&D / Lab / dust.
     public static func cheapThumb(
         path: String,
         longEdgePx: Int,
-        processMode: FilmProcessMode?
+        processMode: FilmProcessMode?,
+        config: PrintConfig = .s8Pin
     ) throws -> LinearRGBBuffer {
         let edge = max(1, longEdgePx)
-        guard let image = sourcePreview(path: path, maxLongEdge: edge) else {
-            throw LinearDecodeError.decodeFailed
+        var linear = try sourceLinear(path: path, maxLongEdge: edge)
+        if max(linear.width, linear.height) > edge {
+            linear = linear.areaDownsampled(toLongEdge: edge)
         }
-        var buffer = try ImageCoding.buffer(from: image)
-        if max(buffer.width, buffer.height) > edge {
-            buffer = buffer.areaDownsampled(toLongEdge: edge)
+        let crop = config.cropRect ?? Autocrop.resolveRect(
+            linear,
+            config: config,
+            previewSize: Double(max(linear.width, linear.height))
+        )
+        linear = linear.oriented(
+            rotation: config.rotation,
+            flipHorizontal: config.flipHorizontal,
+            flipVertical: config.flipVertical,
+            fineRotation: config.fineRotation
+        )
+        if let crop {
+            linear = linear.cropped(normalized: crop.tuple)
         }
-        return previewPositive(buffer, processMode: processMode)
+        let mode = processMode ?? ProcessDetect.detect(linear)
+        // S2 log-normalize is kept-polarity (neutralizes the mask, does not invert).
+        // The strip needs a photograph, so invert after that — not the old per-channel
+        // `preview_positive` stretch that went cyan.
+        let normalized = LogNormalization.process(linear: linear, processMode: mode)
+        if mode == .transparency {
+            return normalized
+        }
+        return invertNormalized(normalized)
     }
 
     // MARK: - Source preview
 
-    private static func sourcePreview(path: String, maxLongEdge: Int) -> CGImage? {
+    private static func sourceLinear(path: String, maxLongEdge: Int) throws -> LinearRGBBuffer {
         let url = URL(fileURLWithPath: path)
         if ScanFormat.isCameraRaw(path) {
-            if let jpeg = rawJPEGThumb(path: path),
+            if let thumb = RawDecode.extractThumb(path: path),
+               thumb.format == .jpeg,
+               let jpeg = thumb.jpeg,
                let image = ImageCoding.cgImage(fromJPEG: jpeg)
             {
-                return constrain(image, maxLongEdge: maxLongEdge)
+                let scaled = constrain(image, maxLongEdge: maxLongEdge) ?? image
+                var buffer = AccelerateConvert.applySRGBToLinear(try ImageCoding.buffer(from: scaled))
+                if thumb.orientation > 1, ImageCoding.jpegOrientation(jpeg) <= 1 {
+                    buffer = buffer.applyingExifOrientation(thumb.orientation)
+                }
+                return buffer
             }
             if let embedded = imageIOThumbnail(url: url, maxLongEdge: maxLongEdge, embeddedOnly: true) {
-                return embedded
+                return AccelerateConvert.applySRGBToLinear(try ImageCoding.buffer(from: embedded))
             }
-            return rawHalfSizePreview(path: path, maxLongEdge: maxLongEdge)
+            return try LinearBufferCache.shared.buffer(
+                path: path,
+                maxLongEdge: maxLongEdge,
+                analysisOversample: false
+            )
         }
-        return imageIOThumbnail(url: url, maxLongEdge: maxLongEdge, embeddedOnly: false)
+        guard let image = imageIOThumbnail(url: url, maxLongEdge: maxLongEdge, embeddedOnly: false) else {
+            throw LinearDecodeError.decodeFailed
+        }
+        let buffer = try ImageCoding.buffer(from: image)
+        if ScanFormat.pathExtension(of: path) == "jpg" || ScanFormat.pathExtension(of: path) == "jpeg" {
+            return AccelerateConvert.applySRGBToLinear(buffer)
+        }
+        return buffer
     }
 
     private static func rawJPEGThumb(path: String) -> Data? {
@@ -73,18 +111,6 @@ public enum EmbeddedPreview: Sendable {
             return nil
         }
         return thumb.jpeg
-    }
-
-    /// Python `_fast_demosaic` fallback when the RAW has no safe embedded preview.
-    private static func rawHalfSizePreview(path: String, maxLongEdge: Int) -> CGImage? {
-        guard let buffer = try? LinearBufferCache.shared.buffer(
-            path: path,
-            maxLongEdge: maxLongEdge,
-            analysisOversample: false
-        ) else {
-            return nil
-        }
-        return ImageCoding.sRGBDisplayImage(from: buffer)
     }
 
     static func imageIOThumbnail(url: URL, maxLongEdge: Int, embeddedOnly: Bool) -> CGImage? {
@@ -163,59 +189,12 @@ public enum EmbeddedPreview: Sendable {
         return ctx.makeImage()
     }
 
-    // MARK: - Cheap invert (NegPy `preview_positive`)
-
-    /// Per-channel log-density stretch. Not the H&D print path.
-    static func previewPositive(
-        _ encodedSRGB: LinearRGBBuffer,
-        processMode: FilmProcessMode?
-    ) -> LinearRGBBuffer {
-        let linear = AccelerateConvert.applySRGBToLinear(encodedSRGB)
-        let mode = processMode ?? ProcessDetect.detect(linear)
-        if mode == .transparency {
-            return encodedSRGB
+    private static func invertNormalized(_ buffer: LinearRGBBuffer) -> LinearRGBBuffer {
+        var pixels = buffer.pixels
+        for i in pixels.indices {
+            pixels[i] = min(1, max(0, 1 - pixels[i]))
         }
-        let count = linear.width * linear.height
-        var density = [Float](repeating: 0, count: count * 3)
-        for i in 0..<(count * 3) {
-            density[i] = -log10(max(linear.pixels[i], 1e-4))
-        }
-        var lo: (Float, Float, Float) = (0, 0, 0)
-        var hi: (Float, Float, Float) = (1, 1, 1)
-        for channel in 0..<3 {
-            var samples = [Float](repeating: 0, count: count)
-            for i in 0..<count {
-                samples[i] = density[i * 3 + channel]
-            }
-            samples.sort()
-            let low = percentile(samples, 1)
-            let high = percentile(samples, 99)
-            switch channel {
-            case 0: lo.0 = low; hi.0 = high
-            case 1: lo.1 = low; hi.1 = high
-            default: lo.2 = low; hi.2 = high
-            }
-        }
-        var out = [Float](repeating: 0, count: count * 3)
-        for i in 0..<count {
-            out[i * 3] = stretch(density[i * 3], lo: lo.0, hi: hi.0)
-            out[i * 3 + 1] = stretch(density[i * 3 + 1], lo: lo.1, hi: hi.1)
-            out[i * 3 + 2] = stretch(density[i * 3 + 2], lo: lo.2, hi: hi.2)
-        }
-        return LinearRGBBuffer(width: linear.width, height: linear.height, pixels: out)
+        return LinearRGBBuffer(width: buffer.width, height: buffer.height, pixels: pixels)
     }
 
-    private static func stretch(_ value: Float, lo: Float, hi: Float) -> Float {
-        let span = max(hi - lo, 1e-6)
-        return min(1, max(0, (value - lo) / span))
-    }
-
-    private static func percentile(_ sorted: [Float], _ percent: Float) -> Float {
-        guard !sorted.isEmpty else { return 0 }
-        let t = min(1, max(0, percent / 100)) * Float(sorted.count - 1)
-        let i = Int(t)
-        if i >= sorted.count - 1 { return sorted[sorted.count - 1] }
-        let f = t - Float(i)
-        return sorted[i] * (1 - f) + sorted[i + 1] * f
-    }
 }

@@ -439,9 +439,15 @@ public struct NativePipeline: Sendable {
     public func cheapThumb(
         path: String,
         longEdgePx: Int,
-        processMode: FilmProcessMode? = nil
+        processMode: FilmProcessMode? = nil,
+        config: PrintConfig = .s8Pin
     ) throws -> LinearRGBBuffer {
-        try EmbeddedPreview.cheapThumb(path: path, longEdgePx: longEdgePx, processMode: processMode)
+        try EmbeddedPreview.cheapThumb(
+            path: path,
+            longEdgePx: longEdgePx,
+            processMode: processMode,
+            config: config
+        )
     }
 
     /// Synthetic linear vs encoded ramp PNGs. Not used by scan preview (S4a wires encode).

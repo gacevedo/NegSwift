@@ -51,6 +51,22 @@ public enum ImageCoding: Sendable {
         try encode(buffer, type: UTType.jpeg.identifier as CFString, quality: quality)
     }
 
+    public static func jpegOrientation(_ data: Data) -> Int {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        else {
+            return 1
+        }
+        if let value = props[kCGImagePropertyOrientation] as? Int, (1 ... 8).contains(value) {
+            return value
+        }
+        if let value = props[kCGImagePropertyOrientation] as? NSNumber {
+            let orientation = value.intValue
+            return (1 ... 8).contains(orientation) ? orientation : 1
+        }
+        return 1
+    }
+
     public static func jpegDimensions(_ data: Data) -> (width: Int, height: Int)? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],

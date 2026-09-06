@@ -118,7 +118,9 @@ List supported scan files in folder(s). One directory level — matches NegPy de
 }
 ```
 
-Missing sidecar → `config` is engine defaults (`DEFAULT_WORKSPACE_CONFIG.to_dict()`); `has_sidecar` is false. When a ``.negpy`` sidecar exists, `has_sidecar` is true and `config` is the sidecar payload (merged with NegSwift defaults for missing keys).
+Missing sidecar → `config` is engine defaults (`DEFAULT_WORKSPACE_CONFIG.to_dict()` plus NegSwift `auto_density_uses_crop` / `crop_from_auto`); `has_sidecar` is false. When a ``.negpy`` sidecar exists, `has_sidecar` is true and `config` is the sidecar payload (NegSwift fills those two keys if missing).
+
+**NegSwift-subset vs full desktop sidecars.** `save_config` merges the posted keys onto the stored (or default) flat dict, runs NegPy `migrations.py` / construction coercions, and writes a **full** `WorkspaceConfig.to_dict()` plus extras. Hidden desktop keys (CLAHE, toning, HDR, `scratch_lines`, …) stay on disk even when NegSwift only sends lite sliders. Opening that sidecar in NegPy desktop is valid. A desktop sidecar that has live CLAHE / toning / HDR will **not** match the Swift preview until those stages exist (S8+). Truly unknown keys are preserved by the Swift engine; Python `from_flat_dict` still drops them on its own save.
 
 ### `detect_process_mode`
 

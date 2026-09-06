@@ -99,4 +99,9 @@ uv run negswift-engine open /path/to/scan.tif
 uv run negswift-engine render --path /path/to/scan.tif --out preview.png --cpu
 uv run negswift-engine serve --stdio
 uv run negswift-engine serve --socket /tmp/negswift-engine.sock
+
+# S7: same NDJSON contract against the Swift binary
+NEGSWIFT_ENGINE="$(cd ../Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
+  uv run pytest tests/test_protocol.py tests/test_config.py -v
+# or: make test-s7-stdio from the repo root
 ```

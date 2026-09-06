@@ -241,13 +241,8 @@ actor NativeEngineBackend: EngineBackend {
     }
 
     func loadConfig(path: String) async throws -> LoadConfigResult {
-        let sidecar = SidecarLocator.url(forScanPath: path)
-        guard FileManager.default.fileExists(atPath: sidecar.path) else {
-            return LoadConfigResult(config: [:], hasSidecar: false)
-        }
-        let data = try Data(contentsOf: sidecar)
-        let config = try JSONDecoder().decode([String: JSONValue].self, from: data)
-        return LoadConfigResult(config: config, hasSidecar: true)
+        let loaded = try SidecarStore.load(path: path)
+        return LoadConfigResult(config: try Self.jsonValues(loaded.config), hasSidecar: loaded.hasSidecar)
     }
 
     func detectProcessMode(path: String, force: Bool) async throws -> DetectProcessModeResult {
@@ -275,19 +270,17 @@ actor NativeEngineBackend: EngineBackend {
     }
 
     func saveConfig(path: String, config: FrameEditState) async throws -> SaveConfigResult {
-        let sidecar = SidecarLocator.url(forScanPath: path)
-        let data = try JSONEncoder().encode(config)
-        try data.write(to: sidecar, options: .atomic)
-        return SaveConfigResult(sidecarPath: sidecar.path)
+        do {
+            let sidecar = try SidecarStore.save(path: path, overrides: try Self.flatOverrides(config))
+            return SaveConfigResult(sidecarPath: sidecar)
+        } catch {
+            throw EngineClientError.engine(EngineErrorPayload(code: "SAVE_FAILED", message: error.localizedDescription))
+        }
     }
 
     func resetConfig(path: String) async throws -> ResetConfigResult {
-        let sidecar = SidecarLocator.url(forScanPath: path)
-        if FileManager.default.fileExists(atPath: sidecar.path) {
-            try FileManager.default.removeItem(at: sidecar)
-            return ResetConfigResult(sidecarRemoved: true)
-        }
-        return ResetConfigResult(sidecarRemoved: false)
+        let removed = try SidecarStore.reset(path: path)
+        return ResetConfigResult(sidecarRemoved: removed)
     }
 
     func appendHealStroke(
@@ -296,17 +289,18 @@ actor NativeEngineBackend: EngineBackend {
         brushSize: Int,
         config: FrameEditState
     ) async throws -> AppendHealStrokeResult {
-        _ = path
-        _ = points
-        _ = brushSize
-        _ = config
-        throw Self.notImplemented("Heal is S10a. The Swift backend is an S0 stub.")
+        let payload = try HealStore.appendStroke(
+            path: path,
+            points: points,
+            brushSize: Double(brushSize),
+            configOverrides: try Self.flatOverrides(config)
+        )
+        return try Self.decode(AppendHealStrokeResult.self, from: payload)
     }
 
     func undoLastHeal(path: String, config: FrameEditState) async throws -> UndoLastHealResult {
-        _ = path
-        _ = config
-        throw Self.notImplemented("Heal undo is S10a. The Swift backend is an S0 stub.")
+        let payload = try HealStore.undoLast(path: path, configOverrides: try Self.flatOverrides(config))
+        return try Self.decode(UndoLastHealResult.self, from: payload)
     }
 
     func discover(paths: [String]) async throws -> DiscoverResult {
@@ -442,6 +436,22 @@ actor NativeEngineBackend: EngineBackend {
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
         let size = attrs?[.size] as? NSNumber ?? 0
         return "s0-\(size.intValue)"
+    }
+
+    nonisolated private static func flatOverrides(_ config: FrameEditState) throws -> [String: Any] {
+        let data = try JSONEncoder().encode(config)
+        let obj = try JSONSerialization.jsonObject(with: data)
+        return obj as? [String: Any] ?? [:]
+    }
+
+    nonisolated private static func jsonValues(_ dict: [String: Any]) throws -> [String: JSONValue] {
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        return try JSONDecoder().decode([String: JSONValue].self, from: data)
+    }
+
+    nonisolated private static func decode<T: Decodable>(_ type: T.Type, from object: [String: Any]) throws -> T {
+        let data = try JSONSerialization.data(withJSONObject: object)
+        return try JSONDecoder().decode(type, from: data)
     }
 
     private static func notImplemented(_ message: String) -> EngineClientError {

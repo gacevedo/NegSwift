@@ -14,7 +14,7 @@ struct NativeEngineBackendTests {
     @Test func infoReportsSwiftDecode() async throws {
         let backend = NativeEngineBackend()
         let info = try await backend.info()
-        #expect(info.negpyVersion == "s6-geometry")
+        #expect(info.negpyVersion == "s7-sidecar")
         #expect(info.gpuBackend == "swift")
         #expect(info.gpuAvailable == false)
     }
@@ -71,6 +71,52 @@ struct NativeEngineBackendTests {
         let result = try await backend.detectProcessMode(path: sampleTIFFPath, force: false)
         #expect(result.skipped == true)
         #expect(result.reason == "has_sidecar")
+    }
+
+    @Test func loadConfigWithoutSidecarReturnsShippedDefaults() async throws {
+        let backend = NativeEngineBackend()
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s7-be-\(UUID().uuidString).tif")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: sampleTIFFPath), to: dest)
+        defer {
+            try? FileManager.default.removeItem(at: dest)
+            try? FileManager.default.removeItem(at: SidecarLocator.url(forScanPath: dest.path))
+        }
+        let loaded = try await backend.loadConfig(path: dest.path)
+        #expect(loaded.hasSidecar == false)
+        #expect(loaded.config["process_mode"]?.anyValue as? String == "Color Negative")
+        if case let .double(grade) = loaded.config["grade"] {
+            #expect(grade == 100)
+        } else if case let .int(grade) = loaded.config["grade"] {
+            #expect(grade == 100)
+        } else {
+            Issue.record("grade missing")
+        }
+    }
+
+    @Test func saveConfigWritesFullNegPySidecar() async throws {
+        let backend = NativeEngineBackend()
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s7-save-\(UUID().uuidString).tif")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: sampleTIFFPath), to: dest)
+        defer {
+            try? FileManager.default.removeItem(at: dest)
+            try? FileManager.default.removeItem(at: SidecarLocator.url(forScanPath: dest.path))
+        }
+        var edit = FrameEditState()
+        edit.density = 1.25
+        edit.autoExposure = false
+        let saved = try await backend.saveConfig(path: dest.path, config: edit)
+        #expect(saved.sidecarPath.hasSuffix(".negpy"))
+        let loaded = try await backend.loadConfig(path: dest.path)
+        #expect(loaded.hasSidecar)
+        if case let .double(density) = loaded.config["density"] {
+            #expect(density == 1.25)
+        } else {
+            Issue.record("density missing")
+        }
+        #expect(loaded.config["clahe_strength"] != nil)
+        #expect(loaded.config["sharpen"] != nil)
     }
 
     @Test func factoryDefaultIsPython() {

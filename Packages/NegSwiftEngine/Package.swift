@@ -13,7 +13,10 @@ let package = Package(
         .executable(name: "negswift-engine-swift", targets: ["negswift-engine-swift"]),
     ],
     targets: [
-        .target(name: "NegSwiftEngine"),
+        .target(
+            name: "NegSwiftEngine",
+            resources: [.process("Resources")]
+        ),
         .executableTarget(
             name: "negswift-engine-swift",
             dependencies: ["NegSwiftEngine"]

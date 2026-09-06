@@ -274,6 +274,34 @@ def test_reset_config_removes_sidecar(sample_tiff: Path, tmp_path: Path) -> None
     assert loaded.get("crop_rect") in (None, [])
 
 
+def test_save_preserves_hidden_desktop_keys(sample_tiff: Path, tmp_path: Path) -> None:
+    """NegSwift-subset save must not wipe desktop keys (CLAHE / toning / retouch)."""
+    from negswift_engine.sidecar_io import write_raw_sidecar
+
+    frame = tmp_path / "frame.tif"
+    shutil.copy(sample_tiff, frame)
+    write_raw_sidecar(
+        str(frame),
+        {
+            "density": 1.0,
+            "clahe_strength": 0.4,
+            "selenium_strength": 0.2,
+            "scratch_lines": [[[0.1, 0.2], [0.3, 0.4]]],
+        },
+    )
+    ndjson_request(
+        "save_config",
+        {"path": str(frame), "config": {"density": 1.3}},
+        req_id="hidden-save",
+    )
+    loaded = ndjson_request("load_config", {"path": str(frame)}, req_id="hidden-load")["result"]["config"]
+    assert loaded["density"] == 1.3
+    assert loaded["clahe_strength"] == 0.4
+    assert loaded["selenium_strength"] == 0.2
+    assert loaded["scratch_lines"] == [[[0.1, 0.2], [0.3, 0.4]]]
+    WorkspaceConfig.from_flat_dict({k: v for k, v in loaded.items() if k != "auto_density_uses_crop"})
+
+
 def test_reset_config_without_sidecar(sample_tiff: Path, tmp_path: Path) -> None:
     frame = tmp_path / "frame.tif"
     shutil.copy(sample_tiff, frame)

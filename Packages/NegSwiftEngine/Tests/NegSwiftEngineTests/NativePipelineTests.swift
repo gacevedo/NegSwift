@@ -3,11 +3,11 @@ import Testing
 @testable import NegSwiftEngine
 
 struct NativePipelineTests {
-    @Test func infoReportsS6Identity() {
+    @Test func infoReportsS7Identity() {
         let info = NativePipeline().infoJSON()
         #expect(info["protocol_version"] as? String == EngineVersion.protocolVersion)
         #expect(info["negswift_version"] as? String == EngineVersion.packageVersion)
-        #expect(info["negpy_version"] as? String == "s6-geometry")
+        #expect(info["negpy_version"] as? String == "s7-sidecar")
         #expect(info["backend"] as? String == "swift")
         #expect(info["gpu_available"] as? Bool == false)
     }

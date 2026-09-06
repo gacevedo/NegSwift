@@ -367,7 +367,7 @@ Pinned S5 config (both backends): S4 pin with `auto_exposure=true`, `auto_normal
 - [ ] Quit/reopen restores edits from `.negpy` on the Swift backend
 - [ ] Python NegSwift opens the same sidecar
 - [ ] NegPy desktop opens the same sidecar (lite keys; hidden keys preserved)
-- [ ] Engine pytest + `EngineClientIntegrationTests` pass against Swift `serve --stdio`
+- [x] Engine pytest (`make test-s7-stdio`) + `EngineClientIntegrationTests` (set `NEGSWIFT_ENGINE` to the Swift binary) against Swift `serve --stdio`
 - [ ] Still wrong: look (already gated in S4–S6). Desktop CLAHE/toning/HDR sidecars will not match
 
 ### S8 — Lab defaults (default look lock)

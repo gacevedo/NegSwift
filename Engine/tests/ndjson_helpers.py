@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -15,26 +16,36 @@ from pathlib import Path
 _ENGINE_ROOT = Path(__file__).resolve().parents[1]
 
 
+def engine_stdio_cmd() -> list[str]:
+    """Python ``negswift-engine`` or ``NEGSWIFT_ENGINE`` (Swift binary) ``serve --stdio``."""
+    override = os.environ.get("NEGSWIFT_ENGINE")
+    if override:
+        return [override, "serve", "--stdio"]
+    return [sys.executable, "-m", "negswift_engine.main", "serve", "--stdio"]
+
+
 def ndjson_request(method: str, params: dict | None = None, req_id: str = "test-1") -> dict:
     """One request on a fresh serve --stdio process (stdin closed after the line)."""
     line = json.dumps({"id": req_id, "method": method, "params": params or {}})
     proc = subprocess.run(
-        [sys.executable, "-m", "negswift_engine.main", "serve", "--stdio"],
+        engine_stdio_cmd(),
         input=line + "\n",
         cwd=_ENGINE_ROOT,
         capture_output=True,
         text=True,
         check=True,
     )
-    response_line = proc.stdout.strip().splitlines()[-1]
-    return json.loads(response_line)
+    lines = [row for row in proc.stdout.strip().splitlines() if row]
+    if not lines:
+        raise RuntimeError(f"engine produced no stdout (stderr={proc.stderr!r})")
+    return json.loads(lines[-1])
 
 
 @contextmanager
 def ndjson_stdio_session() -> Iterator[_StdioSession]:
     """Persistent serve --stdio subprocess for multi-request / cancel tests."""
     proc = subprocess.Popen(
-        [sys.executable, "-m", "negswift_engine.main", "serve", "--stdio"],
+        engine_stdio_cmd(),
         cwd=_ENGINE_ROOT,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,

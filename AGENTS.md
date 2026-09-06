@@ -68,6 +68,9 @@ Override: set env var `NEGSWIFT_ENGINE` in the Xcode scheme. App Sandbox is **of
 in Debug so the venv binary can execute; re-enable for Release/M10 bundling.
 
 Swift spawns `negswift-engine serve --stdio` via `EngineProcess` / `EngineClient`.
+The native package binary (`negswift-engine-swift serve --stdio`) speaks the same
+NDJSON contract. Point Engine pytest at it with `make test-s7-stdio` or
+`NEGSWIFT_ENGINE=/path/to/negswift-engine-swift`.
 
 ### NegPy (upstream — read-only for most NegSwift work)
 
@@ -198,7 +201,7 @@ NegSwift/
 |-------|------|-------|
 | Engine unit | `uv run pytest` in `Engine/` | Required on engine changes |
 | Lock file | `uv sync --locked` | Fails if `pyproject.toml` and `uv.lock` diverge |
-| Protocol | pytest client → `serve --stdio` | M3+ |
+| Protocol | pytest client → `serve --stdio` | M3+; Swift binary via `make test-s7-stdio` (S7) |
 | Swift | XCTest with mocked `EngineClient` | M4+ |
 | Integration | `@pytest.mark.integration` | GPU + real scan; optional in CI |
 | Manual | `docs/MANUAL_TEST_CHECKLIST.md` | Before closing a milestone |

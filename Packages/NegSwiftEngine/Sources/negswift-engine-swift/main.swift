@@ -21,6 +21,8 @@ struct NegSwiftEngineCLI {
                 try runDetect(Array(args.dropFirst()))
             case "oetf-ramp":
                 try runOETFRamp(Array(args.dropFirst()))
+            case "serve":
+                try runServe(Array(args.dropFirst()))
             case "-h", "--help":
                 printUsage()
             default:
@@ -50,8 +52,9 @@ struct NegSwiftEngineCLI {
           decode --path PATH --out-f32 FILE
           detect --path PATH
           oetf-ramp --out-dir DIR [--width N] [--height N]
+          serve --stdio
 
-        S6: render applies stored geometry (90° / flip / fine-rot / crop) on the S5 print.
+        S7: serve --stdio speaks the same NDJSON contract as Python negswift-engine.
         """
         print(text)
     }
@@ -164,6 +167,13 @@ struct NegSwiftEngineCLI {
             "detected_mode": mode.rawValue,
             "process_mode": mode.liteMode.rawValue,
         ])
+    }
+
+    private static func runServe(_ args: [String]) throws {
+        guard args.contains("--stdio") else {
+            throw CLIError.usage("serve requires --stdio")
+        }
+        ProtocolServer().serveStdio()
     }
 
     private static func runOETFRamp(_ args: [String]) throws {

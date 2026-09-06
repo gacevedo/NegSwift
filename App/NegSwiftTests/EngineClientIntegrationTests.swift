@@ -126,36 +126,18 @@ struct EngineClientIntegrationTests {
     }
 
     private static func makeSampleScanURL() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let dest = FileManager.default.temporaryDirectory
             .appendingPathComponent("negswift-test-\(UUID().uuidString).tif")
-        let engineRoot = try EngineLocator.executableURL()
+        let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let python = engineRoot.appendingPathComponent("bin/python3")
-        guard FileManager.default.isExecutableFile(atPath: python.path) else {
+            .appendingPathComponent("NegSwiftUITests/Fixtures/sample.tif")
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
             throw NSError(domain: "EngineClientIntegrationTests", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Engine venv python missing at \(python.path)",
+                NSLocalizedDescriptionKey: "sample.tif fixture missing at \(fixture.path)",
             ])
         }
-        let script = """
-        import numpy as np, tifffile
-        rgb = np.zeros((64, 96, 3), dtype=np.uint16)
-        rgb[:, :, 0] = 40000
-        rgb[:, :, 1] = 20000
-        rgb[:, :, 2] = 10000
-        tifffile.imwrite('\(url.path)', rgb, photometric='rgb')
-        """
-        let proc = Process()
-        proc.executableURL = python
-        proc.arguments = ["-c", script]
-        proc.currentDirectoryURL = engineRoot
-        try proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else {
-            throw NSError(domain: "EngineClientIntegrationTests", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "Failed to write sample scan (exit \(proc.terminationStatus))",
-            ])
-        }
-        return url
+        try FileManager.default.copyItem(at: fixture, to: dest)
+        return dest
     }
 }

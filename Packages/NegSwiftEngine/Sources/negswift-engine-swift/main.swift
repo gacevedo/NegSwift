@@ -58,7 +58,7 @@ struct NegSwiftEngineCLI {
                  [--config-json FILE]
           serve --stdio
 
-        S9: sRGB JPEG/TIFF export. serve --stdio speaks the Python NDJSON contract.
+        S10a: heal mapping + preview inpaint. serve --stdio speaks the Python NDJSON contract.
         """
         print(text)
     }

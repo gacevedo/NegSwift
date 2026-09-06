@@ -62,6 +62,10 @@ public struct PrintConfig: Sendable, Equatable {
     public var sharpenRadius: Float
     /// Optional edge mask (NegPy `sharpen_masking`, default 0).
     public var sharpenMasking: Float
+    /// Source-space painted heals. Baked on decoded linear before geometry.
+    public var healStrokes: [HealStroke]
+    /// Legacy one-point heals (`manual_dust_spots`).
+    public var dustSpots: [HealSpot]
 
     public init(
         density: Float = 1,
@@ -97,7 +101,9 @@ public struct PrintConfig: Sendable, Equatable {
         skinProtection: Float = 0,
         sharpen: Float = 0,
         sharpenRadius: Float = 1,
-        sharpenMasking: Float = 0
+        sharpenMasking: Float = 0,
+        healStrokes: [HealStroke] = [],
+        dustSpots: [HealSpot] = []
     ) {
         self.density = density
         self.grade = grade
@@ -133,6 +139,8 @@ public struct PrintConfig: Sendable, Equatable {
         self.sharpen = sharpen
         self.sharpenRadius = sharpenRadius
         self.sharpenMasking = sharpenMasking
+        self.healStrokes = healStrokes
+        self.dustSpots = dustSpots
     }
 
     /// Pinned S4a/S4b base (autos off, Neutral paper, BPC on, cast 0.5, sliders at 0).
@@ -210,6 +218,12 @@ public struct PrintConfig: Sendable, Equatable {
         if let v = Self.floatValue(overrides["sharpen_radius"]) { copy.sharpenRadius = v }
         if let v = Self.floatValue(overrides["sharpen_masking"]) { copy.sharpenMasking = v }
         if let v = Self.boolValue(overrides["crop_preview_full"]) { copy.applyPixelCrop = !v }
+        if overrides["manual_heal_strokes"] != nil {
+            copy.healStrokes = HealStroke.parseList(overrides["manual_heal_strokes"])
+        }
+        if overrides["manual_dust_spots"] != nil {
+            copy.dustSpots = HealSpot.parseList(overrides["manual_dust_spots"])
+        }
         return copy.applyingMeteringRemap(from: overrides)
     }
 

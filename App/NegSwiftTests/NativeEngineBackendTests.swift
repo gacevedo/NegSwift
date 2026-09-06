@@ -6,6 +6,7 @@
 import Foundation
 import Testing
 @testable import NegSwift
+import NegSwiftEngine
 
 private let sampleTIFFPath = "/Users/gacevedo/Development/NegSwift/App/NegSwiftUITests/Fixtures/sample.tif"
 
@@ -14,7 +15,7 @@ struct NativeEngineBackendTests {
     @Test func infoReportsSwiftDecode() async throws {
         let backend = NativeEngineBackend()
         let info = try await backend.info()
-        #expect(info.negpyVersion == "s9-export")
+        #expect(info.negpyVersion == "s10a-heal")
         #expect(info.gpuBackend == "swift")
         #expect(info.gpuAvailable == false)
     }
@@ -249,6 +250,18 @@ struct NativeEngineBackendTests {
             preferGPU: false
         )
         #expect(cut.width * cut.height < full.width * full.height)
+    }
+
+    @Test func printInputsForwardsHealStrokes() {
+        var edit = FrameEditState()
+        edit.manualHealStrokes = [
+            HealStroke(points: [HealStrokePoint(x: 0.4, y: 0.55)], size: 8),
+        ]
+        let mapped = NativeEngineBackend.printInputs(from: edit)
+        #expect(mapped.printConfig.healStrokes.count == 1)
+        #expect(mapped.printConfig.healStrokes[0].size == 8)
+        #expect(mapped.printConfig.healStrokes[0].points[0].x == 0.4)
+        #expect(mapped.printConfig.healStrokes[0].points[0].y == 0.55)
     }
 
     @Test func normalizedRenderReturnsPNG() async throws {

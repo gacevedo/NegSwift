@@ -250,7 +250,7 @@ Lite Swift (S9) honors JPEG/TIFF, sRGB, original resolution, and the `stem` / `s
 
 ### `append_heal_stroke` (M13)
 
-Map viewport-normalized polyline points to source space and append one heal stroke. NegPy stores strokes in `manual_heal_strokes`; repair runs on the next `render` / `export`.
+Map viewport-normalized polyline points to source space and append one heal stroke. Both backends map via `uv_grid` (rotation / flip / fine-rot / stored crop). Strokes are stored in `manual_heal_strokes`; Swift bakes a preview-res inpaint on decoded linear **before** geometry on the next `render` / `export`.
 
 **Params:**
 

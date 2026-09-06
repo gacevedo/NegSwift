@@ -384,7 +384,7 @@ actor NativeEngineBackend: EngineBackend {
         _ = jobID
     }
 
-    private static func printInputs(from config: FrameEditState?) -> (
+    nonisolated static func printInputs(from config: FrameEditState?) -> (
         processMode: FilmProcessMode?,
         printConfig: PrintConfig
     ) {
@@ -418,6 +418,12 @@ actor NativeEngineBackend: EngineBackend {
                 y1: crop.y1,
                 x2: crop.x2,
                 y2: crop.y2
+            )
+        }
+        printConfig.healStrokes = config.manualHealStrokes.map { stroke in
+            NegSwiftEngine.HealStroke(
+                points: stroke.points.map { HealPoint(x: $0.x, y: $0.y) },
+                size: stroke.size
             )
         }
         printConfig = printConfig.applyingMeteringRemap()

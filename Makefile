@@ -1,7 +1,7 @@
 .PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
 	compare-s8 compare-s9 \
-	test-s7-stdio test-s9-stdio bench-engine bundle-engine build-app build-release \
+	test-s7-stdio test-s9-stdio test-s10a-stdio bench-engine bundle-engine build-app build-release \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -68,6 +68,11 @@ test-s7-stdio: test-native-engine
 test-s9-stdio: test-native-engine
 	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
 		cd Engine && uv run pytest tests/test_export.py -v
+
+# S10a: heal mapping + undo against Swift serve --stdio.
+test-s10a-stdio: test-native-engine
+	NEGSWIFT_ENGINE="$$(cd Packages/NegSwiftEngine && swift build --show-bin-path)/negswift-engine-swift" \
+		cd Engine && uv run pytest tests/test_append_heal_stroke.py tests/test_undo_last_heal.py -v
 
 bench-engine:
 	cd Engine && uv run python scripts/bench_render.py -o tests/fixtures/perf_baseline.json

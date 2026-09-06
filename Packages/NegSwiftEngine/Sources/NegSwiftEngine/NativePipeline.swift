@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-process pipeline. S9: Lab after print, then stored crop + OETF; export is sRGB.
+/// In-process pipeline. S10a: heal on linear, then Lab / crop / OETF; export is sRGB.
 public struct NativePipeline: Sendable {
     public init() {}
 
@@ -85,8 +85,8 @@ public struct NativePipeline: Sendable {
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
 
-    /// S8 print: orient → normalize → H&D + autos → Lab → stored crop → OETF.
-    /// Matches NegPy `DarkroomEngine` order (Lab before pixel crop; encode last).
+    /// S10a print: heal on decoded linear → orient → normalize → H&D + autos → Lab → crop → OETF.
+    /// Matches NegPy `DarkroomEngine` order (heals before geometry; Lab before pixel crop).
     /// Meters on the oriented full frame (`analysis_rect` / buffer), then crops pixels unless
     /// ``PrintConfig.applyPixelCrop`` is false (`crop_preview_full`). Preview-size decodes
     /// oversample so Analysis Buffer still sees film/holder edges.
@@ -97,6 +97,7 @@ public struct NativePipeline: Sendable {
         config: PrintConfig = .s4aPin
     ) throws -> LinearRGBBuffer {
         var linear = try decodeForPrint(path: path, longEdgePx: longEdgePx)
+        linear = HealInpaint.bake(linear, strokes: config.healStrokes, spots: config.dustSpots)
         linear = linear.oriented(
             rotation: config.rotation,
             flipHorizontal: config.flipHorizontal,

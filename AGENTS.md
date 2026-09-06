@@ -12,13 +12,13 @@ Guidance for AI agents working in the NegSwift repository.
 
 NegSwift is a **macOS-only SwiftUI lite shell** for film-negative processing. The shipping pixel path is **upstream NegPy** (`negpy` import), wrapped by a thin Python **engine** process that Swift talks to over NDJSON.
 
-**Exception (native port only):** `Packages/NegSwiftEngine` is an approved third implementation of NegSwift-lite pipeline math (CPU-first, Python as oracle). Do **not** copy NegPy `.py` / `.wgsl` into `App/`. See the native-engine plan and `docs/MANUAL_TEST_CHECKLIST.md` § S0–S13. All other Swift code still must not reimplement pipeline math.
+**Exception (native port only):** `Packages/NegSwiftEngine` is an approved third implementation of NegSwift-lite pipeline math (CPU-first, Python as oracle). Do **not** copy NegPy `.py` / `.wgsl` into `App/`. See the native-engine plan and `docs/MANUAL_TEST_CHECKLIST.md` § S0–S15. All other Swift code still must not reimplement pipeline math.
 
 | Layer | Path | Owns |
 |-------|------|------|
 | Swift UI | `App/` | SwiftUI, engine lifecycle, display |
 | Engine | `Engine/negswift_engine/` | IPC, orchestration, persist glue |
-| Native engine | `Packages/NegSwiftEngine` | Approved lite-path port (S0–S13); Python is oracle |
+| Native engine | `Packages/NegSwiftEngine` | Approved lite-path port (S0–S15); Python is oracle |
 | Upstream | `Vendor/NegPy` (git submodule) | Pipeline, loaders, export, configs |
 
 **License:** GPL-3.0 for the whole product. NegPy is GPL-3.0 — do not introduce incompatible licenses.
@@ -105,9 +105,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
-| **S0–S13** | Native Swift engine — **S12 done** (optional Metal). Next **S13** iOS host (later). Checklist § S0–S13 |
+| **S0–S15** | Native Swift engine — **S12 done**. Next **S13** performance, then **S14** RAW. Checklist § S0–S15 |
 
-**Current status (2026-09-06):** M0–M15 feature complete. Native engine **S12** is in (Metal for normalize / H&D / Lab sharpen / OETF; CPU goldens unchanged). Python remains the default. Next vertical is **S13** (later). **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Current status (2026-09-06):** M0–M15 feature complete. Native engine **S12** is in (Metal for normalize / H&D / Lab sharpen / OETF; CPU goldens unchanged). Python remains the default. Next vertical is **S13** (interactive performance), then **S14** camera RAW (NEF/ARW). **S15** iOS host is later. **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture rules
 
@@ -116,7 +116,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 - **Do not copy** `negpy/features/*/logic.py`, shaders, or processors into `App/` or `Engine/`.
 - **Do not reimplement** density curves, normalization, CLAHE, etc. in the Swift UI target.
 - Engine Python code **imports** NegPy and wraps it. If an API is awkward, prefer a **small upstream PR** to NegPy over a local fork.
-- **Exception:** `Packages/NegSwiftEngine` may reimplement the NegSwift-lite path against Python goldens. Gate each vertical with the S0–S13 cards (pinned config, MAE, human A/B). S12 Metal is optional after S4a; do not start an iOS host (S13) before S4a.
+- **Exception:** `Packages/NegSwiftEngine` may reimplement the NegSwift-lite path against Python goldens. Gate each vertical with the S0–S15 cards (pinned config, MAE, human A/B). S12–S14 are after S4a; do not start an iOS host (S15) before S4a.
 
 ### 2. Engine = orchestration only
 
@@ -181,7 +181,7 @@ Do not expand scope without explicit user request. Prefer opening full NegPy for
 ```
 NegSwift/
 ├── AGENTS.md              # this file
-├── PLAN.md                # roadmap + milestones (M0–M15 + S0–S13 pointer)
+├── PLAN.md                # roadmap + milestones (M0–M15 + S0–S15 pointer)
 ├── NOTICE                 # NegPy upstream attribution
 ├── Vendor/NegPy/          # submodule (M9b+)
 ├── Packages/
@@ -240,7 +240,7 @@ See `docs/RELEASE.md` for signing/notarization.
 
 ## Common agent mistakes
 
-1. **Implementing pipeline math in `App/` or `Engine/`** — import NegPy instead. The only approved Swift math is `Packages/NegSwiftEngine` (S0–S13).
+1. **Implementing pipeline math in `App/` or `Engine/`** — import NegPy instead. The only approved Swift math is `Packages/NegSwiftEngine` (S0–S15).
 2. **Editing `Vendor/NegPy` for NegSwift features** — upstream PR or sibling checkout; submodule is a pin, not a fork workspace (except submodule SHA bumps).
 3. **Starting M10 before M9b** — submodule required for reproducible builds.
 4. **Breaking sidecar compatibility** — always use full `WorkspaceConfig` serialization.
@@ -267,10 +267,10 @@ NegSwift engine should stay thin as upstream adds headless APIs.
 
 | Doc | Purpose |
 |-----|---------|
-| [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M15 + native engine S0–S13 |
+| [PLAN.md](PLAN.md) | Full roadmap, milestones M0–M15 + native engine S0–S15 |
 | [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) | M14 batch export design |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | M12 benchmarks and baseline methodology (Phase 0) |
 | [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md) | NDJSON API |
-| [docs/MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) | Manual smoke per milestone (M0–M15 and S0–S13) |
+| [docs/MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) | Manual smoke per milestone (M0–M15 and S0–S15) |
 | [NegPy CLAUDE.md](Vendor/NegPy/CLAUDE.md) | Pipeline, `WorkspaceConfig`, feature pattern |
 | [NegPy docs/PIPELINE.md](Vendor/NegPy/docs/PIPELINE.md) | Stage math (do not copy into NegSwift) |

@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S11** automated gates are in (S5–S6 / S8 / S9 / S10a / S10b / S11 human A/B still worth a pass). **S12–S13** are not started. Record the local ≥16 MP C-41 path in the header before any S look gate.
+Native engine **S0–S12** automated and human gates are in. **S13** interactive performance is next, then **S14** camera RAW (NEF/ARW). **S15** iOS harness is later. Record the local ≥16 MP C-41 path in the header before any S look gate.
 
 **Header template:**
 
@@ -16,9 +16,11 @@ NegSwift commit:
 Machine: (Apple Silicon / Intel)
 Test scan path:
 Native-engine scan (local C-41 TIFF ≥16 MP, not sample.tif): /Users/gacevedo/Downloads/Kodak Portra Gold 120 K6500-008.TIFF
+Native-engine RAW NEF (S14):
+Native-engine RAW ARW (S14):
 ```
 
-`App/NegSwiftUITests/Fixtures/sample.tif` is a tiny CI fixture. Every **S0–S13** look gate uses the named local ≥16 MP C-41 path above. Prefer a full-bleed or already-cropped frame for S4/S5 so holder borders do not dominate normalize bounds.
+`App/NegSwiftUITests/Fixtures/sample.tif` is a tiny CI fixture. Every **S0–S15** look gate uses the named local ≥16 MP C-41 path above. Prefer a full-bleed or already-cropped frame for S4/S5 so holder borders do not dominate normalize bounds. S14 also names a local NEF and ARW.
 
 ---
 
@@ -281,7 +283,7 @@ See [PLAN.md](../PLAN.md) §7 M15.
 
 ---
 
-## Native Swift engine (S0–S13)
+## Native Swift engine (S0–S15)
 
 Python remains the default backend. A/B means Preferences **Engine: Python | Swift** on the **same** named scan, then the checks below. Do not fail a vertical for items listed under **Still wrong** in the native-engine plan. Do not compare Swift-at-S4 to Python-at-app-defaults (autos + sharpen on) — that is S5+S8.
 
@@ -416,11 +418,33 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 - [x] Human: holder scan auto-crops; sidecar freeze; preview and export share the same rect
 - [x] Still wrong: keystone / k1 (unused in lite)
 
-### S12 — Metal (optional) / S13 — iOS (later)
+### S12 — Metal (optional)
 
 - [x] S12: CPU-vs-Metal MAE on used WGSL stages (`make compare-s12` + Swift `MetalParityTests`). App Swift backend uses Metal when available; CLI/stdio stay CPU
 - [x] S12 human: slider drag stays interactive on a ~20 MP scan (Swift backend)
-- [ ] S13: tiny in-process harness only — not an App Store product; do not start before S4a
+
+### S13 — Interactive performance
+
+- [ ] S13a: density-only reprint skips heal / dust / orient / analyze (`make compare-s13` or stage counters)
+- [ ] S13a human: Print Density / Grade drag on the ~20 MP scan; no look change vs S8
+- [ ] S13b: Metal geometry MAE vs CPU (`compare-s6` variants, including fine-rot)
+- [ ] S13b human: 90° and fine-rot on the ~20 MP scan feel in the same class as Python GPU
+- [ ] S13c: in-process preview present skips JPEG/base64; slider/rotate does not re-upload linear
+- [ ] S13c human: frame switch then slider drag — canvas updates without a JPEG hitch
+- [ ] Still wrong: not a look gate; export may stay JPEG/TIFF; Python IPC is M12
+
+### S14 — Camera RAW (NEF / ARW)
+
+- [ ] Discover / Open accept `.nef` and `.arw` on the Swift backend
+- [ ] Linear decode MAE vs Python on named local NEF and ARW (`compare-linear-decode` style; sensor-native, not ImageIO camera RGB)
+- [ ] S8 working-space MAE on those files at `--long-edge 256`
+- [ ] Human: Swift backend, NEF — orange mask still orange; A/B at app defaults vs Python
+- [ ] Human: same for ARW
+- [ ] Still wrong: JXL, Coolscan NEF, Noritsu / FFF / Pakon, demosaic picker, IR sidecars
+
+### S15 — iOS (later)
+
+- [ ] S15: tiny in-process harness only — not an App Store product; do not start before S4a
 
 ---
 

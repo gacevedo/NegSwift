@@ -203,7 +203,8 @@ public struct NativePipeline: Sendable {
         processMode: FilmProcessMode? = nil,
         config: PrintConfig = .s4aPin,
         previewPass: PreviewPass = .settled,
-        readback: Bool = true
+        readback: Bool = true,
+        meteringAnchorFineRotation: Float? = nil
     ) throws -> RenderPrintResult {
         let start = CFAbsoluteTimeGetCurrent()
         defer {
@@ -224,13 +225,22 @@ public struct NativePipeline: Sendable {
             longEdgePx: resolvedEdge,
             config: passConfig
         )
+        let interactionFreeze = meteringAnchorFineRotation != nil
         let analysisKey = ReprintCache.analysisKey(
             bakeKey: bakeKey,
             config: passConfig,
             processMode: processMode
         )
+        let anchorAnalysisKey = interactionFreeze
+            ? ReprintCache.analysisKey(
+                bakeKey: bakeKey,
+                config: passConfig,
+                processMode: processMode,
+                fineRotationOverride: meteringAnchorFineRotation
+            )
+            : analysisKey
 
-        let shouldCache = resolvedEdge != nil && previewPass != .draft && passConfig.applyPixelCrop
+        let shouldCache = resolvedEdge != nil && previewPass != .draft && passConfig.applyPixelCrop && !interactionFreeze
         if shouldCache,
            let cachedBuffer = ProcessedPreviewDiskCache.shared.lookup(
                path: path,
@@ -263,9 +273,13 @@ public struct NativePipeline: Sendable {
         }
 
         // Draft is a throwaway first paint — do not replace the settled reprint / Metal set.
-        let cached = shouldCache ? ReprintCache.shared.lookup(analysisKey: analysisKey) : nil
-        let priorBaked = cached?.baked ?? (shouldCache ? ReprintCache.shared.lookupBaked(bakeKey: bakeKey) : nil)
-        let reusedAnalysis = cached != nil
+        let canLookupReprint = shouldCache || interactionFreeze
+        let cached = canLookupReprint
+            ? ReprintCache.shared.lookup(analysisKey: interactionFreeze ? anchorAnalysisKey : analysisKey)
+            : nil
+        let fullCacheHit = cached != nil && !interactionFreeze
+        let priorBaked = cached?.baked ?? (canLookupReprint ? ReprintCache.shared.lookupBaked(bakeKey: bakeKey) : nil)
+        var reusedAnalysis = false
         let reusedBake = priorBaked != nil
         let baked: LinearRGBBuffer
         if let priorBaked {
@@ -296,7 +310,7 @@ public struct NativePipeline: Sendable {
         let mode: FilmProcessMode
         let bounds: LogNegativeBounds
         let analysis: PhotometricPrint.MeteringAnalysis
-        if let cached {
+        if let cached, fullCacheHit {
             var reprint = passConfig
             if let crop = cached.armed.config.cropRect {
                 reprint.cropRect = crop
@@ -309,6 +323,17 @@ public struct NativePipeline: Sendable {
             mode = cached.processMode
             bounds = cached.bounds
             analysis = cached.analysis
+            reusedAnalysis = true
+        } else if let cached, interactionFreeze {
+            armed = AutocropArmedResult(config: passConfig, resolved: cached.armed.resolved)
+            PipelineStats.increment(.orient)
+            oriented = PipelineStats.measure(.orient) {
+                orientBaked(baked, config: armed.config)
+            }
+            mode = cached.processMode
+            bounds = cached.bounds
+            analysis = cached.analysis
+            reusedAnalysis = true
         } else {
             armed = PipelineStats.measure(.autocrop) {
                 Autocrop.resolveArmed(baked, config: passConfig)
@@ -316,23 +341,7 @@ public struct NativePipeline: Sendable {
             PipelineStats.increment(.autocrop)
             PipelineStats.increment(.orient)
             oriented = PipelineStats.measure(.orient) {
-                if pixelBackend.resolved() == .metal,
-                   let gpuOriented = MetalGeometry.oriented(
-                       baked,
-                       rotation: armed.config.rotation,
-                       flipHorizontal: armed.config.flipHorizontal,
-                       flipVertical: armed.config.flipVertical,
-                       fineRotation: armed.config.fineRotation
-                   )
-                {
-                    return gpuOriented
-                }
-                return baked.oriented(
-                    rotation: armed.config.rotation,
-                    flipHorizontal: armed.config.flipHorizontal,
-                    flipVertical: armed.config.flipVertical,
-                    fineRotation: armed.config.fineRotation
-                )
+                orientBaked(baked, config: armed.config)
             }
             mode = processMode ?? ProcessDetect.detectLite(oriented)
             PipelineStats.increment(.analyze)
@@ -359,6 +368,19 @@ public struct NativePipeline: Sendable {
                     ReprintCache.Entry(
                         bakeKey: bakeKey,
                         analysisKey: analysisKey,
+                        baked: baked,
+                        oriented: oriented,
+                        processMode: mode,
+                        bounds: bounds,
+                        analysis: analysis,
+                        armed: armed
+                    )
+                )
+            } else if interactionFreeze {
+                ReprintCache.shared.store(
+                    ReprintCache.Entry(
+                        bakeKey: bakeKey,
+                        analysisKey: anchorAnalysisKey,
                         baked: baked,
                         oriented: oriented,
                         processMode: mode,
@@ -483,6 +505,26 @@ public struct NativePipeline: Sendable {
             gpuPresent: present,
             previewPass: previewPass,
             analysisOversampled: oversampled
+        )
+    }
+
+    private func orientBaked(_ baked: LinearRGBBuffer, config: PrintConfig) -> LinearRGBBuffer {
+        if pixelBackend.resolved() == .metal,
+           let gpuOriented = MetalGeometry.oriented(
+               baked,
+               rotation: config.rotation,
+               flipHorizontal: config.flipHorizontal,
+               flipVertical: config.flipVertical,
+               fineRotation: config.fineRotation
+           )
+        {
+            return gpuOriented
+        }
+        return baked.oriented(
+            rotation: config.rotation,
+            flipHorizontal: config.flipHorizontal,
+            flipVertical: config.flipVertical,
+            fineRotation: config.fineRotation
         )
     }
 

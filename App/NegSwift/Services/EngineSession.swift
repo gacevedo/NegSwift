@@ -60,6 +60,12 @@ final class EngineSession {
     /// Waiting for a crop-preview render to seed ``manualCropRect`` from auto-crop bounds.
     private var pendingAutoCropSeed = false
 
+    /// Fine-rotation drag: skip re-analyze until release; anchor is the angle at drag start.
+    private(set) var isFineRotationInteracting = false
+    private var fineRotationMeteringAnchor: Double = 0
+    private var fineRotationPreviewTask: Task<Void, Never>?
+    private var fineRotationPreviewDirty = false
+
     private var backend: any EngineBackend
     private let preferences: AppPreferences
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
@@ -474,6 +480,7 @@ final class EngineSession {
 
     func setCropToolActive(_ active: Bool) {
         guard isCropToolActive != active else { return }
+        clearFineRotationInteraction()
         if active {
             if isScratchToolActive {
                 isScratchToolActive = false
@@ -631,8 +638,73 @@ final class EngineSession {
     }
 
     func setFineRotation(_ value: Double) {
-        updateEdit { $0.fineRotation = value }
-        syncCropPreviewBaselineGeometry(from: currentEdit)
+        guard let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else { return }
+        previewMemo.invalidate(path: path)
+        var edit = frameEdits[path] ?? defaultEditState()
+        edit.fineRotation = value
+        frameEdits[path] = edit
+        dirtyPaths.insert(path)
+        scheduleDebouncedSave(for: path)
+        syncCropPreviewBaselineGeometry(from: edit)
+        if isFineRotationInteracting {
+            scheduleFineRotationInteractionPreview()
+        } else {
+            scheduleDebouncedPreview(for: frame)
+        }
+    }
+
+    func beginFineRotationInteraction() {
+        guard !isFineRotationInteracting else { return }
+        isFineRotationInteracting = true
+        fineRotationMeteringAnchor = currentEdit.fineRotation
+        previewDebounce.cancel()
+    }
+
+    func endFineRotationInteraction() {
+        guard isFineRotationInteracting else { return }
+        isFineRotationInteracting = false
+        cancelFineRotationPreviewDrain()
+        refreshPreviewNow()
+    }
+
+    private func clearFineRotationInteraction() {
+        isFineRotationInteracting = false
+        cancelFineRotationPreviewDrain()
+    }
+
+    private func cancelFineRotationPreviewDrain() {
+        fineRotationPreviewTask?.cancel()
+        fineRotationPreviewTask = nil
+        fineRotationPreviewDirty = false
+    }
+
+    /// Serial drain: each preview finishes before the next starts so generation bumps do not
+    /// cancel in-flight renders during a continuous drag.
+    private func scheduleFineRotationInteractionPreview() {
+        fineRotationPreviewDirty = true
+        guard fineRotationPreviewTask == nil else { return }
+        fineRotationPreviewTask = Task { @MainActor in
+            while !Task.isCancelled {
+                guard fineRotationPreviewDirty else { break }
+                fineRotationPreviewDirty = false
+                guard isFineRotationInteracting,
+                      let path = selectedFramePath,
+                      let frame = frames.first(where: { $0.path == path })
+                else { break }
+                previewDebounce.cancel()
+                previewGeneration += 1
+                let generation = previewGeneration
+                await renderPreview(at: frame.url, generation: generation)
+                if !fineRotationPreviewDirty { break }
+            }
+            fineRotationPreviewTask = nil
+        }
+    }
+
+    private var meteringAnchorForPreview: Float? {
+        isFineRotationInteracting ? Float(fineRotationMeteringAnchor) : nil
     }
 
     func setAutocropRatio(_ value: String) {
@@ -1402,6 +1474,7 @@ final class EngineSession {
         previousPath: String?,
         selectStart: CFAbsoluteTime
     ) async {
+        clearFineRotationInteraction()
         isCropToolActive = false
         isCropOverlayReady = false
         isScratchToolActive = false
@@ -1565,7 +1638,8 @@ final class EngineSession {
         draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat = .jpeg,
         jpegQuality: Int = PreviewRenderSettings.previewJPEGQuality,
-        previewLongEdgePx: Int? = nil
+        previewLongEdgePx: Int? = nil,
+        meteringAnchorFineRotation: Float? = nil
     ) async throws -> RenderResult {
         #if DEBUG
         if let renderTestHandler {
@@ -1576,7 +1650,8 @@ final class EngineSession {
                 config: config ?? FrameEditState(),
                 cropPreviewFull: cropPreviewFull,
                 stripThumbnail: stripThumbnail,
-                draftPreview: draftPreview
+                draftPreview: draftPreview,
+                meteringAnchorFineRotation: meteringAnchorFineRotation
             )
             renderTestRecords.append(record)
             return try await renderTestHandler(record)
@@ -1592,7 +1667,8 @@ final class EngineSession {
             draftPreview: draftPreview,
             previewFormat: previewFormat,
             jpegQuality: jpegQuality,
-            previewLongEdgePx: previewLongEdgePx
+            previewLongEdgePx: previewLongEdgePx,
+            meteringAnchorFineRotation: meteringAnchorFineRotation
         )
     }
 
@@ -1613,9 +1689,7 @@ final class EngineSession {
 
         isRenderingPreview = true
         defer {
-            if generation == previewGeneration {
-                isRenderingPreview = false
-            }
+            isRenderingPreview = false
         }
         previewError = nil
 
@@ -1678,7 +1752,8 @@ final class EngineSession {
                     preferGPU: settings.preferGPU,
                     config: effectiveConfig,
                     cropPreviewFull: isCropToolActive,
-                    draftPreview: draftPreview
+                    draftPreview: draftPreview,
+                    meteringAnchorFineRotation: meteringAnchorForPreview
                 )
             }
             guard generation == previewGeneration else { return false }
@@ -1706,34 +1781,36 @@ final class EngineSession {
             currentPath = path
             isPreviewDraft = !settle
             isPreviewSettled = settle
-            if settle {
-                if isCropToolActive {
-                    storePreviewMemo(
+            if settle, isCropToolActive {
+                storePreviewMemo(
+                    path: path,
+                    image: image,
+                    pixelSize: CGSize(width: result.width, height: result.height),
+                    cropPreviewFull: true
+                )
+                finishCropPreviewOverlay(for: path, result: result)
+            }
+            let applySettleSideEffects = settle && !isFineRotationInteracting && !isCropToolActive
+            if applySettleSideEffects {
+                let frozeAutoCrop = freezeResolvedAutoCropIfNeeded(from: result, for: path)
+                await persistPendingEditsForSettledPreview(path: path, frozeAutoCrop: frozeAutoCrop)
+                if frozeAutoCrop {
+                    await refreshDiskPreviewCache(
                         path: path,
-                        image: image,
-                        pixelSize: CGSize(width: result.width, height: result.height),
-                        cropPreviewFull: true
+                        generation: generation,
+                        effectiveConfig: effectiveConfig,
+                        settings: settings
                     )
-                    finishCropPreviewOverlay(for: path, result: result)
-                } else {
-                    let frozeAutoCrop = freezeResolvedAutoCropIfNeeded(from: result, for: path)
-                    await persistPendingEditsForSettledPreview(path: path, frozeAutoCrop: frozeAutoCrop)
-                    if frozeAutoCrop {
-                        await refreshDiskPreviewCache(
-                            path: path,
-                            generation: generation,
-                            effectiveConfig: effectiveConfig,
-                            settings: settings
-                        )
-                    }
-                    storePreviewMemo(
-                        path: path,
-                        image: image,
-                        pixelSize: CGSize(width: result.width, height: result.height),
-                        cropPreviewFull: false
-                    )
-                    applyPreviewToSelectedThumbnail()
                 }
+                storePreviewMemo(
+                    path: path,
+                    image: image,
+                    pixelSize: CGSize(width: result.width, height: result.height),
+                    cropPreviewFull: false
+                )
+                applyPreviewToSelectedThumbnail()
+            }
+            if settle {
                 await finishCropCloseThumbnailRefresh(
                     for: path,
                     generation: generation,
@@ -2514,5 +2591,6 @@ struct EngineRenderCallRecord: Sendable {
     let cropPreviewFull: Bool
     let stripThumbnail: Bool
     let draftPreview: Bool
+    let meteringAnchorFineRotation: Float?
 }
 #endif

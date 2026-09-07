@@ -199,6 +199,7 @@ struct GradientSlider: NSViewRepresentable {
     let style: SliderTrackStyle
     let range: ClosedRange<Double>
     let defaultValue: Double
+    var onEditingChanged: ((Bool) -> Void)? = nil
 
     func makeCoordinator() -> SliderValueCoordinator {
         SliderValueCoordinator(value: $value)
@@ -220,6 +221,7 @@ struct GradientSlider: NSViewRepresentable {
         slider.isContinuous = true
         slider.doubleValue = value
         slider.defaultResetValue = defaultValue
+        slider.onEditingChanged = onEditingChanged
         slider.target = context.coordinator
         slider.action = #selector(SliderValueCoordinator.sliderChanged(_:))
         return slider
@@ -232,6 +234,7 @@ struct GradientSlider: NSViewRepresentable {
             cell.defaultPosition = SliderTrackPalette.normalizedValue(defaultValue, in: range)
         }
         slider.isEnabled = isEnabled
+        slider.onEditingChanged = onEditingChanged
         context.coordinator.value = $value
         context.coordinator.scheduleSync(
             on: slider,

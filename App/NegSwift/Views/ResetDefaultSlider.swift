@@ -8,6 +8,8 @@ import SwiftUI
 
 final class KnobDoubleClickResetSlider: NSSlider {
     var defaultResetValue: Double = 0
+    var onEditingChanged: ((Bool) -> Void)?
+    private var isEditing = false
 
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2, let cell = cell as? NSSliderCell {
@@ -19,7 +21,19 @@ final class KnobDoubleClickResetSlider: NSSlider {
                 return
             }
         }
+        if !isEditing {
+            isEditing = true
+            onEditingChanged?(true)
+        }
         super.mouseDown(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+        if isEditing {
+            isEditing = false
+            onEditingChanged?(false)
+        }
     }
 }
 

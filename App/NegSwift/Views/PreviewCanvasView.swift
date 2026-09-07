@@ -305,7 +305,14 @@ struct PreviewCanvasView: View {
             fineRotation: fineRotationBinding,
             aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio),
             imagePixelSize: session.previewPixelSize ?? image.size,
-            onClickOutside: applyCrop
+            onClickOutside: applyCrop,
+            onFineRotationDragChanged: { active in
+                if active {
+                    session.beginFineRotationInteraction()
+                } else {
+                    session.endFineRotationInteraction()
+                }
+            }
         )
         .background {
             CropKeyCaptureView(onApply: applyCrop)

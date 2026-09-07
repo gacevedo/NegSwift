@@ -75,16 +75,18 @@ final class ReprintCache: @unchecked Sendable {
     static func analysisKey(
         bakeKey: String,
         config: PrintConfig,
-        processMode: FilmProcessMode?
+        processMode: FilmProcessMode?,
+        fineRotationOverride: Float? = nil
     ) -> String {
         let crop = config.cropRect.map { "\($0.x1),\($0.y1),\($0.x2),\($0.y2)" } ?? ""
         let analysisRect = config.analysisRect.map { "\($0.x1),\($0.y1),\($0.x2),\($0.y2)" } ?? ""
+        let fineRotation = fineRotationOverride ?? config.fineRotation
         return [
             bakeKey,
             "\(config.rotation)",
             config.flipHorizontal ? "1" : "0",
             config.flipVertical ? "1" : "0",
-            "\(config.fineRotation)",
+            "\(fineRotation)",
             "\(config.analysisBuffer)",
             analysisRect,
             crop,

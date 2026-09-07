@@ -23,7 +23,8 @@ protocol EngineBackend: Sendable {
         draftPreview: Bool,
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int,
-        previewLongEdgePx: Int?
+        previewLongEdgePx: Int?,
+        meteringAnchorFineRotation: Float?
     ) async throws -> RenderResult
     func loadConfig(path: String) async throws -> LoadConfigResult
     func detectProcessMode(path: String, force: Bool) async throws -> DetectProcessModeResult
@@ -97,10 +98,12 @@ actor PythonEngineBackend: EngineBackend {
         draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int,
-        previewLongEdgePx: Int? = nil
+        previewLongEdgePx: Int? = nil,
+        meteringAnchorFineRotation: Float? = nil
     ) async throws -> RenderResult {
         _ = draftPreview
         _ = previewLongEdgePx
+        _ = meteringAnchorFineRotation
         return try await client.render(
             path: path,
             longEdgePx: longEdgePx,
@@ -267,7 +270,8 @@ actor NativeEngineBackend: EngineBackend {
         draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int,
-        previewLongEdgePx: Int? = nil
+        previewLongEdgePx: Int? = nil,
+        meteringAnchorFineRotation: Float? = nil
     ) async throws -> RenderResult {
         _ = preferGPU
         let generation = workGeneration
@@ -307,7 +311,8 @@ actor NativeEngineBackend: EngineBackend {
                         printConfig: printConfig,
                         previewPass: draftPreview ? .draft : .settled,
                         previewFormat: previewFormat,
-                        jpegQuality: jpegQuality
+                        jpegQuality: jpegQuality,
+                        meteringAnchorFineRotation: meteringAnchorFineRotation
                     )
                 }
             }
@@ -575,7 +580,8 @@ actor NativeEngineBackend: EngineBackend {
         printConfig: PrintConfig,
         previewPass: PreviewPass,
         previewFormat: PreviewTransportFormat,
-        jpegQuality: Int
+        jpegQuality: Int,
+        meteringAnchorFineRotation: Float? = nil
     ) throws -> RenderResult {
         let detailed = try NativePipeline(pixelBackend: .auto).renderPrintDetailed(
             path: path,
@@ -583,7 +589,8 @@ actor NativeEngineBackend: EngineBackend {
             processMode: processMode,
             config: printConfig,
             previewPass: previewPass,
-            readback: false
+            readback: false,
+            meteringAnchorFineRotation: meteringAnchorFineRotation
         )
         var metrics: RenderMetrics?
         if detailed.resolvedAutocrop != nil || detailed.cropRect != nil {

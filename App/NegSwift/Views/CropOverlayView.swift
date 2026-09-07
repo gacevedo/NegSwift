@@ -12,6 +12,7 @@ struct CropOverlayView: View {
     let aspectRatio: CropAspectRatio
     let imagePixelSize: CGSize
     var onClickOutside: () -> Void = {}
+    var onFineRotationDragChanged: (Bool) -> Void = { _ in }
 
     @State private var dragRect: NormalizedRect?
     @State private var dragStartRect: NormalizedRect?
@@ -256,6 +257,7 @@ struct CropOverlayView: View {
                     rotateCenter = CGPoint(x: rect.midX, y: rect.midY)
                     rotatePress = value.startLocation
                     isRotating = true
+                    onFineRotationDragChanged(true)
                 }
                 guard activeRotationHandle == handle,
                       let startFine = rotateStartFine,
@@ -281,6 +283,7 @@ struct CropOverlayView: View {
                 rotateCenter = nil
                 rotatePress = nil
                 isRotating = false
+                onFineRotationDragChanged(false)
             }
     }
 

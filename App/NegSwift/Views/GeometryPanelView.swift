@@ -131,7 +131,14 @@ struct GeometryPanelView: View {
                 ),
                 style: .fineRotation,
                 range: EditControlRanges.fineRotation,
-                defaultValue: EditControlDefaults.fineRotation
+                defaultValue: EditControlDefaults.fineRotation,
+                onEditingChanged: { active in
+                    if active {
+                        session.beginFineRotationInteraction()
+                    } else {
+                        session.endFineRotationInteraction()
+                    }
+                }
             )
         }
     }

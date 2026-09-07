@@ -20,6 +20,8 @@ public struct RenderPrintResult: Sendable {
     public var previewPass: PreviewPass
     /// S13g: ImageIO/LibRaw sample used the ≥4096 analysis oversample.
     public var analysisOversampled: Bool
+    /// S13k: settled preview loaded from the on-disk processed cache.
+    public var reusedDiskCache: Bool
 
     public init(
         buffer: LinearRGBBuffer,
@@ -31,7 +33,8 @@ public struct RenderPrintResult: Sendable {
         downloadedLinear: Bool = false,
         gpuPresent: GPUPresentImage? = nil,
         previewPass: PreviewPass = .settled,
-        analysisOversampled: Bool = false
+        analysisOversampled: Bool = false,
+        reusedDiskCache: Bool = false
     ) {
         self.buffer = buffer
         self.resolvedAutocrop = resolvedAutocrop
@@ -43,6 +46,7 @@ public struct RenderPrintResult: Sendable {
         self.gpuPresent = gpuPresent
         self.previewPass = previewPass
         self.analysisOversampled = analysisOversampled
+        self.reusedDiskCache = reusedDiskCache
     }
 }
 
@@ -57,13 +61,19 @@ public struct NativePipeline: Sendable {
         self.pixelBackend = pixelBackend
     }
 
-    /// Drop decode / reprint / resident GPU caches. Tests call this between cases.
+    /// S13k: on-disk processed preview root. Survives ``resetWorkingSets()``.
+    public static func configureDiskPreviewCache(rootDirectory: URL?) {
+        ProcessedPreviewDiskCache.shared.configure(rootDirectory: rootDirectory)
+    }
+
+    /// Drop in-memory decode / reprint / resident GPU caches. Disk preview cache survives (S13k).
     public static func resetWorkingSets() {
         LinearBufferCache.shared.reset()
         NativeJobQueue.shared.reset()
         RawDecode.resetSessions()
         RawDecode.resetStats()
         ReprintCache.shared.reset()
+        ProcessedPreviewDiskCache.shared.reset()
         #if canImport(Metal)
         MetalWorkingSet.shared.reset()
         MetalDevice.runtime()?.resetScratch()
@@ -218,8 +228,39 @@ public struct NativePipeline: Sendable {
             processMode: processMode
         )
 
+        let shouldCache = resolvedEdge != nil && previewPass != .draft && passConfig.applyPixelCrop
+        if shouldCache,
+           let cachedBuffer = ProcessedPreviewDiskCache.shared.lookup(
+               path: path,
+               longEdgePx: resolvedEdge,
+               config: passConfig,
+               processMode: processMode
+           )
+        {
+            var present: GPUPresentImage?
+            if !readback, let image = try? DisplayTransform.workingImage(fromWorkingSpace: cachedBuffer) {
+                present = GPUPresentImage(
+                    width: cachedBuffer.width,
+                    height: cachedBuffer.height,
+                    cgImage: image
+                )
+            }
+            return RenderPrintResult(
+                buffer: cachedBuffer,
+                resolvedAutocrop: nil,
+                cropRect: passConfig.cropRect,
+                reusedBake: true,
+                reusedAnalysis: true,
+                uploadedLinear: false,
+                downloadedLinear: false,
+                gpuPresent: present,
+                previewPass: previewPass,
+                analysisOversampled: oversampled,
+                reusedDiskCache: true
+            )
+        }
+
         // Draft is a throwaway first paint — do not replace the settled reprint / Metal set.
-        let shouldCache = resolvedEdge != nil && previewPass != .draft
         let cached = shouldCache ? ReprintCache.shared.lookup(analysisKey: analysisKey) : nil
         let priorBaked = cached?.baked ?? (shouldCache ? ReprintCache.shared.lookupBaked(bakeKey: bakeKey) : nil)
         let reusedAnalysis = cached != nil
@@ -325,6 +366,16 @@ public struct NativePipeline: Sendable {
         )
         PipelineStats.increment(.print)
         let persistResident = resolvedEdge != nil && previewPass != .draft
+        func persistDiskCache(_ buffer: LinearRGBBuffer, processMode mode: FilmProcessMode?) {
+            guard shouldCache else { return }
+            ProcessedPreviewDiskCache.shared.store(
+                path: path,
+                longEdgePx: resolvedEdge,
+                config: passConfig,
+                processMode: mode,
+                buffer: buffer
+            )
+        }
         if pixelBackend.resolved() == .metal,
            let gpu = MetalPrint.processDetailed(
                linear: oriented,
@@ -339,6 +390,9 @@ public struct NativePipeline: Sendable {
            )
         {
             if let present = gpu.present, !readback {
+                if let cacheBuffer = gpu.cacheBuffer {
+                    persistDiskCache(cacheBuffer, processMode: mode)
+                }
                 return RenderPrintResult(
                     buffer: LinearRGBBuffer.stub(width: 1, height: 1),
                     resolvedAutocrop: armed.resolved,
@@ -353,6 +407,7 @@ public struct NativePipeline: Sendable {
                 )
             }
             if let pixels = gpu.buffer {
+                persistDiskCache(pixels, processMode: mode)
                 return RenderPrintResult(
                     buffer: pixels,
                     resolvedAutocrop: armed.resolved,
@@ -388,6 +443,7 @@ public struct NativePipeline: Sendable {
                 cgImage: image
             )
         }
+        persistDiskCache(encoded, processMode: mode)
         return RenderPrintResult(
             buffer: encoded,
             resolvedAutocrop: armed.resolved,

@@ -19,12 +19,13 @@ final class LinearBufferCache: @unchecked Sendable {
     private let condition = NSCondition()
     private var entries: [Entry] = []
     private var inflight: Set<String> = []
-    private let limit = 8
+    private var totalBytes = 0
 
     func reset() {
         condition.lock()
         entries.removeAll()
         inflight.removeAll()
+        totalBytes = 0
         condition.broadcast()
         condition.unlock()
     }
@@ -147,11 +148,20 @@ final class LinearBufferCache: @unchecked Sendable {
         return have >= need
     }
 
+    private func entryBytes(_ entry: Entry) -> Int {
+        entry.buffer.pixels.count * MemoryLayout<Float>.size
+    }
+
     private func storeUnlocked(_ entry: Entry) {
-        entries.removeAll { $0.path == entry.path && $0.stamp == entry.stamp }
+        if let index = entries.firstIndex(where: { $0.path == entry.path && $0.stamp == entry.stamp }) {
+            totalBytes -= entryBytes(entries[index])
+            entries.remove(at: index)
+        }
         entries.insert(entry, at: 0)
-        if entries.count > limit {
-            entries.removeLast()
+        totalBytes += entryBytes(entry)
+        while entries.count > CacheBudget.linearEntries || totalBytes > CacheBudget.linearMaxBytes {
+            guard let evicted = entries.popLast() else { break }
+            totalBytes -= entryBytes(evicted)
         }
     }
 }

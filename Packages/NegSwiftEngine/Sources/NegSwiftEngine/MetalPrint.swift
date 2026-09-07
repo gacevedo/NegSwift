@@ -9,6 +9,8 @@ import Metal
 public enum MetalPrint: Sendable {
     public struct Output: Sendable {
         public var buffer: LinearRGBBuffer?
+        /// Encoded working-space buffer for S13k disk cache when `readback` is false.
+        public var cacheBuffer: LinearRGBBuffer?
         public var present: GPUPresentImage?
         public var uploaded: Bool
         public var downloaded: Bool
@@ -408,7 +410,20 @@ extension MetalPrint {
                originY: originY
            )
         {
-            return Output(buffer: nil, present: present, uploaded: uploaded, downloaded: false)
+            let cacheBuffer = download(
+                current,
+                width: outW,
+                height: outH,
+                originX: originX,
+                originY: originY
+            )
+            return Output(
+                buffer: nil,
+                cacheBuffer: cacheBuffer,
+                present: present,
+                uploaded: uploaded,
+                downloaded: false
+            )
         }
         return readbackOutput(
             current,
@@ -437,6 +452,7 @@ extension MetalPrint {
                 originX: originX,
                 originY: originY
             ),
+            cacheBuffer: nil,
             present: nil,
             uploaded: uploaded,
             downloaded: true
@@ -598,7 +614,7 @@ final class MetalWorkingSet: @unchecked Sendable {
     private let lock = NSLock()
     private var slots: [String: Slot] = [:]
     private var order: [String] = []
-    private let limit = 6
+    private let limit = CacheBudget.metalWorkingSet
 
     func reset() {
         lock.lock()

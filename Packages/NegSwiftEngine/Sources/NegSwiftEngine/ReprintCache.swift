@@ -17,7 +17,7 @@ final class ReprintCache: @unchecked Sendable {
 
     private let lock = NSLock()
     private var entries: [Entry] = []
-    private let limit = 8
+    private let limit = CacheBudget.reprintEntries
 
     func reset() {
         lock.lock()

@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S14** automated gates are in. **S13** is reopened for first-load performance (S13a–j shipped; next is **S13k**). **S15** iOS harness is later — do not start while S13 is open. Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
+Native engine **S0–S14** automated gates are in. **S13** is reopened for first-load performance (S13a–k shipped; next is **S13m**). **S15** iOS harness is later — do not start while S13 is open. Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
 
 **Header template:**
 
@@ -428,7 +428,7 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 
 ### S13 — Interactive + first-load performance
 
-S13a–j (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch) stay done. S13k–l are open. Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE).
+S13a–k (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch + disk preview cache) stay done. S13l–m are open. Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE).
 
 - [x] S13a: density-only reprint skips heal / dust / orient / analyze (`make compare-s13` / `ReprintCacheTests`)
 - [ ] S13a human: Print Density / Grade drag on the ~20 MP scan; no look change vs S8
@@ -449,7 +449,8 @@ S13a–j (slider reprints + one decode + Accelerate + splash/thumbs + progressiv
 - [ ] S13i human: X-Trans preview faster than AHD with no crushed crop
 - [x] S13j: TIFF/JPEG decode in parallel; selected-frame preview outranks strip jobs; neighbor prefetch loads linear buffers (`QueuePrefetchTests`)
 - [ ] S13j human: import 20+ TIFFs stays responsive; clicking frame B cancels queued thumbs
-- [ ] S13k: quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged
+- [x] S13k: processed-preview disk cache + longer-lived working sets (`ProcessedPreviewDiskCacheTests`); look unchanged vs S8 on cache hit
+- [ ] S13k human: quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged
 - [ ] S13l: optional — Metal dust / autocrop / histograms or Fast-preview defaults only if Instruments still shows those stages after S13d–h
 - [ ] Stage timers in `NEGSWIFT_PERF_LOG` / `PipelineStats`: detect, open-autocrop, LibRaw, `areaDownsampled`, Metal upload+download, ColorSync
 - [ ] Human: Swift backend, 16-bit TIFF ≥16 MP — first open in the same class as Python

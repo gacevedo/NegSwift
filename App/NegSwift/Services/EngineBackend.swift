@@ -176,7 +176,11 @@ actor NativeEngineBackend: EngineBackend {
     /// Bumped on ``stop`` so an in-flight detached render is discarded.
     private var workGeneration = 0
 
-    func start() async throws {}
+    func start() async throws {
+        let cacheRoot = AppPreferencesStorage.resolvedNegPyUserDirectoryURL()
+            .appendingPathComponent("processed_previews", isDirectory: true)
+        NativePipeline.configureDiskPreviewCache(rootDirectory: cacheRoot)
+    }
 
     func stop() async {
         workGeneration += 1

@@ -44,6 +44,10 @@ protocol EngineBackend: Sendable {
         preferGPU: Bool
     ) async throws -> ExportResult
     func cancel(jobID: String) async throws
+    /// Warm neighbor linear buffers (native LRU / Python PreviewManager). Strip priority.
+    func prefetchLinear(path: String, maxLongEdge: Int?, analysisOversample: Bool) async throws
+    /// Drop queued strip thumbs / prefetch when the selected frame changes.
+    func cancelQueuedStripJobs() async
 }
 
 enum EngineBackendFactory {
@@ -156,6 +160,16 @@ actor PythonEngineBackend: EngineBackend {
     func cancel(jobID: String) async throws {
         try await client.cancel(jobID: jobID)
     }
+
+    func prefetchLinear(path: String, maxLongEdge: Int?, analysisOversample: Bool) async throws {
+        _ = maxLongEdge
+        _ = analysisOversample
+        _ = try await client.open(path: path, includeSplash: false, config: nil)
+    }
+
+    func cancelQueuedStripJobs() async {
+        await client.cancelQueuedStripJobs()
+    }
 }
 
 actor NativeEngineBackend: EngineBackend {
@@ -166,7 +180,7 @@ actor NativeEngineBackend: EngineBackend {
 
     func stop() async {
         workGeneration += 1
-        Self.bumpSupersedeEpoch()
+        NativeJobQueue.shared.cancelStripJobs()
     }
 
     func ping() async throws {}
@@ -186,8 +200,8 @@ actor NativeEngineBackend: EngineBackend {
         let dims = NativePipeline().probeSource(at: path) ?? (1, 1)
         var suggestedCropRect: [Double]?
         var cropDetectKey: String?
-        // Prefetch uses includeSplash: false — keep that path a cheap probe so a folder
-        // of RAWs does not queue LibRaw decodes behind the selected-frame preview.
+        // includeSplash: false stays a cheap probe (dimensions). Neighbor linear
+        // prefetch is prefetchLinear — selected-frame work does not wait on it.
         // Splash is an embedded JPEG (or TIFF preview page); it does not decode linear.
         // Armed crop reuses the S13d linear LRU (same oversampled sample as detect/print).
         let splash = includeSplash ? NativePipeline().splashJPEG(path: path) : nil
@@ -196,7 +210,7 @@ actor NativeEngineBackend: EngineBackend {
             if Autocrop.isArmed(printConfig), printConfig.cropRect == nil {
                 do {
                     let generation = workGeneration
-                    let resolved = try await Self.performOnWorkQueue(stripJob: false) {
+                    let resolved = try await Self.performSelected(path: path) {
                         let preview = try NativePipeline().decode(
                             path: path,
                             maxLongEdge: Autocrop.detectResolution,
@@ -250,9 +264,9 @@ actor NativeEngineBackend: EngineBackend {
         let result: RenderResult
         do {
             if stripThumbnail {
-                // Cheap ImageIO / embedded-JPEG thumbs stay off the serial LibRaw/Metal
-                // queue so a folder of frames can fill the strip during the selected print.
-                result = try await Self.performOffActor {
+                // Cheap thumbs share the raster strip lane: they overlap selected TIFF
+                // print, stay off the serial RAW worker, and cancel when selection changes.
+                result = try await Self.performStrip(lane: .raster) {
                     try Self.performCheapThumb(
                         path: path,
                         longEdgePx: longEdgePx,
@@ -261,7 +275,7 @@ actor NativeEngineBackend: EngineBackend {
                     )
                 }
             } else {
-                result = try await Self.performOnWorkQueue(stripJob: false) {
+                result = try await Self.performSelected(path: path) {
                     try Self.performRender(
                         path: path,
                         longEdgePx: longEdgePx,
@@ -296,7 +310,7 @@ actor NativeEngineBackend: EngineBackend {
         }
         do {
             let generation = workGeneration
-            let mode = try await Self.performOnWorkQueue(stripJob: false) {
+            let mode = try await Self.performSelected(path: path) {
                 try NativePipeline().detectProcessMode(path: path)
             }
             guard generation == workGeneration else { throw CancellationError() }
@@ -386,7 +400,7 @@ actor NativeEngineBackend: EngineBackend {
         )
         let result: ExportResult
         do {
-            result = try await Self.performOnWorkQueue(stripJob: false) {
+            result = try await Self.performSelected(path: path) {
                 let exported = try NativePipeline(pixelBackend: .auto).export(
                     path: path,
                     destDir: destDir,
@@ -416,6 +430,28 @@ actor NativeEngineBackend: EngineBackend {
 
     func cancel(jobID: String) async throws {
         _ = jobID
+    }
+
+    func prefetchLinear(path: String, maxLongEdge: Int?, analysisOversample: Bool) async throws {
+        let generation = workGeneration
+        do {
+            _ = try await Self.performStrip(lane: NativeJobQueue.prefetchLane(forScan: path)) {
+                try NativePipeline().prefetchLinear(
+                    path: path,
+                    maxLongEdge: maxLongEdge,
+                    analysisOversample: analysisOversample
+                )
+            }
+        } catch let error as LinearDecodeError {
+            throw Self.mapDecode(error)
+        } catch is CancellationError {
+            throw CancellationError()
+        }
+        guard generation == workGeneration else { throw CancellationError() }
+    }
+
+    func cancelQueuedStripJobs() async {
+        NativeJobQueue.shared.cancelStripJobs()
     }
 
     nonisolated static func printInputs(from config: FrameEditState?) -> (
@@ -468,56 +504,28 @@ actor NativeEngineBackend: EngineBackend {
         return (processMode, printConfig)
     }
 
-    /// One worker — LibRaw/OpenMP and Metal encode are not safe under parallel RAW decodes.
-    /// Canvas / detect / export bump ``supersedeEpoch`` so queued strip thumbs no-op.
-    private static let workQueue = DispatchQueue(
-        label: "negswift.native-engine.render",
-        qos: .userInitiated
-    )
-    private static let epochLock = NSLock()
-    private static var supersedeEpoch = 0
-
-    @discardableResult
-    private static func bumpSupersedeEpoch() -> Int {
-        epochLock.lock()
-        supersedeEpoch += 1
-        let value = supersedeEpoch
-        epochLock.unlock()
-        return value
-    }
-
-    private static func currentSupersedeEpoch() -> Int {
-        epochLock.lock()
-        defer { epochLock.unlock() }
-        return supersedeEpoch
-    }
-
-    private static func performOffActor<T: Sendable>(
+    /// Raster strip (thumbs / TIFF prefetch) overlaps selected TIFF print. RAW stays
+    /// one worker. ``cancelQueuedStripJobs`` drops queued strip work on frame change.
+    private static func performSelected<T: Sendable>(
+        path: String,
         operation: @escaping @Sendable () throws -> T
     ) async throws -> T {
-        try await Task.detached(priority: .utility) {
-            try operation()
-        }.value
+        try await NativeJobQueue.shared.submit(
+            kind: .selected,
+            lane: NativeJobQueue.selectedLane(forScan: path),
+            operation: operation
+        )
     }
 
-    private static func performOnWorkQueue<T: Sendable>(
-        stripJob: Bool,
+    private static func performStrip<T: Sendable>(
+        lane: NativeJobLane,
         operation: @escaping @Sendable () throws -> T
     ) async throws -> T {
-        let epoch = stripJob ? currentSupersedeEpoch() : bumpSupersedeEpoch()
-        return try await withCheckedThrowingContinuation { continuation in
-            workQueue.async {
-                if stripJob, epoch != currentSupersedeEpoch() {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
-                do {
-                    continuation.resume(returning: try operation())
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
+        try await NativeJobQueue.shared.submit(
+            kind: .strip,
+            lane: lane,
+            operation: operation
+        )
     }
 
     private static func performRender(

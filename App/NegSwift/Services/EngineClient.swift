@@ -521,6 +521,14 @@ actor EngineClient {
         )
     }
 
+    func cancelQueuedStripJobs() async {
+        let ids = activeStripThumbnailJobIDs
+        activeStripThumbnailJobIDs.removeAll()
+        for thumbID in ids {
+            try? await cancel(jobID: thumbID)
+        }
+    }
+
     private func failPendingRequest(jobID: String) {
         if let continuation = pending.removeValue(forKey: jobID) {
             continuation.resume(throwing: CancellationError())

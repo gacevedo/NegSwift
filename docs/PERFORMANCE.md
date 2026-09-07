@@ -156,9 +156,9 @@ cd Engine && uv run pytest tests/test_perf.py -v
 
 ## Native Swift engine (S13 first-load)
 
-Separate from the M12 Python IPC harness above. S13a–i optimized slider reprints, fused first-open decode, Accelerate convert/resize, splash/cheap thumbs, progressive first paint, GPU present without float readback, and X-Trans preview PPG (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests` + `ProgressivePaintTests` + `GPUPresentTests` + `RawDecodeTests`). In-process preview presents an Adobe RGB `CIImage` / `CGImage` from an `rgba16Float` IOSurface; export / CLI / MAE still `getBytes`.
+Separate from the M12 Python IPC harness above. S13a–j optimized slider reprints, fused first-open decode, Accelerate convert/resize, splash/cheap thumbs, progressive first paint, GPU present without float readback, X-Trans preview PPG, and queue/prefetch (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests` + `ProgressivePaintTests` + `GPUPresentTests` + `RawDecodeTests` + `QueuePrefetchTests`). In-process preview presents an Adobe RGB `CIImage` / `CGImage` from an `rgba16Float` IOSurface; export / CLI / MAE still `getBytes`.
 
-`make compare-s13` includes decode-reuse, Accelerate convert, splash/thumb, and progressive-paint tests. Do not add a `make bench-native` target until a script exists.
+`make compare-s13` includes decode-reuse, Accelerate convert, splash/thumb, progressive-paint, and queue/prefetch tests. Do not add a `make bench-native` target until a script exists.
 
 When `NEGSWIFT_PERF_LOG=1` and `PipelineStats` grow stage timers, record:
 

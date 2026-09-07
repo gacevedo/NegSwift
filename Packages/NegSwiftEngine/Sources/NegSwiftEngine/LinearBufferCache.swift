@@ -16,14 +16,24 @@ final class LinearBufferCache: @unchecked Sendable {
         var sourceLongEdge: Int?
     }
 
-    private let lock = NSLock()
+    private let condition = NSCondition()
     private var entries: [Entry] = []
+    private var inflight: Set<String> = []
     private let limit = 8
 
     func reset() {
-        lock.lock()
+        condition.lock()
         entries.removeAll()
-        lock.unlock()
+        inflight.removeAll()
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func contains(path: String) -> Bool {
+        let stamp = ReprintCache.fileStamp(path)
+        condition.lock()
+        defer { condition.unlock() }
+        return entries.contains { $0.path == path && $0.stamp == stamp }
     }
 
     func buffer(
@@ -32,9 +42,13 @@ final class LinearBufferCache: @unchecked Sendable {
         analysisOversample: Bool
     ) throws -> LinearRGBBuffer {
         let stamp = ReprintCache.fileStamp(path)
+        let key = path + "\0" + stamp
         let wantFull = maxLongEdge == nil
 
-        lock.lock()
+        condition.lock()
+        while inflight.contains(key) {
+            condition.wait()
+        }
         if let hit = lookupUnlocked(
             path: path,
             stamp: stamp,
@@ -44,31 +58,42 @@ final class LinearBufferCache: @unchecked Sendable {
         ) {
             let sample = hit.buffer
             let cameraRaw = hit.isCameraRaw
-            lock.unlock()
+            condition.unlock()
             return LinearDecode.shrink(sample, toLongEdge: maxLongEdge, cameraRaw: cameraRaw)
         }
-        lock.unlock()
+        inflight.insert(key)
+        condition.unlock()
 
-        PipelineStats.increment(.decode)
-        let sample = try LinearDecode.decodeSample(
-            path: path,
-            maxLongEdge: maxLongEdge,
-            analysisOversample: analysisOversample
-        )
-        lock.lock()
-        storeUnlocked(
-            Entry(
+        do {
+            PipelineStats.increment(.decode)
+            let sample = try LinearDecode.decodeSample(
                 path: path,
-                stamp: stamp,
-                buffer: sample.buffer,
-                isCameraRaw: sample.isCameraRaw,
-                isFullResolution: sample.isFullResolution,
-                usedHalfSize: sample.usedHalfSize,
-                sourceLongEdge: sample.sourceLongEdge
+                maxLongEdge: maxLongEdge,
+                analysisOversample: analysisOversample
             )
-        )
-        lock.unlock()
-        return LinearDecode.shrink(sample.buffer, toLongEdge: maxLongEdge, cameraRaw: sample.isCameraRaw)
+            condition.lock()
+            storeUnlocked(
+                Entry(
+                    path: path,
+                    stamp: stamp,
+                    buffer: sample.buffer,
+                    isCameraRaw: sample.isCameraRaw,
+                    isFullResolution: sample.isFullResolution,
+                    usedHalfSize: sample.usedHalfSize,
+                    sourceLongEdge: sample.sourceLongEdge
+                )
+            )
+            inflight.remove(key)
+            condition.broadcast()
+            condition.unlock()
+            return LinearDecode.shrink(sample.buffer, toLongEdge: maxLongEdge, cameraRaw: sample.isCameraRaw)
+        } catch {
+            condition.lock()
+            inflight.remove(key)
+            condition.broadcast()
+            condition.unlock()
+            throw error
+        }
     }
 
     private func lookupUnlocked(

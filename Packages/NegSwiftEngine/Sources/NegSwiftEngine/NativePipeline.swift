@@ -48,7 +48,8 @@ public struct RenderPrintResult: Sendable {
 
 /// In-process pipeline. S13: reprint cache, Metal geometry, resident GPU present
 /// without float readback, one linear decode per file, Accelerate convert/resize,
-/// splash + cheap thumbs, progressive draft / refine first paint, X-Trans PPG.
+/// splash + cheap thumbs, progressive draft / refine first paint, X-Trans PPG,
+/// parallel TIFF/JPEG decode with selected-frame priority and neighbor linear prefetch.
 public struct NativePipeline: Sendable {
     public var pixelBackend: PixelBackend
 
@@ -59,6 +60,7 @@ public struct NativePipeline: Sendable {
     /// Drop decode / reprint / resident GPU caches. Tests call this between cases.
     public static func resetWorkingSets() {
         LinearBufferCache.shared.reset()
+        NativeJobQueue.shared.reset()
         RawDecode.resetSessions()
         RawDecode.resetStats()
         ReprintCache.shared.reset()
@@ -90,6 +92,20 @@ public struct NativePipeline: Sendable {
         analysisOversample: Bool = false
     ) throws -> LinearRGBBuffer {
         try LinearBufferCache.shared.buffer(
+            path: path,
+            maxLongEdge: maxLongEdge,
+            analysisOversample: analysisOversample
+        )
+    }
+
+    /// Warm the linear LRU for a neighbor frame (S13j). Same sample as a settled preview.
+    @discardableResult
+    public func prefetchLinear(
+        path: String,
+        maxLongEdge: Int? = Int(Autocrop.previewRenderSize),
+        analysisOversample: Bool = true
+    ) throws -> LinearRGBBuffer {
+        try decode(
             path: path,
             maxLongEdge: maxLongEdge,
             analysisOversample: analysisOversample

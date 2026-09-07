@@ -279,6 +279,31 @@ struct NativeEngineBackendTests {
         #expect(PipelineStats.snapshot().decode == 1)
     }
 
+    @Test func prefetchLinearWarmsTheNextRender() async throws {
+        let url = try writeFrameTIFF(width: 80, height: 48)
+        defer { try? FileManager.default.removeItem(at: url) }
+        NativePipeline.resetWorkingSets()
+        let backend = NativeEngineBackend()
+        try await backend.prefetchLinear(
+            path: url.path,
+            maxLongEdge: 64,
+            analysisOversample: true
+        )
+        #expect(PipelineStats.snapshot().decode == 1)
+        _ = try await backend.render(
+            path: url.path,
+            longEdgePx: 64,
+            preferGPU: false,
+            config: nil,
+            cropPreviewFull: false,
+            stripThumbnail: false,
+            previewFormat: .jpeg,
+            jpegQuality: 90
+        )
+        #expect(PipelineStats.snapshot().decode == 1)
+        #expect(PipelineStats.snapshot().print == 1)
+    }
+
     @Test func detectMissingFileIsNotFound() async {
         let backend = NativeEngineBackend()
         do {

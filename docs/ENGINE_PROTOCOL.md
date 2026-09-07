@@ -183,7 +183,7 @@ Preview render at display resolution.
 
 `crop_preview_full` — when `true`, render the full transformed frame without applying the crop (for on-canvas crop editing). Matches NegPy desktop crop-tool behaviour.
 
-`fast_preview` — when `true`, request a strip-thumbnail render (`long_edge_px` ≈ 256). The Swift backend uses an ImageIO / RAW embedded-JPEG cheap thumb (not H&D+Lab). The Python backend still uses `PreviewManager` + `run_pipeline`; reserved for callers that want to distinguish thumb jobs (cancellation priority).
+`fast_preview` — when `true`, request a strip-thumbnail render (`long_edge_px` ≈ 256). The Swift backend uses an ImageIO / RAW embedded-JPEG cheap thumb (not H&D+Lab) on the raster strip lane (S13j: cancelled when the selected frame changes). The Python backend still uses `PreviewManager` + `run_pipeline`; reserved for callers that want to distinguish thumb jobs (cancellation priority).
 
 `draft_preview` — when `true`, S13g first-paint pass: clamp long edge to 512, skip analysis oversample, skip Lab sharpen and optical dust. The settled / refine pass omits this flag and keeps S8 look.
 

@@ -70,6 +70,7 @@ final class EngineSession {
     private var stripGeneration = 0
     private var previewGeneration = 0
     private var thumbnailGeneration = 0
+    private var prefetchGeneration = 0
     private var pathsWithSidecar: Set<String> = []
     private var isThumbnailLoadRunning = false
     private var thumbnailReloadPending = false
@@ -1125,7 +1126,6 @@ final class EngineSession {
             }
             if let first = frames.first {
                 await selectFrame(first.id)
-                prefetchAssets(around: first.id)
             } else {
                 previewError = "No supported scans found in this folder."
             }
@@ -1195,7 +1195,6 @@ final class EngineSession {
             }
             if let first = frames.first {
                 await selectFrame(first.id)
-                prefetchAssets(around: first.id)
             } else {
                 previewError = "No supported scans in the dropped files."
             }
@@ -1321,7 +1320,10 @@ final class EngineSession {
         pendingThumbnailRefreshAfterCropClose = false
         pendingAutoCropSeed = false
         thumbnailGeneration += 1
+        prefetchGeneration += 1
+        let neighborPrefetchGeneration = prefetchGeneration
         guard let frame = frames.first(where: { $0.id == id }) else { return }
+        await backend.cancelQueuedStripJobs()
         if let previousPath, previousPath != frame.path {
             saveDebounce.cancel()
             await persistEdit(for: previousPath)
@@ -1336,6 +1338,7 @@ final class EngineSession {
         let memoFingerprint = previewMemoFingerprint(for: path, cropPreviewFull: false)
         if let memo = previewMemo.get(path: path, fingerprint: memoFingerprint) {
             applyPreviewMemo(memo, path: path)
+            prefetchNeighbors(around: id, generation: neighborPrefetchGeneration)
             scheduleLoadMissingThumbnails()
             if PerformanceLogger.isEnabled {
                 let ms = (CFAbsoluteTimeGetCurrent() - selectStart) * 1000
@@ -1349,11 +1352,13 @@ final class EngineSession {
         isPreviewDraft = false
         applyThumbnailInterimPreview(for: frame)
         await warmOpenAsset(for: frame)
+        scheduleLoadMissingThumbnails()
+        prefetchRasterNeighbors(around: id, generation: neighborPrefetchGeneration)
 
         previewGeneration += 1
         let generation = previewGeneration
         await renderPreview(at: frame.url, generation: generation, progressive: true)
-        scheduleLoadMissingThumbnails()
+        prefetchRawNeighbors(around: id, generation: neighborPrefetchGeneration)
         if PerformanceLogger.isEnabled {
             let ms = (CFAbsoluteTimeGetCurrent() - selectStart) * 1000
             PerformanceLogger.event("frame_switch_total", milliseconds: ms)
@@ -1929,28 +1934,55 @@ final class EngineSession {
         previewError = nil
     }
 
-    private func prefetchAsset(at url: URL) {
+    private func prefetchLinear(at url: URL, generation: Int, raw: Bool) {
+        let isRaw = ScanFormat.isCameraRaw(url.path)
+        guard isRaw == raw else { return }
         Task {
+            guard generation == prefetchGeneration else { return }
             let gotAccess = beginFileAccess(for: url)
             defer {
                 if gotAccess {
                     endFileAccess(for: url)
                 }
             }
-            let path = url.path
-            let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
-            _ = try? await backend.open(path: path, includeSplash: false, config: config)
+            guard generation == prefetchGeneration else { return }
+            let edge = PreviewRenderSettings(preferences: preferences).longEdgePx
+            let oversample = PreviewPass.settled.shouldOversample(longEdgePx: edge)
+            _ = try? await backend.prefetchLinear(
+                path: url.path,
+                maxLongEdge: edge,
+                analysisOversample: oversample
+            )
         }
     }
 
-    private func prefetchAssets(around id: UUID) {
-        guard let center = frames.firstIndex(where: { $0.id == id }) else { return }
-        let span = 1 + Self.thumbnailLoadConcurrency
-        let lower = max(0, center - span)
-        let upper = min(frames.count, center + span + 1)
-        for frame in frames[lower ..< upper] {
-            prefetchAsset(at: frame.url)
+    private func neighborFrames(around id: UUID) -> [ScanFrame] {
+        guard let center = frames.firstIndex(where: { $0.id == id }) else { return [] }
+        var neighbors: [ScanFrame] = []
+        if center > 0 {
+            neighbors.append(frames[center - 1])
         }
+        if center + 1 < frames.count {
+            neighbors.append(frames[center + 1])
+        }
+        return neighbors
+    }
+
+    private func prefetchRasterNeighbors(around id: UUID, generation: Int) {
+        for frame in neighborFrames(around: id) {
+            prefetchLinear(at: frame.url, generation: generation, raw: false)
+        }
+    }
+
+    private func prefetchRawNeighbors(around id: UUID, generation: Int) {
+        for frame in neighborFrames(around: id) {
+            prefetchLinear(at: frame.url, generation: generation, raw: true)
+        }
+    }
+
+    private func prefetchNeighbors(around id: UUID, generation: Int) {
+        prefetchRasterNeighbors(around: id, generation: generation)
+        prefetchRawNeighbors(around: id, generation: generation)
     }
 
     /// Sidecar / default config for strip thumbs. Autodetect stays on selectFrame —
@@ -1967,6 +1999,7 @@ final class EngineSession {
     private func clearFilmStrip() {
         stripGeneration += 1
         previewGeneration += 1
+        prefetchGeneration += 1
         previewDebounce.cancel()
         saveDebounce.cancel()
         thumbnailDebounce.cancel()

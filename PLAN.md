@@ -29,9 +29,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 | **M14** Batch export | **Done** | Sheet scope + tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
-| **S0–S15** Native Swift engine | **S13 reopened** | S13a–i done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG). Next: **S13j** queue/prefetch. S14 RAW look is in. S15 later. See §14 |
+| **S0–S15** Native Swift engine | **S13 reopened** | S13a–j done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch). Next: **S13k** disk cache. S14 RAW look is in. S15 later. See §14 |
 
-**Resume here:** Native engine **S13j** (queue split and prefetch). S13a–i shipped (slider reprints, one linear decode per file, vImage/vDSP convert/resize, embedded-preview splash + cheap strip thumbs, progressive draft / refine first paint, GPU present without float readback, X-Trans preview PPG + one libraw handle per file). S14 camera RAW is in (oracle for S13i). S15 iOS stays later while S13 is open. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Resume here:** Native engine **S13k** (longer-lived caches). S13a–j shipped (slider reprints, one linear decode per file, vImage/vDSP convert/resize, embedded-preview splash + cheap strip thumbs, progressive draft / refine first paint, GPU present without float readback, X-Trans preview PPG + one libraw handle per file, parallel TIFF/JPEG decode with selected-frame priority and neighbor linear prefetch). S14 camera RAW is in (oracle for S13i). S15 iOS stays later while S13 is open. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 **Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
 
@@ -985,7 +985,7 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 3. **M15:** Wire zone tone sliders (shadows/highlights density + ISO-R split grade) per §7 M15. — **Done**
 4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
-5. **Native engine S13:** First-load performance — start at **S13j** (queue split and prefetch). S13a–i stay done. Do not start S15 while S13 is open. See §14.
+5. **Native engine S13:** First-load performance — start at **S13k** (longer-lived caches). S13a–j stay done. Do not start S15 while S13 is open. See §14.
 
 ---
 
@@ -1012,7 +1012,7 @@ S13 phase cards live in this section. Human rows are in [`docs/MANUAL_TEST_CHECK
 | **S10b** | Optical dust | **Done** — Preferences toggle vs Python on a dirty scan |
 | **S11** | Autocrop detect-once | **Done** — holder fixture + detect-once stdio; human holder-scan A/B done |
 | **S12** | Metal (optional) | **Done** — CPU-vs-Metal MAE (`make compare-s12`); slider feel on ~20 MP. Not a look gate. |
-| **S13** | Interactive + first-load performance | **Reopened** — S13a–i done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG). S13j–l open (first open). Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE). |
+| **S13** | Interactive + first-load performance | **Reopened** — S13a–j done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch). S13k–l open (disk cache / optional later GPU). Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE). |
 | **S14** | Camera RAW (LibRaw) | **Done** — sensor-native linear for NegPy’s camera RAW list; ImageIO is not the look path. Preview/thumb uses LibRaw `half_size` (Bayer) like NegPy |
 | **S15** | iOS harness (later) | After S4a; not an App Store product. Do not start while S13 is open. |
 
@@ -1020,7 +1020,7 @@ Do not start S12–S15 before S4a. Do not start S11 before S6. Do not start S15 
 
 ### S13 — Interactive + first-load performance
 
-S13a–i shipped (slider reprints + one linear decode per file + Accelerate convert/resize + embedded-preview splash + cheap strip thumbs + progressive draft / refine first paint + GPU present without float `getBytes` + X-Trans preview PPG). First open still has queue/prefetch and disk-cache work (S13j–k). In-process preview presents an Adobe RGB `CIImage` from an `rgba16Float` IOSurface. Export / CLI stay CPU readback.
+S13a–j shipped (slider reprints + one linear decode per file + Accelerate convert/resize + embedded-preview splash + cheap strip thumbs + progressive draft / refine first paint + GPU present without float `getBytes` + X-Trans preview PPG + queue/prefetch). First open still has disk-cache work (S13k). In-process preview presents an Adobe RGB `CIImage` from an `rgba16Float` IOSurface. Export / CLI stay CPU readback.
 
 Sequence: **S13d → S13e → S13f → S13g** in parallel with **S13i → S13h → S13j → S13k**. **S13l** only if Instruments still shows those stages after S13d–h.
 
@@ -1035,11 +1035,11 @@ Sequence: **S13d → S13e → S13f → S13g** in parallel with **S13i → S13h �
 | **S13g** | Progressive / draft first paint | **Done** — Swift `selectFrame` paints a 512 processed draft (no analysis oversample, skip Lab sharpen / optical dust), then refines at 1600/2400. `NEGSWIFT_PERF_LOG` `native_first_paint` / `native_full_preview`. Settled look matches S8 (`ProgressivePaintTests`). |
 | **S13h** | GPU present, no float readback | **Done** — in-process present is Adobe RGB `CIImage` / `CGImage` from an `rgba16Float` IOSurface (`LiteKernels.metallib`, reused ping/pong). First present does not `getBytes` the float working set; slider upload/download stays 0 (`GPUPresentTests`). CPU-vs-Metal MAE unchanged. Export / CLI stay encoded readback. |
 | **S13i** | RAW decode | **Done** — X-Trans preview is PPG (1-pass Markesteijn), not AHD. One `libraw` handle per file shares `open`/`unpack` (`RawSessionCache`). Keep LibRaw OpenMP on the selected frame (do not pin `OMP_NUM_THREADS=1`). `RawDecodeTests`; S14 MAE oracles stay closed. |
-| **S13j** | Queue split and prefetch | Decode TIFF/JPEG in parallel; RAW as in S13i. Selected-frame preview outranks strip jobs. Prefetch neighbor **linear** buffers, not only `open(includeSplash: false)` probes. Importing 20+ TIFFs keeps UI responsive; clicking frame B cancels queued thumbs. |
+| **S13j** | Queue split and prefetch | **Done** — TIFF/JPEG decode in parallel; RAW serial. Selected-frame preview outranks strip. Neighbor prefetch loads linear buffers (`QueuePrefetchTests`). |
 | **S13k** | Longer-lived caches | Disk cache of processed preview (path + mtime + config fingerprint). Multi-frame reprint / Metal working-set beyond 8 / 6. Reuse canvas preview as strip thumb (already done for the selected frame). Quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged. |
 | **S13l** | Later GPU stages and UX knobs | After S13d–h: Metal dust / autocrop / histograms if still hot. Defaults: Swift Fast (1200) until caches exist; autocrop after first paint; process-mode from splash. Optional; only if Instruments still shows those stages after S13d–h. |
 
-S14 RAW look gates stay closed; S13 consumes them as oracles. `make compare-s13` is reprint + geometry + decode reuse + Accelerate convert + splash/thumbs + progressive paint + GPU present + RAW PPG (`RawDecodeTests`).
+S14 RAW look gates stay closed; S13 consumes them as oracles. `make compare-s13` is reprint + geometry + decode reuse + Accelerate convert + splash/thumbs + progressive paint + GPU present + RAW PPG (`RawDecodeTests`) + queue/prefetch (`QueuePrefetchTests`).
 
 ---
 

@@ -94,7 +94,7 @@ test-s11-stdio: test-native-engine
 compare-s12:
 	cd Packages/NegSwiftEngine && swift test --filter MetalParityTests
 
-# S13: reprint cache + Metal geometry + resident upload + decode reuse + Accelerate + splash/thumbs + progressive paint + GPU present.
+# S13: reprint cache + Metal geometry + resident upload + decode reuse + Accelerate + splash/thumbs + progressive paint + GPU present + X-Trans PPG.
 compare-s13:
 	cd Packages/NegSwiftEngine && swift test --filter ReprintCacheTests
 	cd Packages/NegSwiftEngine && swift test --filter MetalGeometryTests
@@ -103,6 +103,11 @@ compare-s13:
 	cd Packages/NegSwiftEngine && swift test --filter SplashThumbTests
 	cd Packages/NegSwiftEngine && swift test --filter ProgressivePaintTests
 	cd Packages/NegSwiftEngine && swift test --filter GPUPresentTests
+	cd Packages/NegSwiftEngine && swift test --filter RawDecodeTests
+
+# S13i: time X-Trans preview AHD+OpenMP vs PPG+1-thread (skip-if-missing local RAF).
+compare-s13i-timing:
+	cd Packages/NegSwiftEngine && swift test --filter XTransPreviewTimingTests
 
 # S14: TIFF still green; synthetic DNG + skip-if-missing local RAW (NEF/ARW/…).
 compare-s14: sync

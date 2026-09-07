@@ -32,9 +32,7 @@ final class LinearBufferCache: @unchecked Sendable {
         analysisOversample: Bool
     ) throws -> LinearRGBBuffer {
         let stamp = ReprintCache.fileStamp(path)
-        let isRaw = ScanFormat.isCameraRaw(path)
         let wantFull = maxLongEdge == nil
-        let wantHalf = isRaw && !wantFull
 
         lock.lock()
         if let hit = lookupUnlocked(
@@ -42,8 +40,7 @@ final class LinearBufferCache: @unchecked Sendable {
             stamp: stamp,
             maxLongEdge: maxLongEdge,
             analysisOversample: analysisOversample,
-            wantFull: wantFull,
-            wantHalf: wantHalf
+            wantFull: wantFull
         ) {
             let sample = hit.buffer
             let cameraRaw = hit.isCameraRaw
@@ -79,8 +76,7 @@ final class LinearBufferCache: @unchecked Sendable {
         stamp: String,
         maxLongEdge: Int?,
         analysisOversample: Bool,
-        wantFull: Bool,
-        wantHalf: Bool
+        wantFull: Bool
     ) -> Entry? {
         guard let index = entries.firstIndex(where: { $0.path == path && $0.stamp == stamp }) else {
             return nil
@@ -90,8 +86,7 @@ final class LinearBufferCache: @unchecked Sendable {
             entry,
             maxLongEdge: maxLongEdge,
             analysisOversample: analysisOversample,
-            wantFull: wantFull,
-            wantHalf: wantHalf
+            wantFull: wantFull
         ) else {
             return nil
         }
@@ -106,12 +101,12 @@ final class LinearBufferCache: @unchecked Sendable {
         _ entry: Entry,
         maxLongEdge: Int?,
         analysisOversample: Bool,
-        wantFull: Bool,
-        wantHalf: Bool
+        wantFull: Bool
     ) -> Bool {
         if entry.isCameraRaw {
-            if wantFull { return entry.isFullResolution }
-            return entry.usedHalfSize == wantHalf
+            // Preview vs export are different demosaics (PPG / half LINEAR vs AHD).
+            // X-Trans preview is full-size, so do not key the slot on usedHalfSize.
+            return wantFull == entry.isFullResolution
         }
         if wantFull { return entry.isFullResolution }
         // Preview must not inherit a full-res extract — ImageIO thumbnail look differs.

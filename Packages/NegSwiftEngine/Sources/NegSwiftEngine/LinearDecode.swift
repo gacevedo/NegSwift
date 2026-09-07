@@ -31,15 +31,18 @@ public enum LinearDecodeError: Error, LocalizedError, Sendable {
 /// Untagged 16-bit TIFF stays linear (`/ 65535`). Untagged 8-bit and JPEG apply IEC 61966-2-1
 /// sRGB → linear. IR / ExtraSamples are dropped (S1).
 public enum LinearDecode: Sendable {
+    /// Test hook: force preview `user_qual` (S13i AHD vs PPG timing).
+    nonisolated(unsafe) static var previewDemosaicOverride: RawDecode.Demosaic?
+
     /// Decode, then shrink to `maxLongEdge` (ImageIO thumbnail + nearest, or RAW area).
     ///
     /// ``analysisOversample`` loads a sharper ImageIO thumbnail (at least 4096 / 2× the
     /// requested edge) before the nearest shrink. A thumbnail at the preview long edge
     /// blurs film/holder boundaries so Analysis Buffer barely moves Auto Density.
     ///
-    /// Camera RAW with a long-edge cap uses LibRaw `half_size` (Bayer) then box-average
-    /// shrink — nearest-neighbor keeps demosaic pinholes that crush Auto Density once
-    /// the lightbox is cropped. Export leaves `maxLongEdge` nil and stays full-size AHD.
+    /// Camera RAW with a long-edge cap uses LibRaw `half_size` (Bayer LINEAR) then
+    /// box-average shrink. X-Trans preview is full-size PPG (half_size aliases the 6×6
+    /// CFA). Export leaves `maxLongEdge` nil and stays full-size AHD.
     /// ImageIO / LibRaw sample before the final long-edge shrink. S13d caches this
     /// so detect, autocrop, and preview share one pass.
     public struct Sample: Sendable {
@@ -74,13 +77,17 @@ public enum LinearDecode: Sendable {
         }
         if ScanFormat.isCameraRaw(url.path) {
             let halfSize = (maxLongEdge ?? 0) > 0
-            let buffer = try RawDecode.decode(url: url, halfSize: halfSize)
+            let decoded = try RawDecode.decodeDetailed(
+                url: url,
+                halfSize: halfSize,
+                demosaic: previewDemosaicOverride
+            )
             return Sample(
-                buffer: buffer,
+                buffer: decoded.buffer,
                 isCameraRaw: true,
                 isFullResolution: !halfSize,
-                usedHalfSize: halfSize,
-                sourceLongEdge: buffer.longEdge
+                usedHalfSize: decoded.usedHalfSize,
+                sourceLongEdge: decoded.buffer.longEdge
             )
         }
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {

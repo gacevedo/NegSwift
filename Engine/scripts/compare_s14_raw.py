@@ -2,8 +2,8 @@
 
 Always compares ``sample.tif`` (TIFF path unchanged). When LibRaw is linked,
 also compares a tiny synthetic LinearRaw DNG. Named local RAW files
-(``--path``, ``NEGSWIFT_S14_NEF``, ``NEGSWIFT_S14_ARW``, ``NEGSWIFT_S14_RAW``)
-are skip-if-missing.
+(``--path``, ``NEGSWIFT_S14_NEF``, ``NEGSWIFT_S14_ARW``, ``NEGSWIFT_S14_RAF``,
+``NEGSWIFT_S14_RAW``) are skip-if-missing.
 """
 
 from __future__ import annotations
@@ -217,6 +217,7 @@ def _local_raw_paths(explicit: list[str]) -> list[Path]:
         add(item)
     add(os.environ.get("NEGSWIFT_S14_NEF"))
     add(os.environ.get("NEGSWIFT_S14_ARW"))
+    add(os.environ.get("NEGSWIFT_S14_RAF"))
     add(os.environ.get("NEGSWIFT_S14_RAW"))
     return found
 

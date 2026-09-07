@@ -156,7 +156,7 @@ cd Engine && uv run pytest tests/test_perf.py -v
 
 ## Native Swift engine (S13 first-load)
 
-Separate from the M12 Python IPC harness above. S13a–h optimized slider reprints, fused first-open decode, Accelerate convert/resize, splash/cheap thumbs, progressive first paint, and GPU present without float readback (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests` + `ProgressivePaintTests` + `GPUPresentTests`). In-process preview presents an Adobe RGB `CIImage` / `CGImage` from an `rgba16Float` IOSurface; export / CLI / MAE still `getBytes`.
+Separate from the M12 Python IPC harness above. S13a–i optimized slider reprints, fused first-open decode, Accelerate convert/resize, splash/cheap thumbs, progressive first paint, GPU present without float readback, and X-Trans preview PPG (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests` + `ProgressivePaintTests` + `GPUPresentTests` + `RawDecodeTests`). In-process preview presents an Adobe RGB `CIImage` / `CGImage` from an `rgba16Float` IOSurface; export / CLI / MAE still `getBytes`.
 
 `make compare-s13` includes decode-reuse, Accelerate convert, splash/thumb, and progressive-paint tests. Do not add a `make bench-native` target until a script exists.
 

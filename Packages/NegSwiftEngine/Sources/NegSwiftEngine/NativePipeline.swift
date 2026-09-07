@@ -48,7 +48,7 @@ public struct RenderPrintResult: Sendable {
 
 /// In-process pipeline. S13: reprint cache, Metal geometry, resident GPU present
 /// without float readback, one linear decode per file, Accelerate convert/resize,
-/// splash + cheap thumbs, progressive draft / refine first paint.
+/// splash + cheap thumbs, progressive draft / refine first paint, X-Trans PPG.
 public struct NativePipeline: Sendable {
     public var pixelBackend: PixelBackend
 
@@ -59,6 +59,8 @@ public struct NativePipeline: Sendable {
     /// Drop decode / reprint / resident GPU caches. Tests call this between cases.
     public static func resetWorkingSets() {
         LinearBufferCache.shared.reset()
+        RawDecode.resetSessions()
+        RawDecode.resetStats()
         ReprintCache.shared.reset()
         #if canImport(Metal)
         MetalWorkingSet.shared.reset()

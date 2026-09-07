@@ -101,7 +101,7 @@ struct ExportTests {
     }
 
     @Test func exportTargetLongEdgeDownsamplesOutput() throws {
-        let frame = try writeExportSizingTIFF(width: 512, height: 384)
+        let frame = try writeSizingTIFF(width: 512, height: 384)
         let dest = FileManager.default.temporaryDirectory
             .appendingPathComponent("negswift-s9-edge-\(UUID().uuidString)", isDirectory: true)
         defer {
@@ -161,7 +161,7 @@ struct ExportTests {
     }
 }
 
-private func writeExportSizingTIFF(width: Int, height: Int) throws -> URL {
+private func writeSizingTIFF(width: Int, height: Int) throws -> URL {
     let samples = [UInt16](repeating: 40_000, count: width * height * 3)
     let url = FileManager.default.temporaryDirectory
         .appendingPathComponent("negswift-s9-size-\(UUID().uuidString).tif")

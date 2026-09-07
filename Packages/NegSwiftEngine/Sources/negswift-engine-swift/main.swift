@@ -220,6 +220,7 @@ struct NegSwiftEngineCLI {
             throw CLIError.usage("export requires --path and --dest-dir")
         }
         var config = PrintConfig.s8Pin
+        var settings = NativeExportSettings(format: format, jpegQuality: quality, overwrite: overwrite)
         if let configJSON {
             let data = try Data(contentsOf: URL(fileURLWithPath: configJSON))
             let obj = try JSONSerialization.jsonObject(with: data)
@@ -227,12 +228,21 @@ struct NegSwiftEngineCLI {
                 throw CLIError.usage("--config-json must be a JSON object")
             }
             config = config.merging(dict)
+            let parsed = try NativeExportSettings.parse(dict)
+            settings = NativeExportSettings(
+                format: format,
+                jpegQuality: quality,
+                overwrite: overwrite,
+                tiffBitDepth: parsed.tiffBitDepth,
+                resolutionMode: parsed.resolutionMode,
+                targetLongEdgePx: parsed.targetLongEdgePx
+            )
         }
         let result = try NativePipeline().export(
             path: path,
             destDir: destDir,
             config: config,
-            settings: NativeExportSettings(format: format, jpegQuality: quality, overwrite: overwrite)
+            settings: settings
         )
         try writeJSON([
             "output_path": result.url.path,

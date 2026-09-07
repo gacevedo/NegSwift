@@ -40,7 +40,7 @@ public struct NativeExportSettings: Sendable, Equatable {
         self.overwrite = overwrite
         self.tiffBitDepth = tiffBitDepth >= 16 ? 16 : 8
         self.resolutionMode = resolutionMode
-        self.targetLongEdgePx = min(32768, max(256, targetLongEdgePx))
+        self.targetLongEdgePx = min(32768, max(1, targetLongEdgePx))
     }
 
     /// Parse protocol `export` object. Unknown lite formats are rejected.
@@ -92,11 +92,11 @@ public struct NativeExportSettings: Sendable, Equatable {
         }
         if dict["export_target_long_edge_px"] != nil {
             guard let value = ConfigJSON.intValue(dict["export_target_long_edge_px"]),
-                  (256 ... 32768).contains(value)
+                  (1 ... 32768).contains(value)
             else {
                 throw ProtocolFailure(
                     code: "INVALID_REQUEST",
-                    message: "params.export.export_target_long_edge_px must be an integer from 256 to 32768"
+                    message: "params.export.export_target_long_edge_px must be an integer from 1 to 32768"
                 )
             }
             settings.targetLongEdgePx = value

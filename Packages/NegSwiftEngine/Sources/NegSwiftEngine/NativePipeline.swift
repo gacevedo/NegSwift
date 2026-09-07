@@ -551,7 +551,8 @@ public struct NativePipeline: Sendable {
         return (buffer.width, buffer.height)
     }
 
-    /// Full-res sRGB JPEG/TIFF. Same print config as preview; optional long-edge downsample after print.
+    /// S13m: ``target_px`` prints at ``export_target_long_edge_px`` (reuses preview linear / reprint
+    /// cache when the edge is ≤ the settled preview). ``original`` stays full-res (RAW uses AHD).
     public func export(
         path: String,
         destDir: String,
@@ -559,14 +560,20 @@ public struct NativePipeline: Sendable {
         config: PrintConfig = .s8Pin,
         settings: NativeExportSettings = NativeExportSettings()
     ) throws -> (url: URL, width: Int, height: Int, format: String) {
+        let start = CFAbsoluteTimeGetCurrent()
+        defer {
+            PipelineStats.record(.export, milliseconds: (CFAbsoluteTimeGetCurrent() - start) * 1000)
+        }
+        let printLongEdge = settings.resolutionMode == .targetPx ? settings.targetLongEdgePx : nil
         var buffer = try renderPrint(
             path: path,
-            longEdgePx: nil,
+            longEdgePx: printLongEdge,
             processMode: processMode,
-            config: config
+            config: config,
+            previewPass: .settled
         )
         if settings.resolutionMode == .targetPx {
-            buffer = buffer.areaDownsampled(toLongEdge: settings.targetLongEdgePx)
+            buffer = buffer.sizedToLongEdge(settings.targetLongEdgePx)
         }
         let dest = try ExportNaming.outputURL(
             sourcePath: path,

@@ -407,13 +407,15 @@ actor NativeEngineBackend: EngineBackend {
         let result: ExportResult
         do {
             result = try await Self.performSelected(path: path) {
-                let exported = try NativePipeline(pixelBackend: .auto).export(
-                    path: path,
-                    destDir: destDir,
-                    processMode: mapped.processMode,
-                    config: mapped.printConfig,
-                    settings: nativeSettings
-                )
+                let exported = try PerformanceLogger.measureSync("native_export_ms") {
+                    try NativePipeline(pixelBackend: .auto).export(
+                        path: path,
+                        destDir: destDir,
+                        processMode: mapped.processMode,
+                        config: mapped.printConfig,
+                        settings: nativeSettings
+                    )
+                }
                 return ExportResult(
                     outputPath: exported.url.path,
                     width: exported.width,

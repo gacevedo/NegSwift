@@ -65,6 +65,15 @@ public struct LinearRGBBuffer: Sendable, Equatable {
         return areaResized(width: size.width, height: size.height)
     }
 
+    /// Scale to an exact long edge (up or down). NegPy ``TARGET_PX`` layout sizing.
+    public func sizedToLongEdge(_ maxEdge: Int) -> LinearRGBBuffer {
+        let longest = max(width, height)
+        guard maxEdge > 0, longest > 0, longest != maxEdge else { return self }
+        let newWidth = max(1, Int((Double(width) * Double(maxEdge) / Double(longest)).rounded()))
+        let newHeight = max(1, Int((Double(height) * Double(maxEdge) / Double(longest)).rounded()))
+        return areaResized(width: newWidth, height: newHeight)
+    }
+
     public func areaResized(width dstW: Int, height dstH: Int) -> LinearRGBBuffer {
         if dstW == width, dstH == height { return self }
         if let accelerated = AccelerateConvert.areaResized(self, width: dstW, height: dstH) {

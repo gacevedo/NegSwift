@@ -20,6 +20,8 @@ public struct PipelineStageCounters: Sendable, Equatable {
 public struct PipelineTimings: Sendable, Equatable {
     public var firstPaintMs: Double = 0
     public var fullPreviewMs: Double = 0
+    /// S13m: last ``NativePipeline/export`` duration (milliseconds).
+    public var exportMs: Double = 0
 
     public init() {}
 }
@@ -60,6 +62,7 @@ public struct PipelineStageTimings: Sendable, Equatable {
 public enum PipelineTiming: String, Sendable {
     case firstPaint
     case fullPreview
+    case export
 }
 
 public enum PipelineStage: String, Sendable {
@@ -110,6 +113,7 @@ public enum PipelineStats: Sendable {
         switch timing {
         case .firstPaint: recordedTimings.firstPaintMs = milliseconds
         case .fullPreview: recordedTimings.fullPreviewMs = milliseconds
+        case .export: recordedTimings.exportMs = milliseconds
         }
         lock.unlock()
     }

@@ -769,7 +769,7 @@ final class EngineSession {
 
     private func applySuggestedCrop(from result: OpenResult, for path: String) {
         guard let parts = result.suggestedCropRect, parts.count == 4 else { return }
-        guard var edit = frameEdits[path] else { return }
+        guard let edit = frameEdits[path] else { return }
         guard edit.manualCropRect == nil, edit.autoCropEnabled else { return }
         let longEdge = max(result.splashHeight ?? result.height, result.splashWidth ?? result.width, 1)
         let shortEdge = min(result.splashHeight ?? result.height, result.splashWidth ?? result.width, 1)

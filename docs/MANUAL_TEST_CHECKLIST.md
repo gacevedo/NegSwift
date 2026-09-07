@@ -446,9 +446,9 @@ S13a–k (slider reprints + one decode + Accelerate + splash/thumbs + progressiv
 - [x] S13h: GPU present with no full-buffer `getBytes`; slider reprint upload/download stays 0; CPU-vs-Metal MAE unchanged (`GPUPresentTests`)
 - [ ] S13h human: first present and slider reprints on the ~20 MP scan stay in the same class as Python GPU (no ColorSync hitch)
 - [x] S13i: X-Trans preview uses PPG (not AHD); one `libraw` handle per file (`RawDecodeTests`); S14 MAE on named NEF/ARW/RAF (`NEGSWIFT_S14_RAF`)
-- [ ] S13i human: X-Trans preview faster than AHD with no crushed crop
+- [x] S13i human: X-Trans preview faster than AHD with no crushed crop
 - [x] S13j: TIFF/JPEG decode in parallel; selected-frame preview outranks strip jobs; neighbor prefetch loads linear buffers (`QueuePrefetchTests`)
-- [ ] S13j human: import 20+ TIFFs stays responsive; clicking frame B cancels queued thumbs
+- [x] S13j human: import 20+ TIFFs stays responsive; clicking frame B cancels queued thumbs
 - [x] S13k: processed-preview disk cache + longer-lived working sets (`ProcessedPreviewDiskCacheTests`); look unchanged vs S8 on cache hit
 - [ ] S13k human: quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged
 - [ ] S13l: optional — Metal dust / autocrop / histograms only if Instruments still shows those CPU stages hot after S13d–h (profile first; UX knobs were tried and dropped)

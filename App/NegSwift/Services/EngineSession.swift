@@ -799,7 +799,6 @@ final class EngineSession {
             detectKey: result.metrics?.autocropResolvedKey ?? ""
         )
         previewMemo.invalidate(path: path)
-        scheduleDebouncedSave(for: path)
         return true
     }
 
@@ -962,6 +961,36 @@ final class EngineSession {
         }
     }
 
+    private func persistPendingEditsForSettledPreview(path: String, frozeAutoCrop: Bool = false) async {
+        let needsInitialSidecar = !SidecarLocator.exists(forScanPath: path)
+        guard dirtyPaths.contains(path) || needsInitialSidecar || frozeAutoCrop else { return }
+        if needsInitialSidecar || frozeAutoCrop {
+            dirtyPaths.insert(path)
+        }
+        saveDebounce.cancel()
+        await persistEdit(for: path)
+    }
+
+    /// First settle writes disk cache before auto-crop freeze; re-render once so the
+    /// on-disk preview key matches the frozen sidecar.
+    private func refreshDiskPreviewCache(
+        path: String,
+        generation: Int,
+        effectiveConfig: FrameEditState,
+        settings: PreviewRenderSettings
+    ) async {
+        guard generation == previewGeneration else { return }
+        let config = pipelineConfig(for: frameEdits[path] ?? effectiveConfig)
+        _ = try? await engineRender(
+            path: path,
+            longEdgePx: settings.longEdgePx,
+            preferGPU: settings.preferGPU,
+            config: config,
+            cropPreviewFull: false,
+            draftPreview: false
+        )
+    }
+
     private func persistEdit(for path: String) async {
         guard dirtyPaths.contains(path), let edit = frameEdits[path] else { return }
         guard let frame = frames.first(where: { $0.path == path }) else { return }
@@ -976,6 +1005,7 @@ final class EngineSession {
         do {
             _ = try await backend.saveConfig(path: path, config: pipelineConfig(for: edit))
             dirtyPaths.remove(path)
+            pathsWithSidecar.insert(path)
             previewMemo.invalidate(path: path)
         } catch {
             previewError = "Could not save edits: \(error.localizedDescription)"
@@ -1071,7 +1101,14 @@ final class EngineSession {
         let generation = previewGeneration
         Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.renderPreview(at: frame.url, generation: generation, progressive: true)
+            let settings = PreviewRenderSettings(preferences: self.preferences)
+            let frameConfig = self.pipelineConfig(for: self.frameEdits[frame.path] ?? self.defaultEditState())
+            let diskCacheReady = await self.backend.hasSettledPreviewDiskCache(
+                path: frame.path,
+                config: frameConfig,
+                previewLongEdgePx: settings.longEdgePx
+            )
+            await self.renderPreview(at: frame.url, generation: generation, progressive: !diskCacheReady)
             await self.loadMissingThumbnails()
         }
     }
@@ -1090,7 +1127,10 @@ final class EngineSession {
         previewMemo.clear()
 
         for index in frames.indices {
-            updateFrame(at: index) { $0.thumbnail = nil }
+            updateFrame(at: index) {
+                $0.thumbnail = nil
+                $0.hasProcessedThumbnail = false
+            }
         }
 
         await renderPreview(at: frame.url, generation: previewGen)
@@ -1400,14 +1440,28 @@ final class EngineSession {
 
         isPreviewSettled = false
         isPreviewDraft = false
-        applyThumbnailInterimPreview(for: frame)
-        await warmOpenAsset(for: frame)
+        let settings = PreviewRenderSettings(preferences: preferences)
+        let frameConfig = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
+        let diskCacheReady = await backend.hasSettledPreviewDiskCache(
+            path: path,
+            config: frameConfig,
+            previewLongEdgePx: settings.longEdgePx
+        )
+        if !diskCacheReady {
+            applyThumbnailInterimPreview(for: frame)
+        } else {
+            previewImage = nil
+            previewPixelSize = nil
+            currentPath = path
+            previewError = nil
+        }
+        await warmOpenAsset(for: frame, skipSplash: diskCacheReady)
         scheduleLoadMissingThumbnails()
         prefetchRasterNeighbors(around: id, generation: neighborPrefetchGeneration)
 
         previewGeneration += 1
         let generation = previewGeneration
-        await renderPreview(at: frame.url, generation: generation, progressive: true)
+        await renderPreview(at: frame.url, generation: generation, progressive: !diskCacheReady)
         prefetchRawNeighbors(around: id, generation: neighborPrefetchGeneration)
         if PerformanceLogger.isEnabled {
             let ms = (CFAbsoluteTimeGetCurrent() - selectStart) * 1000
@@ -1510,7 +1564,8 @@ final class EngineSession {
         stripThumbnail: Bool = false,
         draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat = .jpeg,
-        jpegQuality: Int = PreviewRenderSettings.previewJPEGQuality
+        jpegQuality: Int = PreviewRenderSettings.previewJPEGQuality,
+        previewLongEdgePx: Int? = nil
     ) async throws -> RenderResult {
         #if DEBUG
         if let renderTestHandler {
@@ -1536,7 +1591,8 @@ final class EngineSession {
             stripThumbnail: stripThumbnail,
             draftPreview: draftPreview,
             previewFormat: previewFormat,
-            jpegQuality: jpegQuality
+            jpegQuality: jpegQuality,
+            previewLongEdgePx: previewLongEdgePx
         )
     }
 
@@ -1660,7 +1716,16 @@ final class EngineSession {
                     )
                     finishCropPreviewOverlay(for: path, result: result)
                 } else {
-                    _ = freezeResolvedAutoCropIfNeeded(from: result, for: path)
+                    let frozeAutoCrop = freezeResolvedAutoCropIfNeeded(from: result, for: path)
+                    await persistPendingEditsForSettledPreview(path: path, frozeAutoCrop: frozeAutoCrop)
+                    if frozeAutoCrop {
+                        await refreshDiskPreviewCache(
+                            path: path,
+                            generation: generation,
+                            effectiveConfig: effectiveConfig,
+                            settings: settings
+                        )
+                    }
                     storePreviewMemo(
                         path: path,
                         image: image,
@@ -1728,9 +1793,8 @@ final class EngineSession {
         if defersThumbnailLoadToPreview(for: path) { return }
         if applyPreviewToSelectedThumbnail(for: path) { return }
         if applyMemoToThumbnail(for: path) { return }
-        // Cheap strip thumbs are a first-fill placeholder (no crop / autos). Do not
-        // replace a preview-derived cell when leaving a frame.
-        if frames[index].thumbnail != nil { return }
+        // Cheap strip thumbs are a first-fill placeholder. Do not replace a processed cell.
+        if frames[index].thumbnail != nil && frames[index].hasProcessedThumbnail { return }
 
         let frame = frames[index]
         let gotAccess = beginFileAccess(for: frame.url)
@@ -1748,19 +1812,21 @@ final class EngineSession {
 
         do {
             let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
+            let previewEdge = PreviewRenderSettings(preferences: preferences).longEdgePx
             let result = try await engineRender(
                 path: path,
                 longEdgePx: FilmStripLayout.thumbnailLongEdge,
                 preferGPU: preferGPU,
                 config: config,
                 cropPreviewFull: false,
-                stripThumbnail: true
+                stripThumbnail: true,
+                previewLongEdgePx: previewEdge
             )
             if let generation, generation != thumbnailGeneration { return }
             guard stripGen == stripGeneration else { return }
             guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
             if let image = Self.nsImage(from: result) {
-                updateFrame(at: frameIndex) { $0.thumbnail = image }
+                setThumbnail(at: frameIndex, image: image, processed: result.reusedDiskCache)
             }
         } catch is CancellationError {
             return
@@ -1909,6 +1975,7 @@ final class EngineSession {
         guard generation == stripGeneration, thumbGen == thumbnailGeneration else { return }
 
         let preferGPU = PreviewRenderSettings(preferences: preferences).preferGPU
+        let previewEdge = PreviewRenderSettings(preferences: preferences).longEdgePx
         let frame = frames[index]
         let gotAccess = beginFileAccess(for: frame.url)
         defer {
@@ -1924,12 +1991,13 @@ final class EngineSession {
                 preferGPU: preferGPU,
                 config: config,
                 cropPreviewFull: false,
-                stripThumbnail: true
+                stripThumbnail: true,
+                previewLongEdgePx: previewEdge
             )
             guard generation == stripGeneration, thumbGen == thumbnailGeneration else { return }
             guard let frameIndex = frames.firstIndex(where: { $0.path == path }) else { return }
             if let image = Self.nsImage(from: result) {
-                updateFrame(at: frameIndex) { $0.thumbnail = image }
+                setThumbnail(at: frameIndex, image: image, processed: result.reusedDiskCache)
             }
         } catch is CancellationError {
             return
@@ -1950,8 +2018,9 @@ final class EngineSession {
         previewError = nil
     }
 
-    private func warmOpenAsset(for frame: ScanFrame) async {
+    private func warmOpenAsset(for frame: ScanFrame, skipSplash: Bool = false) async {
         guard engineReady else { return }
+        guard !skipSplash else { return }
 
         let gotAccess = beginFileAccess(for: frame.url)
         defer {
@@ -2322,8 +2391,15 @@ final class EngineSession {
               let index = frames.firstIndex(where: { $0.path == path }),
               let thumbnail = Self.makeStripThumbnail(from: memo.image)
         else { return false }
-        updateFrame(at: index) { $0.thumbnail = thumbnail }
+        setThumbnail(at: index, image: thumbnail, processed: true)
         return true
+    }
+
+    private func setThumbnail(at index: Int, image: NSImage, processed: Bool) {
+        updateFrame(at: index) {
+            $0.thumbnail = image
+            $0.hasProcessedThumbnail = processed
+        }
     }
 
     /// Selected-frame strip thumbs come from the canvas preview; do not issue a competing
@@ -2345,7 +2421,7 @@ final class EngineSession {
               let index = frames.firstIndex(where: { $0.path == targetPath }),
               let thumbnail = Self.makeStripThumbnail(from: preview)
         else { return false }
-        updateFrame(at: index) { $0.thumbnail = thumbnail }
+        setThumbnail(at: index, image: thumbnail, processed: true)
         return true
     }
 

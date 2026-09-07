@@ -157,6 +157,8 @@ struct RenderResult: Codable, Sendable {
     let metrics: RenderMetrics?
     /// Set by the in-process Swift backend. CLI / `serve --stdio` stay encoded.
     let nativePreview: NativePreview?
+    /// S13k: settled preview came from the on-disk processed cache.
+    let reusedDiskCache: Bool
 
     enum CodingKeys: String, CodingKey {
         case width
@@ -174,7 +176,8 @@ struct RenderResult: Codable, Sendable {
         pngBase64: String?,
         jpegBase64: String?,
         metrics: RenderMetrics?,
-        nativePreview: NativePreview? = nil
+        nativePreview: NativePreview? = nil,
+        reusedDiskCache: Bool = false
     ) {
         self.width = width
         self.height = height
@@ -183,6 +186,7 @@ struct RenderResult: Codable, Sendable {
         self.jpegBase64 = jpegBase64
         self.metrics = metrics
         self.nativePreview = nativePreview
+        self.reusedDiskCache = reusedDiskCache
     }
 
     init(from decoder: Decoder) throws {
@@ -194,6 +198,7 @@ struct RenderResult: Codable, Sendable {
         jpegBase64 = try container.decodeIfPresent(String.self, forKey: .jpegBase64)
         metrics = try container.decodeIfPresent(RenderMetrics.self, forKey: .metrics)
         nativePreview = nil
+        reusedDiskCache = false
     }
 
     func encode(to encoder: Encoder) throws {

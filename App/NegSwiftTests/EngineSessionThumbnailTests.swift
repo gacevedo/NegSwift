@@ -11,7 +11,7 @@ import Testing
 struct EngineSessionThumbnailTests {
     @Test @MainActor func stripThumbnailsUseNativePreviewWhenEncodedImageIsMissing() async {
         let session = EngineSession.preview
-        session.setCurrentPathForTests(session.frames[0].path)
+        session.setCurrentPathForTests(nil)
         session.setPreviewImageForTests(nil)
         session.setFrameEditForTests(path: session.frames[0].path, edit: FrameEditState())
         session.setFrameEditForTests(path: session.frames[1].path, edit: FrameEditState())
@@ -50,7 +50,7 @@ struct EngineSessionThumbnailTests {
         }
         session.setFramesForTests(frames)
         session.setFilmStripSelectionForTests(primary: frames[0].id, ids: [frames[0].id])
-        session.setCurrentPathForTests(frames[0].path)
+        session.setCurrentPathForTests(nil)
         session.setPreviewImageForTests(nil)
         for frame in frames {
             session.setFrameEditForTests(path: frame.path, edit: FrameEditState())
@@ -132,7 +132,8 @@ struct EngineSessionThumbnailTests {
                 url: frameA.url,
                 path: frameA.path,
                 name: frameA.name,
-                thumbnail: existing
+                thumbnail: existing,
+                hasProcessedThumbnail: true
             ),
             session.frames[1],
         ])

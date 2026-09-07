@@ -153,6 +153,154 @@ struct ProcessedPreviewDiskCacheTests {
         #expect(PipelineStats.snapshot().decode == 0)
     }
 
+    @Test func diskCacheHitsAfterAutoCropFreezeInSidecar() throws {
+        let root = try makeCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        NativePipeline.configureDiskPreviewCache(rootDirectory: root)
+        defer { NativePipeline.configureDiskPreviewCache(rootDirectory: nil) }
+
+        let url = try writeFrameTIFF(width: 180, height: 120)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        NativePipeline.resetWorkingSets()
+        let pipeline = NativePipeline(pixelBackend: .cpu)
+        var armed = PrintConfig.s8Pin
+        armed.cropFromAuto = true
+        armed.autoCropEnabled = true
+
+        let first = try pipeline.renderPrintDetailed(
+            path: url.path,
+            longEdgePx: 160,
+            processMode: .colorNegative,
+            config: armed
+        )
+        #expect(!first.reusedDiskCache)
+        guard let resolved = first.resolvedAutocrop else {
+            Issue.record("expected resolved autocrop rect")
+            return
+        }
+
+        var reopened = armed
+        reopened.cropRect = resolved.rect
+        reopened.cropDetectKey = resolved.key
+        reopened.cropFromAuto = true
+        reopened.autoCropEnabled = false
+        reopened.applyPixelCrop = true
+
+        NativePipeline.resetWorkingSets()
+        let hit = try pipeline.renderPrintDetailed(
+            path: url.path,
+            longEdgePx: 160,
+            processMode: .colorNegative,
+            config: reopened
+        )
+        #expect(hit.reusedDiskCache)
+        #expect(PipelineStats.snapshot().decode == 0)
+        #expect(PipelineStats.snapshot().print == 0)
+    }
+
+    @Test func legacyDiskCacheLookupFallsBackWithoutCropKey() throws {
+        let root = try makeCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        NativePipeline.configureDiskPreviewCache(rootDirectory: root)
+        defer { NativePipeline.configureDiskPreviewCache(rootDirectory: nil) }
+
+        let url = try writeOrangeMaskTIFF(width: 64, height: 40)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        NativePipeline.resetWorkingSets()
+        let pipeline = NativePipeline(pixelBackend: .cpu)
+        var noCrop = PrintConfig.s8Pin
+        noCrop.autoCropEnabled = true
+        let buffer = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: 64,
+            processMode: .colorNegative,
+            config: noCrop
+        )
+
+        NativePipeline.resetWorkingSets()
+        ProcessedPreviewDiskCache.shared.store(
+            path: url.path,
+            longEdgePx: 64,
+            config: noCrop,
+            processMode: .colorNegative,
+            buffer: buffer
+        )
+
+        var withCrop = PrintConfig.s8Pin
+        withCrop.cropRect = NormalizedCropRect(x1: 0.2, y1: 0.2, x2: 0.8, y2: 0.8)
+        withCrop.cropFromAuto = true
+        withCrop.autoCropEnabled = false
+        withCrop.applyPixelCrop = true
+
+        let hit = try pipeline.renderPrintDetailed(
+            path: url.path,
+            longEdgePx: 64,
+            processMode: .colorNegative,
+            config: withCrop
+        )
+        #expect(hit.reusedDiskCache)
+        #expect(PipelineStats.snapshot().decode == 0)
+        #expect(PipelineStats.snapshot().print == 0)
+    }
+
+    @Test func diskCacheLookupNormalizesFrozenAutoCropShape() throws {
+        var armed = PrintConfig.s8Pin
+        armed.cropRect = NormalizedCropRect(x1: 0.1, y1: 0.1, x2: 0.9, y2: 0.9)
+        armed.cropFromAuto = true
+        armed.autoCropEnabled = true
+
+        var frozen = armed
+        frozen.autoCropEnabled = false
+
+        let armedKey = ProcessedPreviewDiskCache.cacheKey(
+            path: "/tmp/a.tif",
+            longEdgePx: 64,
+            config: ProcessedPreviewDiskCache.diskCacheStoreConfig(pass: .s8Pin, resolved: armed),
+            processMode: .colorNegative
+        )
+        let frozenKey = ProcessedPreviewDiskCache.cacheKey(
+            path: "/tmp/a.tif",
+            longEdgePx: 64,
+            config: ProcessedPreviewDiskCache.diskCacheLookupConfig(frozen),
+            processMode: .colorNegative
+        )
+        #expect(armedKey == frozenKey)
+    }
+
+    @Test func processedStripThumbDownscalesDiskCache() throws {
+        let root = try makeCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        NativePipeline.configureDiskPreviewCache(rootDirectory: root)
+        defer { NativePipeline.configureDiskPreviewCache(rootDirectory: nil) }
+
+        let url = try writeOrangeMaskTIFF(width: 72, height: 48)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        NativePipeline.resetWorkingSets()
+        let pipeline = NativePipeline(pixelBackend: .cpu)
+        _ = try pipeline.renderPrint(
+            path: url.path,
+            longEdgePx: 64,
+            processMode: .colorNegative,
+            config: .s8Pin
+        )
+
+        NativePipeline.resetWorkingSets()
+        let thumb = pipeline.processedStripThumb(
+            path: url.path,
+            thumbLongEdge: 24,
+            previewLongEdge: 64,
+            processMode: .colorNegative,
+            config: .s8Pin
+        )
+        #expect(thumb != nil)
+        #expect(max(thumb!.width, thumb!.height) <= 24)
+        #expect(PipelineStats.snapshot().decode == 0)
+        #expect(PipelineStats.snapshot().print == 0)
+    }
+
     @Test func reprintCacheRetainsMoreThanEightFrames() throws {
         NativePipeline.resetWorkingSets()
         defer { NativePipeline.resetWorkingSets() }
@@ -189,6 +337,26 @@ struct ProcessedPreviewDiskCacheTests {
 private func makeCacheRoot() throws -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("negswift-s13k-\(UUID().uuidString)", isDirectory: true)
+}
+
+private func writeFrameTIFF(width: Int, height: Int) throws -> URL {
+    var samples = [UInt16](repeating: 65535, count: width * height * 3)
+    let y1 = Int((0.12 * Double(height)).rounded())
+    let y2 = Int((0.88 * Double(height)).rounded())
+    let x1 = Int((0.10 * Double(width)).rounded())
+    let x2 = Int((0.90 * Double(width)).rounded())
+    for y in y1..<y2 {
+        for x in x1..<x2 {
+            let i = (y * width + x) * 3
+            samples[i] = 3277
+            samples[i + 1] = 3277
+            samples[i + 2] = 3277
+        }
+    }
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("negswift-s13k-frame-\(UUID().uuidString).tif")
+    try UncompressedTIFF.writeRGB16(width: width, height: height, samples: samples, to: url)
+    return url
 }
 
 private func writeOrangeMaskTIFF(width: Int, height: Int) throws -> URL {

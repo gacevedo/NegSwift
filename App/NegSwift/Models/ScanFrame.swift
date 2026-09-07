@@ -13,6 +13,8 @@ struct ScanFrame: Identifiable, Equatable {
     let name: String
     var thumbnail: NSImage?
     var isLoadingThumbnail = false
+    /// True when ``thumbnail`` is from a settled print (disk cache, canvas, or memo), not the cheap strip path.
+    var hasProcessedThumbnail = false
 
     static func == (lhs: ScanFrame, rhs: ScanFrame) -> Bool {
         lhs.id == rhs.id

@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// S13k: settled processed preview on disk — path + file mtime + sidecar mtime + config fingerprint.
+/// S13k: settled processed preview on disk — path + file mtime + config fingerprint.
 final class ProcessedPreviewDiskCache: @unchecked Sendable {
     static let shared = ProcessedPreviewDiskCache()
 
@@ -39,6 +39,30 @@ final class ProcessedPreviewDiskCache: @unchecked Sendable {
     }
 
     func lookup(
+        path: String,
+        longEdgePx: Int?,
+        config: PrintConfig,
+        processMode: FilmProcessMode?
+    ) -> LinearRGBBuffer? {
+        let lookupConfig = Self.diskCacheLookupConfig(config)
+        if let buffer = lookupExact(
+            path: path,
+            longEdgePx: longEdgePx,
+            config: lookupConfig,
+            processMode: processMode
+        ) {
+            return buffer
+        }
+        guard let legacy = Self.diskCacheLegacyLookupConfig(config) else { return nil }
+        return lookupExact(
+            path: path,
+            longEdgePx: longEdgePx,
+            config: legacy,
+            processMode: processMode
+        )
+    }
+
+    private func lookupExact(
         path: String,
         longEdgePx: Int?,
         config: PrintConfig,
@@ -87,7 +111,6 @@ final class ProcessedPreviewDiskCache: @unchecked Sendable {
         processMode: FilmProcessMode?
     ) -> String {
         let stamp = ReprintCache.fileStamp(path)
-        let sidecar = sidecarStamp(path)
         let bakeKey = ReprintCache.bakeKey(
             path: path,
             stamp: stamp,
@@ -101,11 +124,11 @@ final class ProcessedPreviewDiskCache: @unchecked Sendable {
         )
         return [
             analysisKey,
-            sidecar,
             config.applyPixelCrop ? "1" : "0",
         ].joined(separator: "|")
     }
 
+    /// Kept for tests / diagnostics; config fingerprint is in ``analysisKey``.
     static func sidecarStamp(_ path: String) -> String {
         let sidecar = SidecarStore.url(forScanPath: path)
         guard FileManager.default.fileExists(atPath: sidecar.path) else { return "0" }
@@ -113,6 +136,42 @@ final class ProcessedPreviewDiskCache: @unchecked Sendable {
         let size = attrs?[.size] as? NSNumber ?? 0
         let modified = attrs?[.modificationDate] as? Date ?? .distantPast
         return "\(size.intValue)|\(modified.timeIntervalSince1970)"
+    }
+
+    /// Normalize to the post-freeze sidecar shape so store/lookup keys agree.
+    static func normalizedDiskCacheConfig(_ config: PrintConfig) -> PrintConfig {
+        var config = config
+        if config.cropRect != nil, config.cropFromAuto {
+            config.autoCropEnabled = false
+        }
+        return config
+    }
+
+    /// Lookup key: caller config in post-freeze sidecar shape.
+    static func diskCacheLookupConfig(_ pass: PrintConfig) -> PrintConfig {
+        normalizedDiskCacheConfig(pass)
+    }
+
+    /// Store key: fold armed autocrop into `pass` without metering remap so lookup matches.
+    static func diskCacheStoreConfig(pass: PrintConfig, resolved: PrintConfig) -> PrintConfig {
+        var config = pass
+        if let crop = resolved.cropRect {
+            config.cropRect = crop
+            config.cropDetectKey = resolved.cropDetectKey
+            config.cropFromAuto = resolved.cropFromAuto
+        }
+        return normalizedDiskCacheConfig(config)
+    }
+
+    /// Pre-freeze entries keyed before armed crop was stored.
+    static func diskCacheLegacyLookupConfig(_ pass: PrintConfig) -> PrintConfig? {
+        guard pass.cropRect != nil else { return nil }
+        var legacy = pass
+        legacy.cropRect = nil
+        legacy.cropDetectKey = ""
+        legacy.cropFromAuto = false
+        legacy.autoCropEnabled = true
+        return legacy
     }
 
     private func configuredRoot() -> URL? {

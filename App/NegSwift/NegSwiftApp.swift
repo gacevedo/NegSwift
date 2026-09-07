@@ -3,6 +3,7 @@
 //  NegSwift
 //
 
+import AppKit
 import SwiftUI
 
 @main
@@ -36,9 +37,12 @@ struct NegSwiftApp: App {
                     await UITestSupport.runAutomation(session: engineSession)
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .background {
+                    if phase == .background || phase == .inactive {
                         Task { await engineSession.flushPendingSaves() }
                     }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                    Task { await engineSession.flushPendingSaves() }
                 }
         }
         .commands {

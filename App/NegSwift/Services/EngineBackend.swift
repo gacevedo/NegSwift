@@ -22,7 +22,8 @@ protocol EngineBackend: Sendable {
         stripThumbnail: Bool,
         draftPreview: Bool,
         previewFormat: PreviewTransportFormat,
-        jpegQuality: Int
+        jpegQuality: Int,
+        previewLongEdgePx: Int?
     ) async throws -> RenderResult
     func loadConfig(path: String) async throws -> LoadConfigResult
     func detectProcessMode(path: String, force: Bool) async throws -> DetectProcessModeResult
@@ -48,6 +49,8 @@ protocol EngineBackend: Sendable {
     func prefetchLinear(path: String, maxLongEdge: Int?, analysisOversample: Bool) async throws
     /// Drop queued strip thumbs / prefetch when the selected frame changes.
     func cancelQueuedStripJobs() async
+    /// S13k: settled processed preview on disk for this path + config.
+    func hasSettledPreviewDiskCache(path: String, config: FrameEditState?, previewLongEdgePx: Int) async -> Bool
 }
 
 enum EngineBackendFactory {
@@ -93,9 +96,11 @@ actor PythonEngineBackend: EngineBackend {
         stripThumbnail: Bool,
         draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat,
-        jpegQuality: Int
+        jpegQuality: Int,
+        previewLongEdgePx: Int? = nil
     ) async throws -> RenderResult {
         _ = draftPreview
+        _ = previewLongEdgePx
         return try await client.render(
             path: path,
             longEdgePx: longEdgePx,
@@ -169,6 +174,10 @@ actor PythonEngineBackend: EngineBackend {
 
     func cancelQueuedStripJobs() async {
         await client.cancelQueuedStripJobs()
+    }
+
+    func hasSettledPreviewDiskCache(path: String, config: FrameEditState?, previewLongEdgePx: Int) async -> Bool {
+        false
     }
 }
 
@@ -257,7 +266,8 @@ actor NativeEngineBackend: EngineBackend {
         stripThumbnail: Bool,
         draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat,
-        jpegQuality: Int
+        jpegQuality: Int,
+        previewLongEdgePx: Int? = nil
     ) async throws -> RenderResult {
         _ = preferGPU
         let generation = workGeneration
@@ -268,10 +278,20 @@ actor NativeEngineBackend: EngineBackend {
         let result: RenderResult
         do {
             if stripThumbnail {
-                // Cheap thumbs share the raster strip lane: they overlap selected TIFF
-                // print, stay off the serial RAW worker, and cancel when selection changes.
                 result = try await Self.performStrip(lane: .raster) {
-                    try Self.performCheapThumb(
+                    if let previewEdge = previewLongEdgePx,
+                       let thumbEdge = longEdgePx,
+                       let processed = try Self.performProcessedStripThumb(
+                           path: path,
+                           thumbLongEdge: thumbEdge,
+                           previewLongEdge: previewEdge,
+                           processMode: mapped.processMode,
+                           printConfig: printConfig
+                       )
+                    {
+                        return processed
+                    }
+                    return try Self.performCheapThumb(
                         path: path,
                         longEdgePx: longEdgePx,
                         processMode: mapped.processMode,
@@ -296,6 +316,18 @@ actor NativeEngineBackend: EngineBackend {
         }
         guard generation == workGeneration else { throw CancellationError() }
         return result
+    }
+
+    func hasSettledPreviewDiskCache(path: String, config: FrameEditState?, previewLongEdgePx: Int) async -> Bool {
+        let mapped = Self.printInputs(from: config)
+        var printConfig = mapped.printConfig
+        printConfig.applyPixelCrop = true
+        return NativePipeline().hasProcessedPreviewDiskCache(
+            path: path,
+            longEdgePx: previewLongEdgePx,
+            processMode: mapped.processMode,
+            config: printConfig
+        )
     }
 
     func loadConfig(path: String) async throws -> LoadConfigResult {
@@ -571,7 +603,8 @@ actor NativeEngineBackend: EngineBackend {
                 pngBase64: nil,
                 jpegBase64: nil,
                 metrics: metrics,
-                nativePreview: NativePreview(cgImage: present.cgImage, ciImage: present.ciImage)
+                nativePreview: NativePreview(cgImage: present.cgImage, ciImage: present.ciImage),
+                reusedDiskCache: detailed.reusedDiskCache
             )
         }
         let buffer = detailed.buffer
@@ -583,7 +616,37 @@ actor NativeEngineBackend: EngineBackend {
             pngBase64: nil,
             jpegBase64: nil,
             metrics: metrics,
-            nativePreview: NativePreview(cgImage: cgImage)
+            nativePreview: NativePreview(cgImage: cgImage),
+            reusedDiskCache: detailed.reusedDiskCache
+        )
+    }
+
+    private static func performProcessedStripThumb(
+        path: String,
+        thumbLongEdge: Int,
+        previewLongEdge: Int,
+        processMode: FilmProcessMode?,
+        printConfig: PrintConfig
+    ) throws -> RenderResult? {
+        guard let buffer = NativePipeline().processedStripThumb(
+            path: path,
+            thumbLongEdge: thumbLongEdge,
+            previewLongEdge: previewLongEdge,
+            processMode: processMode,
+            config: printConfig
+        ) else { return nil }
+        guard let cgImage = try? DisplayTransform.workingImage(fromWorkingSpace: buffer, bitsPerComponent: 8) else {
+            return nil
+        }
+        return RenderResult(
+            width: buffer.width,
+            height: buffer.height,
+            previewFormat: "cgimage",
+            pngBase64: nil,
+            jpegBase64: nil,
+            metrics: nil,
+            nativePreview: NativePreview(cgImage: cgImage),
+            reusedDiskCache: true
         )
     }
 

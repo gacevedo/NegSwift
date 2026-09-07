@@ -382,10 +382,14 @@ public struct NativePipeline: Sendable {
         let persistResident = resolvedEdge != nil && previewPass != .draft
         func persistDiskCache(_ buffer: LinearRGBBuffer, processMode mode: FilmProcessMode?) {
             guard shouldCache else { return }
+            let storeConfig = ProcessedPreviewDiskCache.diskCacheStoreConfig(
+                pass: passConfig,
+                resolved: printConfig
+            )
             ProcessedPreviewDiskCache.shared.store(
                 path: path,
                 longEdgePx: resolvedEdge,
-                config: passConfig,
+                config: storeConfig,
                 processMode: mode,
                 buffer: buffer
             )
@@ -619,6 +623,40 @@ public struct NativePipeline: Sendable {
     /// RAW embedded JPEG for first paint. Nil for raster or when the file has no safe thumb.
     public func splashJPEG(path: String) -> SplashJPEG? {
         EmbeddedPreview.splashJPEG(path: path)
+    }
+
+    /// True when a settled processed preview is on disk for this path + config.
+    public func hasProcessedPreviewDiskCache(
+        path: String,
+        longEdgePx: Int?,
+        processMode: FilmProcessMode? = nil,
+        config: PrintConfig = .s4aPin
+    ) -> Bool {
+        guard longEdgePx != nil, config.applyPixelCrop else { return false }
+        return ProcessedPreviewDiskCache.shared.lookup(
+            path: path,
+            longEdgePx: longEdgePx,
+            config: config,
+            processMode: processMode
+        ) != nil
+    }
+
+    /// Downscale a disk-cached settled preview for the film strip. Nil on miss.
+    public func processedStripThumb(
+        path: String,
+        thumbLongEdge: Int,
+        previewLongEdge: Int,
+        processMode: FilmProcessMode? = nil,
+        config: PrintConfig = .s4aPin
+    ) -> LinearRGBBuffer? {
+        guard config.applyPixelCrop else { return nil }
+        guard let cached = ProcessedPreviewDiskCache.shared.lookup(
+            path: path,
+            longEdgePx: previewLongEdge,
+            config: config,
+            processMode: processMode
+        ) else { return nil }
+        return cached.areaDownsampled(toLongEdge: thumbLongEdge)
     }
 
     /// ImageIO / embedded-JPEG strip thumb. Not the H&D+Lab print path.

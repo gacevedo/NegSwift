@@ -4,8 +4,9 @@ import NegSwiftLibRaw
 /// LibRaw sensor-native linear RGB. Not ImageIO / Core Image (those apply a camera matrix).
 ///
 /// Matches NegPy `output_color=raw`, `gamma=(1,1)`, unity white balance,
-/// `adjust_maximum_thr=0`, `user_flip=0`, then bake LibRaw flip like EXIF orientation.
-/// Preview/thumb: Bayer `half_size` + LINEAR; X-Trans full-size PPG (NegPy). Export is AHD.
+/// `adjust_maximum_thr=0`, `user_flip=0`, then bake EXIF orientation from the file
+/// (not LibRaw `sizes.flip`, which can disagree on Canon CR2). Preview/thumb: Bayer
+/// `half_size` + LINEAR; X-Trans full-size PPG (NegPy). Export is AHD.
 /// One `libraw` handle per file shares `open` / `unpack` across probe, splash, and decode.
 public enum RawDecode: Sendable {
     public enum Demosaic: Sendable, Equatable {
@@ -74,8 +75,9 @@ public enum RawDecode: Sendable {
 
     public static func probe(url: URL) -> (width: Int, height: Int)? {
         guard isAvailable else { return nil }
+        let orientation = exifOrientation(at: url)
         return RawSessionCache.shared.withSession(url: url) { session in
-            session.probe()
+            session.probe(exifOrientation: orientation)
         }
     }
 
@@ -98,8 +100,9 @@ public enum RawDecode: Sendable {
         guard isAvailable else {
             throw LinearDecodeError.rawUnavailable
         }
+        let orientation = exifOrientation(at: url)
         return try RawSessionCache.shared.withSession(url: url) { session in
-            try session.decode(halfSize: halfSize, demosaic: demosaic)
+            try session.decode(halfSize: halfSize, demosaic: demosaic, exifOrientation: orientation)
         }
     }
 
@@ -123,13 +126,18 @@ public enum RawDecode: Sendable {
 
     public static func extractThumb(url: URL) -> Thumb? {
         guard isAvailable else { return nil }
+        let orientation = exifOrientation(at: url)
         return RawSessionCache.shared.withSession(url: url) { session in
-            session.extractThumb()
+            session.extractThumb(exifOrientation: orientation)
         }
     }
 
     public static func extractThumb(path: String) -> Thumb? {
         extractThumb(url: URL(fileURLWithPath: path))
+    }
+
+    private static func exifOrientation(at url: URL) -> Int {
+        ImageCoding.exifOrientation(at: url)
     }
 }
 
@@ -209,7 +217,7 @@ final class RawSession: @unchecked Sendable {
         }
     }
 
-    func probe() -> (width: Int, height: Int)? {
+    func probe(exifOrientation: Int) -> (width: Int, height: Int)? {
         lock.lock()
         defer { lock.unlock() }
         guard let handle = openedHandle() else { return nil }
@@ -218,13 +226,17 @@ final class RawSession: @unchecked Sendable {
         var orientation: Int32 = 1
         let rc = negswift_raw_handle_probe(handle, &width, &height, &orientation)
         guard rc == 0, width > 0, height > 0 else { return nil }
-        if ScanFormat.orientationSwapsDimensions(Int(orientation)) {
+        if ScanFormat.orientationSwapsDimensions(exifOrientation) {
             return (Int(height), Int(width))
         }
         return (Int(width), Int(height))
     }
 
-    func decode(halfSize: Bool, demosaic: RawDecode.Demosaic? = nil) throws -> RawDecode.Result {
+    func decode(
+        halfSize: Bool,
+        demosaic: RawDecode.Demosaic? = nil,
+        exifOrientation: Int
+    ) throws -> RawDecode.Result {
         lock.lock()
         defer { lock.unlock() }
         guard let handle = openedHandle() else {
@@ -248,14 +260,14 @@ final class RawSession: @unchecked Sendable {
         let pixels = Array(UnsafeBufferPointer(start: pointer, count: Int(raw.count)))
         let buffer = LinearRGBBuffer(width: Int(raw.width), height: Int(raw.height), pixels: pixels)
         return RawDecode.Result(
-            buffer: buffer.applyingExifOrientation(Int(raw.orientation)),
+            buffer: buffer.applyingExifOrientation(exifOrientation),
             usedHalfSize: raw.used_half_size != 0,
             demosaic: RawDecode.Demosaic(userQual: Int(raw.user_qual)),
             isXTrans: raw.is_xtrans != 0
         )
     }
 
-    func extractThumb() -> RawDecode.Thumb? {
+    func extractThumb(exifOrientation: Int) -> RawDecode.Thumb? {
         lock.lock()
         defer { lock.unlock() }
         guard let handle = openedHandle() else { return nil }
@@ -272,7 +284,7 @@ final class RawSession: @unchecked Sendable {
                 jpeg: Data(bytes: pointer, count: Int(raw.size)),
                 width: Int(raw.width),
                 height: Int(raw.height),
-                orientation: Int(raw.orientation)
+                orientation: exifOrientation
             )
         }
         if raw.format == 2 {
@@ -281,7 +293,7 @@ final class RawSession: @unchecked Sendable {
                 jpeg: nil,
                 width: Int(raw.width),
                 height: Int(raw.height),
-                orientation: Int(raw.orientation)
+                orientation: exifOrientation
             )
         }
         return nil

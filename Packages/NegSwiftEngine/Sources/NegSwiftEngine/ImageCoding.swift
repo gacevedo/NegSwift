@@ -57,6 +57,20 @@ public enum ImageCoding: Sendable {
         else {
             return 1
         }
+        return exifOrientation(from: props)
+    }
+
+    /// EXIF Orientation tag (1–8). NegPy `read_orientation`; not LibRaw `sizes.flip`.
+    public static func exifOrientation(at url: URL) -> Int {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        else {
+            return 1
+        }
+        return exifOrientation(from: props)
+    }
+
+    private static func exifOrientation(from props: [CFString: Any]) -> Int {
         if let value = props[kCGImagePropertyOrientation] as? Int, (1 ... 8).contains(value) {
             return value
         }

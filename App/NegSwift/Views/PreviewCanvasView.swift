@@ -302,6 +302,7 @@ struct PreviewCanvasView: View {
     private var cropOverlay: some View {
         CropOverlayView(
             cropRect: cropBinding,
+            fineRotation: fineRotationBinding,
             aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio),
             imagePixelSize: session.previewPixelSize ?? image.size,
             onClickOutside: applyCrop
@@ -359,6 +360,13 @@ struct PreviewCanvasView: View {
         Binding(
             get: { session.currentEdit.manualCropRect ?? .full },
             set: { session.setManualCropRect($0) }
+        )
+    }
+
+    private var fineRotationBinding: Binding<Double> {
+        Binding(
+            get: { session.currentEdit.fineRotation },
+            set: { session.setFineRotation($0) }
         )
     }
 

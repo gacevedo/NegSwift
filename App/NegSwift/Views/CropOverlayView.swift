@@ -3,10 +3,12 @@
 //  NegSwift
 //
 
+import AppKit
 import SwiftUI
 
 struct CropOverlayView: View {
     @Binding var cropRect: NormalizedRect
+    @Binding var fineRotation: Double
     let aspectRatio: CropAspectRatio
     let imagePixelSize: CGSize
     var onClickOutside: () -> Void = {}
@@ -16,10 +18,18 @@ struct CropOverlayView: View {
     @State private var dragStartHandlePoint: CGPoint?
     @State private var activeHandle: CropHandle?
 
+    @State private var rotateStartFine: Double?
+    @State private var rotateCenter: CGPoint?
+    @State private var rotatePress: CGPoint?
+    @State private var activeRotationHandle: CropRotationHandle?
+    @State private var isRotating = false
+
     private let cornerHandleSize: CGFloat = 12
     private let edgeHandleShort: CGFloat = 8
     private let edgeHandleLong: CGFloat = 28
     private let minSpan: Double = 0.05
+    private let rotationHandleRadius: CGFloat = 11
+    private let rotationHandleOffset: CGFloat = 24
 
     private var activeRect: NormalizedRect {
         dragRect ?? cropRect
@@ -33,6 +43,7 @@ struct CropOverlayView: View {
                 in: container
             )
             let cropScreenRect = screenRect(for: activeRect, in: imageRect)
+            let rotationHandles = rotationHandlePoints(cropScreenRect: cropScreenRect, container: container)
 
             ZStack(alignment: .topLeading) {
                 Path { path in
@@ -48,25 +59,63 @@ struct CropOverlayView: View {
                     .contentShape(Rectangle())
                     .gesture(moveGesture(imageRect: imageRect))
 
+                rotationHandleTicks(cropScreenRect: cropScreenRect, handles: rotationHandles)
+
                 ForEach(CropHandle.allCases, id: \.self) { handle in
                     handleView(handle, cropScreenRect: cropScreenRect, imageRect: imageRect)
                 }
+
+                ForEach(CropRotationHandle.allCases, id: \.self) { handle in
+                    if let point = rotationHandles[handle] {
+                        rotationHandleView(
+                            handle,
+                            point: point,
+                            cropScreenRect: cropScreenRect
+                        )
+                    }
+                }
+
+                if isRotating {
+                    rotationAngleBadge(at: cropScreenRect)
+                }
             }
             .contentShape(Rectangle())
-            .gesture(outsideTapGesture(cropScreenRect: cropScreenRect))
+            .gesture(outsideTapGesture(cropScreenRect: cropScreenRect, container: container))
         }
     }
 
-    private func outsideTapGesture(cropScreenRect rect: CGRect) -> some Gesture {
+    private func outsideTapGesture(cropScreenRect rect: CGRect, container: CGSize) -> some Gesture {
         SpatialTapGesture()
             .onEnded { value in
                 let point = value.location
-                guard !rect.contains(point), !isNearHandle(point, cropScreenRect: rect) else { return }
+                guard !rect.contains(point),
+                      !isNearInteractionTarget(point, cropScreenRect: rect, container: container)
+                else { return }
                 onClickOutside()
             }
     }
 
-    private func isNearHandle(_ point: CGPoint, cropScreenRect rect: CGRect) -> Bool {
+    private func isNearInteractionTarget(
+        _ point: CGPoint,
+        cropScreenRect rect: CGRect,
+        container: CGSize
+    ) -> Bool {
+        if isNearResizeHandle(point, cropScreenRect: rect) {
+            return true
+        }
+        let handles = rotationHandlePoints(cropScreenRect: rect, container: container)
+        let hitRadius = rotationHandleRadius * 1.5
+        for handlePoint in handles.values {
+            let dx = point.x - handlePoint.x
+            let dy = point.y - handlePoint.y
+            if dx * dx + dy * dy <= hitRadius * hitRadius {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func isNearResizeHandle(_ point: CGPoint, cropScreenRect rect: CGRect) -> Bool {
         for handle in CropHandle.allCases {
             if handleRect(handle, in: rect, grabMultiplier: 1.5).contains(point) {
                 return true
@@ -153,6 +202,118 @@ struct CropOverlayView: View {
                         commitDrag()
                     }
             )
+    }
+
+    @ViewBuilder
+    private func rotationHandleTicks(
+        cropScreenRect rect: CGRect,
+        handles: [CropRotationHandle: CGPoint]
+    ) -> some View {
+        let edgeMids: [CropRotationHandle: CGPoint] = [
+            .top: CGPoint(x: rect.midX, y: rect.minY),
+            .bottom: CGPoint(x: rect.midX, y: rect.maxY),
+            .left: CGPoint(x: rect.minX, y: rect.midY),
+            .right: CGPoint(x: rect.maxX, y: rect.midY),
+        ]
+        ForEach(CropRotationHandle.allCases, id: \.self) { handle in
+            if let start = edgeMids[handle], let end = handles[handle] {
+                Path { path in
+                    path.move(to: start)
+                    path.addLine(to: end)
+                }
+                .stroke(Color.white.opacity(0.45), lineWidth: 1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rotationHandleView(
+        _ handle: CropRotationHandle,
+        point: CGPoint,
+        cropScreenRect rect: CGRect
+    ) -> some View {
+        let diameter = rotationHandleRadius * 2
+        ZStack {
+            Circle()
+                .stroke(Color.white, lineWidth: 1.5)
+                .background(Circle().fill(Color.accentColor))
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: diameter, height: diameter)
+        .position(x: point.x, y: point.y)
+        .accessibilityIdentifier("negSwift.cropRotationHandle.\(handle.rawValue)")
+        .gesture(rotationGesture(handle: handle, cropScreenRect: rect))
+    }
+
+    private func rotationGesture(handle: CropRotationHandle, cropScreenRect rect: CGRect) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if activeRotationHandle == nil {
+                    activeRotationHandle = handle
+                    rotateStartFine = fineRotation
+                    rotateCenter = CGPoint(x: rect.midX, y: rect.midY)
+                    rotatePress = value.startLocation
+                    isRotating = true
+                }
+                guard activeRotationHandle == handle,
+                      let startFine = rotateStartFine,
+                      let center = rotateCenter,
+                      let press = rotatePress
+                else { return }
+
+                let sensitivity = shiftPressed ? FineRotationDrag.fineSensitivity : 1.0
+                let angle = FineRotationDrag.rotationDragAngle(
+                    startAngleDeg: startFine,
+                    center: center,
+                    press: press,
+                    cursor: value.location,
+                    sensitivity: sensitivity
+                )
+                if abs(angle - fineRotation) > 0.005 {
+                    fineRotation = angle
+                }
+            }
+            .onEnded { _ in
+                activeRotationHandle = nil
+                rotateStartFine = nil
+                rotateCenter = nil
+                rotatePress = nil
+                isRotating = false
+            }
+    }
+
+    private var shiftPressed: Bool {
+        NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false
+    }
+
+    @ViewBuilder
+    private func rotationAngleBadge(at cropScreenRect: CGRect) -> some View {
+        Text(String(format: "%+.2f°", -fineRotation))
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.black.opacity(0.67), in: RoundedRectangle(cornerRadius: 4))
+            .position(x: cropScreenRect.midX, y: cropScreenRect.midY)
+            .allowsHitTesting(false)
+    }
+
+    private func rotationHandlePoints(
+        cropScreenRect rect: CGRect,
+        container: CGSize
+    ) -> [CropRotationHandle: CGPoint] {
+        let offset = rotationHandleOffset
+        let margin = rotationHandleRadius + 2
+        let clampX = { (x: CGFloat) in min(max(x, margin), max(container.width - margin, margin)) }
+        let clampY = { (y: CGFloat) in min(max(y, margin), max(container.height - margin, margin)) }
+        return [
+            .top: CGPoint(x: clampX(rect.midX), y: clampY(rect.minY - offset)),
+            .bottom: CGPoint(x: clampX(rect.midX), y: clampY(rect.maxY + offset)),
+            .left: CGPoint(x: clampX(rect.minX - offset), y: clampY(rect.midY)),
+            .right: CGPoint(x: clampX(rect.maxX + offset), y: clampY(rect.midY)),
+        ]
     }
 
     private func commitDrag() {
@@ -342,4 +503,8 @@ private enum CropHandle: CaseIterable {
         case .left: return CGPoint(x: rect.minX, y: midY)
         }
     }
+}
+
+private enum CropRotationHandle: String, CaseIterable {
+    case top, bottom, left, right
 }

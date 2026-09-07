@@ -1,0 +1,138 @@
+{
+  "machine" : "gabriels-macbook-pro-2.local",
+  "metal_available" : true,
+  "pixel_backend" : "metal",
+  "profile" : "real_scan",
+  "s13l_hot_stages" : {
+    "analyze_ms" : 335.98000000000002,
+    "autocrop_ms" : 1030.3199999999999,
+    "combined_ms" : 3490.8899999999999,
+    "decode_ms" : 0,
+    "dust_ms" : 2124.5900000000001,
+    "print_ms" : 38.530000000000001,
+    "ranking" : [
+      {
+        "count" : 1,
+        "ms" : 2124.5900000000001,
+        "stage" : "dust"
+      },
+      {
+        "count" : 1,
+        "ms" : 1030.3199999999999,
+        "stage" : "autocrop"
+      },
+      {
+        "count" : 1,
+        "ms" : 335.98000000000002,
+        "stage" : "analyze"
+      }
+    ]
+  },
+  "scan" : "\/Users\/gacevedo\/Downloads\/Kodak Portra Gold 120 K6500-008.TIFF",
+  "scenarios" : {
+    "cold_first_open" : {
+      "draft_counters" : {
+        "analyze" : 1,
+        "autocrop" : 1,
+        "decode" : 1,
+        "download" : 0,
+        "dust" : 0,
+        "heal" : 0,
+        "orient" : 1,
+        "present_encode" : 0,
+        "print" : 1,
+        "upload" : 1
+      },
+      "draft_first_paint_ms" : 227.66,
+      "draft_stages" : {
+        "analyze_ms" : 106.56999999999999,
+        "autocrop_ms" : 90.530000000000001,
+        "decode_ms" : 1691.4400000000001,
+        "detect_ms" : 1700.5,
+        "download_ms" : 1.5600000000000001,
+        "dust_ms" : 0,
+        "heal_ms" : 0,
+        "orient_ms" : 0,
+        "present_ms" : 6.8099999999999996,
+        "print_ms" : 29.280000000000001,
+        "upload_ms" : 1.05
+      },
+      "settled_counters" : {
+        "analyze" : 1,
+        "autocrop" : 1,
+        "decode" : 0,
+        "download" : 0,
+        "dust" : 1,
+        "heal" : 0,
+        "orient" : 1,
+        "present_encode" : 0,
+        "print" : 1,
+        "upload" : 1
+      },
+      "settled_full_preview_ms" : 3536.5799999999999,
+      "settled_stages" : {
+        "analyze_ms" : 335.98000000000002,
+        "autocrop_ms" : 1030.3199999999999,
+        "decode_ms" : 0,
+        "detect_ms" : 0,
+        "download_ms" : 6.7400000000000002,
+        "dust_ms" : 2124.5900000000001,
+        "heal_ms" : 0,
+        "orient_ms" : 0,
+        "present_ms" : 5.7199999999999998,
+        "print_ms" : 38.530000000000001,
+        "upload_ms" : 0
+      },
+      "total_ms" : 5464.8000000000002
+    },
+    "density_reprint" : {
+      "counters" : {
+        "analyze" : 1,
+        "autocrop" : 1,
+        "decode" : 0,
+        "download" : 0,
+        "dust" : 0,
+        "heal" : 0,
+        "orient" : 1,
+        "present_encode" : 0,
+        "print" : 1,
+        "upload" : 0
+      },
+      "full_preview_ms" : 347,
+      "reused_analysis" : false,
+      "reused_bake" : true,
+      "stages" : {
+        "analyze_ms" : 333.66000000000003,
+        "autocrop_ms" : 0.02,
+        "decode_ms" : 0,
+        "detect_ms" : 0,
+        "download_ms" : 4.4900000000000002,
+        "dust_ms" : 0,
+        "heal_ms" : 0,
+        "orient_ms" : 0,
+        "present_ms" : 3.0600000000000001,
+        "print_ms" : 12.960000000000001,
+        "upload_ms" : 0
+      }
+    },
+    "detect_only" : {
+      "detect_ms" : 1123.02,
+      "stages" : {
+        "analyze_ms" : 0,
+        "autocrop_ms" : 0,
+        "decode_ms" : 1113.71,
+        "detect_ms" : 1123.01,
+        "download_ms" : 0,
+        "dust_ms" : 0,
+        "heal_ms" : 0,
+        "orient_ms" : 0,
+        "present_ms" : 0,
+        "print_ms" : 0,
+        "upload_ms" : 0
+      }
+    },
+    "frame_switch" : null
+  },
+  "second_scan" : null,
+  "version" : 1
+}

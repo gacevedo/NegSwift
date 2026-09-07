@@ -52,6 +52,20 @@ public enum MetalDevice: Sendable {
         let geometry: MTLComputePipelineState
         let present: MTLComputePipelineState
         let usedPrecompiledLibrary: Bool
+        let dustErodeRGB: MTLComputePipelineState
+        let dustDownsampleArea: MTLComputePipelineState
+        let dustDensity: MTLComputePipelineState
+        let dustProxy: MTLComputePipelineState
+        let dustBoxBlurH: MTLComputePipelineState
+        let dustBoxBlurV: MTLComputePipelineState
+        let dustMedian: MTLComputePipelineState
+        let dustMorphErode: MTLComputePipelineState
+        let dustMorphDilate: MTLComputePipelineState
+        let dustBackground: MTLComputePipelineState
+        let dustMadSrc: MTLComputePipelineState
+        let dustZ: MTLComputePipelineState
+        let dustTextureStd: MTLComputePipelineState
+        let dustSquare: MTLComputePipelineState
         #if canImport(CoreImage)
         let ciContext: CIContext
         #endif
@@ -86,7 +100,21 @@ public enum MetalDevice: Sendable {
                   let labApply = pipeline("lab_apply"),
                   let outputEncode = pipeline("output_encode"),
                   let geometry = pipeline("geometry_main"),
-                  let present = pipeline("present_main")
+                  let present = pipeline("present_main"),
+                  let dustErodeRGB = pipeline("dust_erode_rgb_main"),
+                  let dustDownsampleArea = pipeline("dust_downsample_area_main"),
+                  let dustDensity = pipeline("dust_density_main"),
+                  let dustProxy = pipeline("dust_proxy_main"),
+                  let dustBoxBlurH = pipeline("dust_box_blur_h_main"),
+                  let dustBoxBlurV = pipeline("dust_box_blur_v_main"),
+                  let dustMedian = pipeline("dust_median_main"),
+                  let dustMorphErode = pipeline("dust_morph_erode_main"),
+                  let dustMorphDilate = pipeline("dust_morph_dilate_main"),
+                  let dustBackground = pipeline("dust_background_main"),
+                  let dustMadSrc = pipeline("dust_mad_src_main"),
+                  let dustZ = pipeline("dust_z_main"),
+                  let dustTextureStd = pipeline("dust_texture_std_main"),
+                  let dustSquare = pipeline("dust_square_main")
             else {
                 return nil
             }
@@ -101,7 +129,21 @@ public enum MetalDevice: Sendable {
                 outputEncode: outputEncode,
                 geometry: geometry,
                 present: present,
-                usedPrecompiledLibrary: loaded.precompiled
+                usedPrecompiledLibrary: loaded.precompiled,
+                dustErodeRGB: dustErodeRGB,
+                dustDownsampleArea: dustDownsampleArea,
+                dustDensity: dustDensity,
+                dustProxy: dustProxy,
+                dustBoxBlurH: dustBoxBlurH,
+                dustBoxBlurV: dustBoxBlurV,
+                dustMedian: dustMedian,
+                dustMorphErode: dustMorphErode,
+                dustMorphDilate: dustMorphDilate,
+                dustBackground: dustBackground,
+                dustMadSrc: dustMadSrc,
+                dustZ: dustZ,
+                dustTextureStd: dustTextureStd,
+                dustSquare: dustSquare
             )
         }
 
@@ -116,7 +158,21 @@ public enum MetalDevice: Sendable {
             outputEncode: MTLComputePipelineState,
             geometry: MTLComputePipelineState,
             present: MTLComputePipelineState,
-            usedPrecompiledLibrary: Bool
+            usedPrecompiledLibrary: Bool,
+            dustErodeRGB: MTLComputePipelineState,
+            dustDownsampleArea: MTLComputePipelineState,
+            dustDensity: MTLComputePipelineState,
+            dustProxy: MTLComputePipelineState,
+            dustBoxBlurH: MTLComputePipelineState,
+            dustBoxBlurV: MTLComputePipelineState,
+            dustMedian: MTLComputePipelineState,
+            dustMorphErode: MTLComputePipelineState,
+            dustMorphDilate: MTLComputePipelineState,
+            dustBackground: MTLComputePipelineState,
+            dustMadSrc: MTLComputePipelineState,
+            dustZ: MTLComputePipelineState,
+            dustTextureStd: MTLComputePipelineState,
+            dustSquare: MTLComputePipelineState
         ) {
             self.device = device
             self.queue = queue
@@ -129,6 +185,20 @@ public enum MetalDevice: Sendable {
             self.geometry = geometry
             self.present = present
             self.usedPrecompiledLibrary = usedPrecompiledLibrary
+            self.dustErodeRGB = dustErodeRGB
+            self.dustDownsampleArea = dustDownsampleArea
+            self.dustDensity = dustDensity
+            self.dustProxy = dustProxy
+            self.dustBoxBlurH = dustBoxBlurH
+            self.dustBoxBlurV = dustBoxBlurV
+            self.dustMedian = dustMedian
+            self.dustMorphErode = dustMorphErode
+            self.dustMorphDilate = dustMorphDilate
+            self.dustBackground = dustBackground
+            self.dustMadSrc = dustMadSrc
+            self.dustZ = dustZ
+            self.dustTextureStd = dustTextureStd
+            self.dustSquare = dustSquare
             #if canImport(CoreImage)
             let adobe = CGColorSpace(name: CGColorSpace.adobeRGB1998)
             var options: [CIContextOption: Any] = [.cacheIntermediates: false]
@@ -141,18 +211,26 @@ public enum MetalDevice: Sendable {
         }
 
         private static func makeLibrary(device: MTLDevice) -> (library: MTLLibrary?, precompiled: Bool) {
+            func sourceLibrary() -> MTLLibrary? {
+                guard let source = kernelSource() else { return nil }
+                return try? device.makeLibrary(source: source, options: nil)
+            }
             let metallibURLs = [
                 Bundle.module.url(forResource: "LiteKernels", withExtension: "metallib"),
                 Bundle.module.url(forResource: "LiteKernels", withExtension: "metallib", subdirectory: "Metal"),
             ]
             for url in metallibURLs {
                 if let url, let library = try? device.makeLibrary(URL: url) {
-                    return (library, true)
+                    if library.makeFunction(name: "dust_erode_rgb_main") != nil {
+                        return (library, true)
+                    }
+                    // Precompiled metallib predates S13l dust kernels — compile from source.
+                    if let live = sourceLibrary() {
+                        return (live, false)
+                    }
                 }
             }
-            guard let source = kernelSource(),
-                  let library = try? device.makeLibrary(source: source, options: nil)
-            else {
+            guard let library = sourceLibrary() else {
                 return (nil, false)
             }
             return (library, false)

@@ -67,11 +67,13 @@ final class LinearBufferCache: @unchecked Sendable {
 
         do {
             PipelineStats.increment(.decode)
-            let sample = try LinearDecode.decodeSample(
-                path: path,
-                maxLongEdge: maxLongEdge,
-                analysisOversample: analysisOversample
-            )
+            let sample = try PipelineStats.measure(.decode) {
+                try LinearDecode.decodeSample(
+                    path: path,
+                    maxLongEdge: maxLongEdge,
+                    analysisOversample: analysisOversample
+                )
+            }
             condition.lock()
             storeUnlocked(
                 Entry(

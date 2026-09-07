@@ -246,7 +246,9 @@ extension MetalPrint {
             guard let src = gpu.makeTexture(width: width, height: height) else {
                 return nil
             }
-            upload(linear, to: src)
+            PipelineStats.measure(.upload) {
+                upload(linear, to: src)
+            }
             PipelineStats.increment(.upload)
             uploaded = true
             source = src
@@ -400,23 +402,27 @@ extension MetalPrint {
             originX = roi.x1
             originY = roi.y1
         }
-        if !readback, encode, stopAfter == .encode,
-           let present = GPUPresent.image(
-               gpu: gpu,
-               source: current,
-               width: outW,
-               height: outH,
-               originX: originX,
-               originY: originY
-           )
-        {
-            let cacheBuffer = download(
-                current,
-                width: outW,
-                height: outH,
-                originX: originX,
-                originY: originY
-            )
+        if !readback, encode, stopAfter == .encode {
+            let present = PipelineStats.measure(.present) {
+                GPUPresent.image(
+                    gpu: gpu,
+                    source: current,
+                    width: outW,
+                    height: outH,
+                    originX: originX,
+                    originY: originY
+                )
+            }
+            if let present {
+            let cacheBuffer = PipelineStats.measure(.download) {
+                download(
+                    current,
+                    width: outW,
+                    height: outH,
+                    originX: originX,
+                    originY: originY
+                )
+            }
             return Output(
                 buffer: nil,
                 cacheBuffer: cacheBuffer,
@@ -424,6 +430,7 @@ extension MetalPrint {
                 uploaded: uploaded,
                 downloaded: false
             )
+            }
         }
         return readbackOutput(
             current,
@@ -444,14 +451,17 @@ extension MetalPrint {
         uploaded: Bool
     ) -> Output {
         PipelineStats.increment(.download)
-        return Output(
-            buffer: download(
+        let buffer = PipelineStats.measure(.download) {
+            download(
                 texture,
                 width: width,
                 height: height,
                 originX: originX,
                 originY: originY
-            ),
+            )
+        }
+        return Output(
+            buffer: buffer,
             cacheBuffer: nil,
             present: nil,
             uploaded: uploaded,

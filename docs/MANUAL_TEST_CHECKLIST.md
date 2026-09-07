@@ -451,7 +451,7 @@ S13a–k (slider reprints + one decode + Accelerate + splash/thumbs + progressiv
 - [ ] S13j human: import 20+ TIFFs stays responsive; clicking frame B cancels queued thumbs
 - [x] S13k: processed-preview disk cache + longer-lived working sets (`ProcessedPreviewDiskCacheTests`); look unchanged vs S8 on cache hit
 - [ ] S13k human: quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged
-- [ ] S13l: optional — Metal dust / autocrop / histograms or Fast-preview defaults only if Instruments still shows those stages after S13d–h
+- [ ] S13l: optional — Metal dust / autocrop / histograms only if Instruments still shows those CPU stages hot after S13d–h (profile first; UX knobs were tried and dropped)
 - [ ] Stage timers in `NEGSWIFT_PERF_LOG` / `PipelineStats`: detect, open-autocrop, LibRaw, `areaDownsampled`, Metal upload+download, ColorSync
 - [ ] Human: Swift backend, 16-bit TIFF ≥16 MP — first open in the same class as Python
 - [ ] Human: Swift backend, folder of 3+ RAF — thumbs fill; first preview auto-crops; clicking another frame leaves “Loading image…” and shows a preview

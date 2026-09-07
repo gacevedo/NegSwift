@@ -45,7 +45,26 @@ public enum OpticalDust: Sendable {
         threshold: Float = defaultThreshold,
         size: Int = defaultSize
     ) -> LinearRGBBuffer {
+        #if canImport(Metal)
+        if let baked = MetalDust.bake(image, threshold: threshold, size: size) {
+            return baked
+        }
+        #endif
+        return bakeCPU(image, threshold: threshold, size: size)
+    }
+
+    /// CPU-only bake (oracle for Metal parity tests).
+    public static func bakeCPU(
+        _ image: LinearRGBBuffer,
+        threshold: Float = defaultThreshold,
+        size: Int = defaultSize
+    ) -> LinearRGBBuffer {
         let found = detect(image, threshold: threshold, size: size)
+        return applyDetection(image, found: found)
+    }
+
+    /// Repair pass shared by CPU and Metal dust detect.
+    public static func applyDetection(_ image: LinearRGBBuffer, found: Detection) -> LinearRGBBuffer {
         var out = image
         if let score = upsampleScore(found, width: image.width, height: image.height) {
             let factor = upsampleFactor(found, width: image.width, height: image.height)
@@ -358,7 +377,7 @@ public enum OpticalDust: Sendable {
         return dens
     }
 
-    static func proxyNorm(_ dens: [Float]) -> (Float, Float) {
+    public static func proxyNorm(_ dens: [Float]) -> (Float, Float) {
         let lo = percentile(dens, 0.5)
         let hi = percentile(dens, 99.5)
         return (lo, max(hi - lo, proxyMinSpread))

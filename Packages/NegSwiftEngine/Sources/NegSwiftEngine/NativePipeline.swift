@@ -137,13 +137,15 @@ public struct NativePipeline: Sendable {
     }
 
     public func detectProcessMode(path: String) throws -> FilmProcessMode {
-        // Oversample so detect shares the print-path ImageIO/LibRaw sample (S13d).
-        let buffer = try decode(
-            path: path,
-            maxLongEdge: ProcessDetect.detectDecodeLongEdge,
-            analysisOversample: true
-        )
-        return ProcessDetect.detectLite(buffer)
+        try PipelineStats.measure(.detect) {
+            // Oversample so detect shares the print-path ImageIO/LibRaw sample (S13d).
+            let buffer = try decode(
+                path: path,
+                maxLongEdge: ProcessDetect.detectDecodeLongEdge,
+                analysisOversample: true
+            )
+            return ProcessDetect.detectLite(buffer)
+        }
     }
 
     /// Mid-gray placeholder used by S0 tests.
@@ -276,12 +278,16 @@ public struct NativePipeline: Sendable {
             )
             if passConfig.dustRemove {
                 PipelineStats.increment(.dust)
-                linear = OpticalDust.bake(linear, threshold: passConfig.dustThreshold, size: passConfig.dustSize)
+                linear = PipelineStats.measure(.dust) {
+                    OpticalDust.bake(linear, threshold: passConfig.dustThreshold, size: passConfig.dustSize)
+                }
             }
             if !passConfig.healStrokes.isEmpty || !passConfig.dustSpots.isEmpty {
                 PipelineStats.increment(.heal)
             }
-            linear = HealInpaint.bake(linear, strokes: passConfig.healStrokes, spots: passConfig.dustSpots)
+            linear = PipelineStats.measure(.heal) {
+                HealInpaint.bake(linear, strokes: passConfig.healStrokes, spots: passConfig.dustSpots)
+            }
             baked = linear
         }
 
@@ -304,20 +310,24 @@ public struct NativePipeline: Sendable {
             bounds = cached.bounds
             analysis = cached.analysis
         } else {
-            armed = Autocrop.resolveArmed(baked, config: passConfig)
+            armed = PipelineStats.measure(.autocrop) {
+                Autocrop.resolveArmed(baked, config: passConfig)
+            }
+            PipelineStats.increment(.autocrop)
             PipelineStats.increment(.orient)
-            if pixelBackend.resolved() == .metal,
-               let gpuOriented = MetalGeometry.oriented(
-                   baked,
-                   rotation: armed.config.rotation,
-                   flipHorizontal: armed.config.flipHorizontal,
-                   flipVertical: armed.config.flipVertical,
-                   fineRotation: armed.config.fineRotation
-               )
-            {
-                oriented = gpuOriented
-            } else {
-                oriented = baked.oriented(
+            oriented = PipelineStats.measure(.orient) {
+                if pixelBackend.resolved() == .metal,
+                   let gpuOriented = MetalGeometry.oriented(
+                       baked,
+                       rotation: armed.config.rotation,
+                       flipHorizontal: armed.config.flipHorizontal,
+                       flipVertical: armed.config.flipVertical,
+                       fineRotation: armed.config.fineRotation
+                   )
+                {
+                    return gpuOriented
+                }
+                return baked.oriented(
                     rotation: armed.config.rotation,
                     flipHorizontal: armed.config.flipHorizontal,
                     flipVertical: armed.config.flipVertical,
@@ -328,18 +338,22 @@ public struct NativePipeline: Sendable {
             PipelineStats.increment(.analyze)
             let remapped = armed.config.applyingMeteringRemap()
             let region = remapped.resolvedAnalysisRegion()
-            bounds = LogNormalization.analyzeBounds(
-                linear: oriented,
-                processMode: mode,
-                analysisBuffer: region.buffer,
-                analysisRect: region.rect
-            )
-            analysis = PhotometricPrint.analyzeMetering(
-                linear: oriented,
-                bounds: bounds,
-                processMode: mode,
-                config: remapped
-            )
+            bounds = PipelineStats.measure(.analyze) {
+                LogNormalization.analyzeBounds(
+                    linear: oriented,
+                    processMode: mode,
+                    analysisBuffer: region.buffer,
+                    analysisRect: region.rect
+                )
+            }
+            analysis = PipelineStats.measure(.analyze) {
+                PhotometricPrint.analyzeMetering(
+                    linear: oriented,
+                    bounds: bounds,
+                    processMode: mode,
+                    config: remapped
+                )
+            }
             if shouldCache {
                 ReprintCache.shared.store(
                     ReprintCache.Entry(
@@ -376,19 +390,23 @@ public struct NativePipeline: Sendable {
                 buffer: buffer
             )
         }
-        if pixelBackend.resolved() == .metal,
-           let gpu = MetalPrint.processDetailed(
-               linear: oriented,
-               processMode: mode,
-               config: printConfig,
-               bounds: bounds,
-               params: params,
-               baked: baked,
-               bakeKey: bakeKey,
-               persistResident: persistResident,
-               readback: readback
-           )
-        {
+        var gpuResult: MetalPrint.Output?
+        if pixelBackend.resolved() == .metal {
+            gpuResult = PipelineStats.measure(.print) {
+                MetalPrint.processDetailed(
+                    linear: oriented,
+                    processMode: mode,
+                    config: printConfig,
+                    bounds: bounds,
+                    params: params,
+                    baked: baked,
+                    bakeKey: bakeKey,
+                    persistResident: persistResident,
+                    readback: readback
+                )
+            }
+        }
+        if let gpu = gpuResult {
             if let present = gpu.present, !readback {
                 if let cacheBuffer = gpu.cacheBuffer {
                     persistDiskCache(cacheBuffer, processMode: mode)
@@ -422,15 +440,21 @@ public struct NativePipeline: Sendable {
                 )
             }
         }
-        let normalized = LogNormalization.process(
-            linear: oriented,
-            processMode: mode,
-            analysisBuffer: printConfig.resolvedAnalysisRegion().buffer,
-            analysisRect: printConfig.resolvedAnalysisRegion().rect,
-            bounds: bounds
-        )
-        var printed = PhotometricPrint.apply(normalized: normalized, params: params)
-        printed = PhotoLab.process(printed, config: printConfig)
+        let normalized = PipelineStats.measure(.print) {
+            LogNormalization.process(
+                linear: oriented,
+                processMode: mode,
+                analysisBuffer: printConfig.resolvedAnalysisRegion().buffer,
+                analysisRect: printConfig.resolvedAnalysisRegion().rect,
+                bounds: bounds
+            )
+        }
+        var printed = PipelineStats.measure(.print) {
+            PhotometricPrint.apply(normalized: normalized, params: params)
+        }
+        printed = PipelineStats.measure(.print) {
+            PhotoLab.process(printed, config: printConfig)
+        }
         if printConfig.applyPixelCrop, let crop = printConfig.cropRect {
             printed = applyStoredCrop(printed, rect: crop, offsetPx: printConfig.autocropOffset)
         }

@@ -521,3 +521,293 @@ kernel void present_main(
     float4 c = inputTex.read(src);
     outputTex.write(c, gid);
 }
+
+// S13l: optical dust detection plane (NegPy compute_dust_stats subset).
+struct DustUniforms {
+    int width;
+    int height;
+    int ksize;
+    int src_width;
+    int src_height;
+    int dst_width;
+    int dst_height;
+    float lo;
+    float spread;
+    float mad_gain;
+    float sigma_min;
+};
+
+inline float dust_sample_r(texture2d<float, access::read> tex, int x, int y, int max_x, int max_y) {
+    return tex.read(uint2(uint(reflect101(x, max_x)), uint(reflect101(y, max_y)))).r;
+}
+
+inline float3 dust_sample_rgb(texture2d<float, access::read> tex, int x, int y, int max_x, int max_y) {
+    return tex.read(uint2(uint(reflect101(x, max_x)), uint(reflect101(y, max_y)))).rgb;
+}
+
+kernel void dust_erode_rgb_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    int radius = max(params.ksize / 2, 0);
+    int r2 = radius * radius;
+    float3 min_rgb = float3(FLT_MAX);
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            if (dx * dx + dy * dy > r2) {
+                continue;
+            }
+            float3 rgb = dust_sample_rgb(inputTex, int(gid.x) + dx, int(gid.y) + dy, params.width - 1, params.height - 1);
+            min_rgb = min(min_rgb, rgb);
+        }
+    }
+    outputTex.write(float4(min_rgb, 1.0), gid);
+}
+
+kernel void dust_downsample_area_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.dst_width || gid.y >= params.dst_height) {
+        return;
+    }
+    int y0 = int(gid.y) * params.src_height / params.dst_height;
+    int y1 = max(y0 + 1, (int(gid.y) + 1) * params.src_height / params.dst_height);
+    int x0 = int(gid.x) * params.src_width / params.dst_width;
+    int x1 = max(x0 + 1, (int(gid.x) + 1) * params.src_width / params.dst_width);
+    float3 acc = float3(0.0);
+    float n = 0.0;
+    for (int sy = y0; sy < y1; sy++) {
+        for (int sx = x0; sx < x1; sx++) {
+            acc += inputTex.read(uint2(sx, sy)).rgb;
+            n += 1.0;
+        }
+    }
+    outputTex.write(float4(acc / max(n, 1.0), 1.0), gid);
+}
+
+kernel void dust_density_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    float3 rgb = inputTex.read(gid).rgb;
+    float luma = max(dot(rgb, float3(0.2126, 0.7152, 0.0722)), 1e-6);
+    float dens = -log10(luma);
+    outputTex.write(float4(dens, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_proxy_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    float dens = inputTex.read(gid).r;
+    float proxy = clamp((dens - params.lo) / max(params.spread, 1e-6), 0.0, 1.0);
+    outputTex.write(float4(proxy, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_box_blur_h_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    int radius = max(params.ksize / 2, 0);
+    float inv = 1.0 / float(max(params.ksize, 1));
+    float acc = 0.0;
+    for (int t = -radius; t <= radius; t++) {
+        acc += dust_sample_r(inputTex, int(gid.x) + t, int(gid.y), params.width - 1, params.height - 1);
+    }
+    outputTex.write(float4(acc * inv, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_box_blur_v_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    int radius = max(params.ksize / 2, 0);
+    float inv = 1.0 / float(max(params.ksize, 1));
+    float acc = 0.0;
+    for (int t = -radius; t <= radius; t++) {
+        acc += dust_sample_r(inputTex, int(gid.x), int(gid.y) + t, params.width - 1, params.height - 1);
+    }
+    outputTex.write(float4(acc * inv, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_median_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    int radius = max(params.ksize / 2, 0);
+    int medianHalf = (params.ksize * params.ksize) / 2;
+    uint hist[256];
+    for (int i = 0; i < 256; i++) {
+        hist[i] = 0;
+    }
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            float v = dust_sample_r(inputTex, int(gid.x) + dx, int(gid.y) + dy, params.width - 1, params.height - 1);
+            uint u = uint(clamp(round(v * 255.0), 0.0, 255.0));
+            hist[u]++;
+        }
+    }
+    int below = 0;
+    int median = 0;
+    while (below + int(hist[median]) <= medianHalf && median < 255) {
+        below += int(hist[median]);
+        median++;
+    }
+    outputTex.write(float4(float(median) / 255.0, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_morph_erode_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    int radius = max(params.ksize / 2, 0);
+    int r2 = radius * radius;
+    float m = FLT_MAX;
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            if (dx * dx + dy * dy > r2) {
+                continue;
+            }
+            m = min(m, dust_sample_r(inputTex, int(gid.x) + dx, int(gid.y) + dy, params.width - 1, params.height - 1));
+        }
+    }
+    outputTex.write(float4(m, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_morph_dilate_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    int radius = max(params.ksize / 2, 0);
+    int r2 = radius * radius;
+    float m = -FLT_MAX;
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            if (dx * dx + dy * dy > r2) {
+                continue;
+            }
+            m = max(m, dust_sample_r(inputTex, int(gid.x) + dx, int(gid.y) + dy, params.width - 1, params.height - 1));
+        }
+    }
+    outputTex.write(float4(m, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_background_main(
+    texture2d<float, access::read> proxyTex [[texture(0)]],
+    texture2d<float, access::read> medianTex [[texture(1)]],
+    texture2d<float, access::read> openedTex [[texture(2)]],
+    texture2d<float, access::write> backgroundTex [[texture(3)]],
+    texture2d<float, access::write> residualTex [[texture(4)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    float proxy = proxyTex.read(gid).r;
+    float bg = max(medianTex.read(gid).r, openedTex.read(gid).r);
+    backgroundTex.write(float4(bg, 0.0, 0.0, 1.0), gid);
+    residualTex.write(float4(proxy - bg, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_mad_src_main(
+    texture2d<float, access::read> excessTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    float excess = excessTex.read(gid).r;
+    outputTex.write(float4(abs(excess) * params.mad_gain, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_z_main(
+    texture2d<float, access::read> excessTex [[texture(0)]],
+    texture2d<float, access::read> madTex [[texture(1)]],
+    texture2d<float, access::write> outputTex [[texture(2)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    float excess = excessTex.read(gid).r;
+    float mad = madTex.read(gid).r;
+    float sigma = max(mad / params.mad_gain / 0.6745, params.sigma_min);
+    outputTex.write(float4(excess / sigma, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_texture_std_main(
+    texture2d<float, access::read> proxyTex [[texture(0)]],
+    texture2d<float, access::read> meanTex [[texture(1)]],
+    texture2d<float, access::read> meanSqTex [[texture(2)]],
+    texture2d<float, access::write> outputTex [[texture(3)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    float mean = meanTex.read(gid).r;
+    float meanSq = meanSqTex.read(gid).r;
+    float std = sqrt(max(meanSq - mean * mean, 0.0));
+    outputTex.write(float4(std, 0.0, 0.0, 1.0), gid);
+}
+
+kernel void dust_square_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant DustUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= params.width || gid.y >= params.height) {
+        return;
+    }
+    float v = inputTex.read(gid).r;
+    outputTex.write(float4(v * v, 0.0, 0.0, 1.0), gid);
+}

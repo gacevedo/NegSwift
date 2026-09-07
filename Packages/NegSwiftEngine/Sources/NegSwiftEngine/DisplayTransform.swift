@@ -30,6 +30,25 @@ public enum DisplayTransform: Sendable {
         return try ImageCoding.buffer(from: image)
     }
 
+    /// Adobe RGB 1998 encoded buffer tagged as Adobe RGB — no ColorSync hop (S13h preview).
+    public static func workingImage(
+        fromWorkingSpace buffer: LinearRGBBuffer,
+        bitsPerComponent: Int = 8
+    ) throws -> CGImage {
+        guard let adobe = CGColorSpace(name: CGColorSpace.adobeRGB1998) else {
+            throw DisplayTransformError.colorSpaceUnavailable
+        }
+        let depth = bitsPerComponent >= 16 ? 16 : 8
+        guard let image = ImageCoding.cgImage(
+            from: buffer,
+            colorSpace: adobe,
+            bitsPerComponent: depth
+        ) else {
+            throw DisplayTransformError.convertFailed
+        }
+        return image
+    }
+
     /// Adobe RGB 1998 encoded buffer as an sRGB-tagged `CGImage` (ICC follows the space).
     public static func sRGBImage(
         fromWorkingSpace buffer: LinearRGBBuffer,

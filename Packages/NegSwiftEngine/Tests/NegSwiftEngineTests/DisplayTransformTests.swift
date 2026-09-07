@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import NegSwiftEngine
@@ -17,6 +18,13 @@ struct DisplayTransformTests {
         let srgb = try DisplayTransform.workingToSRGB(adobe)
         #expect(srgb.pixels != adobe.pixels)
         #expect(srgb.pixels.allSatisfy { $0 >= 0 && $0 <= 1 })
+    }
+
+    @Test func workingImageTagsAdobeRGB() throws {
+        let image = try DisplayTransform.workingImage(fromWorkingSpace: .stub(width: 4, height: 3))
+        #expect(image.width == 4)
+        #expect(image.height == 3)
+        #expect(image.colorSpace?.name == CGColorSpace.adobeRGB1998)
     }
 
     @Test func previewJPEGFromWorkingSpaceIsValid() throws {

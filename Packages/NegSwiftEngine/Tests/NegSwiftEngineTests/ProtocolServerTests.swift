@@ -82,6 +82,23 @@ struct ProtocolServerTests {
         #expect((msg["error"] as? [String: Any])?["code"] as? String == "INVALID_REQUEST")
     }
 
+    @Test func renderDraftPreviewIsAccepted() throws {
+        let frame = try writeProtocolTIFF()
+        defer { try? FileManager.default.removeItem(at: frame) }
+        NativePipeline.resetWorkingSets()
+        let server = ProtocolServer()
+        let msg = server.handleMessage(
+            #"{"id":"draft-1","method":"render","params":{"path":"\#(frame.path)","long_edge_px":1600,"draft_preview":true,"preview_format":"png"}}"#
+        )
+        #expect(msg["ok"] as? Bool == true, "\(msg)")
+        let result = msg["result"] as? [String: Any]
+        let width = (result?["width"] as? Int) ?? (result?["width"] as? NSNumber)?.intValue
+        let height = (result?["height"] as? Int) ?? (result?["height"] as? NSNumber)?.intValue
+        #expect((width ?? 0) > 0)
+        #expect((height ?? 0) > 0)
+        #expect(max(width ?? 0, height ?? 0) <= PreviewPass.draftLongEdge)
+    }
+
     @Test func openReportsDimensions() throws {
         let frame = try writeProtocolTIFF()
         defer { try? FileManager.default.removeItem(at: frame) }

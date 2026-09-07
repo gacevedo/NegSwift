@@ -272,6 +272,13 @@ public struct ProtocolServer: Sendable {
             }
             fastPreview = ConfigJSON.boolValue(params["fast_preview"]) ?? false
         }
+        var draftPreview = false
+        if params["draft_preview"] != nil {
+            guard ConfigJSON.isJSONBool(params["draft_preview"]!) else {
+                throw ProtocolFailure(code: "INVALID_REQUEST", message: "params.draft_preview must be a boolean")
+            }
+            draftPreview = ConfigJSON.boolValue(params["draft_preview"]) ?? false
+        }
         var previewFormat = "png"
         if let raw = params["preview_format"] {
             guard let fmt = raw as? String, Self.previewFormats.contains(fmt) else {
@@ -311,7 +318,8 @@ public struct ProtocolServer: Sendable {
                 path: path,
                 longEdgePx: longEdge,
                 processMode: processMode,
-                config: printConfig
+                config: printConfig,
+                previewPass: draftPreview ? .draft : .settled
             )
             let buffer = printed.buffer
             let data: Data

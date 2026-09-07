@@ -20,6 +20,7 @@ protocol EngineBackend: Sendable {
         config: FrameEditState?,
         cropPreviewFull: Bool,
         stripThumbnail: Bool,
+        draftPreview: Bool,
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int
     ) async throws -> RenderResult
@@ -86,10 +87,12 @@ actor PythonEngineBackend: EngineBackend {
         config: FrameEditState?,
         cropPreviewFull: Bool,
         stripThumbnail: Bool,
+        draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int
     ) async throws -> RenderResult {
-        try await client.render(
+        _ = draftPreview
+        return try await client.render(
             path: path,
             longEdgePx: longEdgePx,
             preferGPU: preferGPU,
@@ -234,6 +237,7 @@ actor NativeEngineBackend: EngineBackend {
         config: FrameEditState?,
         cropPreviewFull: Bool,
         stripThumbnail: Bool,
+        draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int
     ) async throws -> RenderResult {
@@ -263,6 +267,7 @@ actor NativeEngineBackend: EngineBackend {
                         longEdgePx: longEdgePx,
                         processMode: mapped.processMode,
                         printConfig: printConfig,
+                        previewPass: draftPreview ? .draft : .settled,
                         previewFormat: previewFormat,
                         jpegQuality: jpegQuality
                     )
@@ -455,6 +460,9 @@ actor NativeEngineBackend: EngineBackend {
                 size: stroke.size
             )
         }
+        printConfig.dustRemove = config.dustRemove
+        printConfig.dustThreshold = Float(config.dustThreshold)
+        printConfig.dustSize = max(1, config.dustSize)
         printConfig = printConfig.applyingMeteringRemap()
         let processMode = FilmProcessMode(rawValue: config.processMode.rawValue) ?? .colorNegative
         return (processMode, printConfig)
@@ -517,6 +525,7 @@ actor NativeEngineBackend: EngineBackend {
         longEdgePx: Int?,
         processMode: FilmProcessMode?,
         printConfig: PrintConfig,
+        previewPass: PreviewPass,
         previewFormat: PreviewTransportFormat,
         jpegQuality: Int
     ) throws -> RenderResult {
@@ -524,9 +533,10 @@ actor NativeEngineBackend: EngineBackend {
             path: path,
             longEdgePx: longEdgePx,
             processMode: processMode,
-            config: printConfig
+            config: printConfig,
+            previewPass: previewPass,
+            readback: false
         )
-        let buffer = detailed.buffer
         var metrics: RenderMetrics?
         if detailed.resolvedAutocrop != nil || detailed.cropRect != nil {
             metrics = RenderMetrics(
@@ -535,9 +545,21 @@ actor NativeEngineBackend: EngineBackend {
                 autocropResolvedKey: detailed.resolvedAutocrop?.key
             )
         }
-        let cgImage = try DisplayTransform.sRGBImage(fromWorkingSpace: buffer, bitsPerComponent: 8)
         _ = previewFormat
         _ = jpegQuality
+        if let present = detailed.gpuPresent {
+            return RenderResult(
+                width: present.width,
+                height: present.height,
+                previewFormat: "cgimage",
+                pngBase64: nil,
+                jpegBase64: nil,
+                metrics: metrics,
+                nativePreview: NativePreview(cgImage: present.cgImage, ciImage: present.ciImage)
+            )
+        }
+        let buffer = detailed.buffer
+        let cgImage = try DisplayTransform.workingImage(fromWorkingSpace: buffer, bitsPerComponent: 8)
         return RenderResult(
             width: buffer.width,
             height: buffer.height,

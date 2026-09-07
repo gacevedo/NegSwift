@@ -12,6 +12,14 @@ public struct RenderPrintResult: Sendable {
     public var reusedAnalysis: Bool
     /// S13c: this render uploaded post-dust/heal linear to Metal.
     public var uploadedLinear: Bool
+    /// S13h: this render `getBytes`'d the float working set (MAE / export / CLI).
+    public var downloadedLinear: Bool
+    /// S13h: Adobe RGB GPU present (no ColorSync hop). Set when `readback` is false.
+    public var gpuPresent: GPUPresentImage?
+    /// S13g: draft (first paint) or settled (refine / slider).
+    public var previewPass: PreviewPass
+    /// S13g: ImageIO/LibRaw sample used the ≥4096 analysis oversample.
+    public var analysisOversampled: Bool
 
     public init(
         buffer: LinearRGBBuffer,
@@ -19,7 +27,11 @@ public struct RenderPrintResult: Sendable {
         cropRect: NormalizedCropRect?,
         reusedBake: Bool = false,
         reusedAnalysis: Bool = false,
-        uploadedLinear: Bool = false
+        uploadedLinear: Bool = false,
+        downloadedLinear: Bool = false,
+        gpuPresent: GPUPresentImage? = nil,
+        previewPass: PreviewPass = .settled,
+        analysisOversampled: Bool = false
     ) {
         self.buffer = buffer
         self.resolvedAutocrop = resolvedAutocrop
@@ -27,11 +39,16 @@ public struct RenderPrintResult: Sendable {
         self.reusedBake = reusedBake
         self.reusedAnalysis = reusedAnalysis
         self.uploadedLinear = uploadedLinear
+        self.downloadedLinear = downloadedLinear
+        self.gpuPresent = gpuPresent
+        self.previewPass = previewPass
+        self.analysisOversampled = analysisOversampled
     }
 }
 
-/// In-process pipeline. S13: reprint cache, Metal geometry, resident GPU present,
-/// one linear decode per file, Accelerate convert/resize, splash + cheap thumbs.
+/// In-process pipeline. S13: reprint cache, Metal geometry, resident GPU present
+/// without float readback, one linear decode per file, Accelerate convert/resize,
+/// splash + cheap thumbs, progressive draft / refine first paint.
 public struct NativePipeline: Sendable {
     public var pixelBackend: PixelBackend
 
@@ -45,6 +62,7 @@ public struct NativePipeline: Sendable {
         ReprintCache.shared.reset()
         #if canImport(Metal)
         MetalWorkingSet.shared.reset()
+        MetalDevice.runtime()?.resetScratch()
         #endif
         PipelineStats.reset()
     }
@@ -77,11 +95,16 @@ public struct NativePipeline: Sendable {
     }
 
     /// Preview-class decode. LRU reuses a larger sample for a smaller long-edge.
-    private func decodeForPrint(path: String, longEdgePx: Int?) throws -> LinearRGBBuffer {
+    /// Draft skips analysis oversample; settled oversamples when the long edge is ≥800.
+    private func decodeForPrint(
+        path: String,
+        longEdgePx: Int?,
+        previewPass: PreviewPass = .settled
+    ) throws -> LinearRGBBuffer {
         try decode(
             path: path,
             maxLongEdge: longEdgePx,
-            analysisOversample: (longEdgePx ?? 0) >= 800
+            analysisOversample: previewPass.shouldOversample(longEdgePx: longEdgePx)
         )
     }
 
@@ -119,7 +142,7 @@ public struct NativePipeline: Sendable {
         processMode: FilmProcessMode? = nil,
         analysisBuffer: Float = LogNormalization.defaultAnalysisBuffer
     ) throws -> LinearRGBBuffer {
-        let linear = try decodeForPrint(path: path, longEdgePx: longEdgePx)
+        let linear = try decodeForPrint(path: path, longEdgePx: longEdgePx, previewPass: .settled)
         let mode = processMode ?? ProcessDetect.detectLite(linear)
         return normalize(linear, processMode: mode, analysisBuffer: analysisBuffer)
     }
@@ -132,13 +155,15 @@ public struct NativePipeline: Sendable {
         path: String,
         longEdgePx: Int?,
         processMode: FilmProcessMode? = nil,
-        config: PrintConfig = .s4aPin
+        config: PrintConfig = .s4aPin,
+        previewPass: PreviewPass = .settled
     ) throws -> LinearRGBBuffer {
         try renderPrintDetailed(
             path: path,
             longEdgePx: longEdgePx,
             processMode: processMode,
-            config: config
+            config: config,
+            previewPass: previewPass
         ).buffer
     }
 
@@ -146,22 +171,37 @@ public struct NativePipeline: Sendable {
         path: String,
         longEdgePx: Int?,
         processMode: FilmProcessMode? = nil,
-        config: PrintConfig = .s4aPin
+        config: PrintConfig = .s4aPin,
+        previewPass: PreviewPass = .settled,
+        readback: Bool = true
     ) throws -> RenderPrintResult {
+        let start = CFAbsoluteTimeGetCurrent()
+        defer {
+            let ms = (CFAbsoluteTimeGetCurrent() - start) * 1000
+            switch previewPass {
+            case .draft: PipelineStats.record(.firstPaint, milliseconds: ms)
+            case .settled: PipelineStats.record(.fullPreview, milliseconds: ms)
+            }
+        }
+
+        let passConfig = previewPass.applyingDraftShortcuts(config)
+        let resolvedEdge = previewPass.resolvedLongEdge(longEdgePx)
+        let oversampled = previewPass.shouldOversample(longEdgePx: resolvedEdge)
         let stamp = ReprintCache.fileStamp(path)
         let bakeKey = ReprintCache.bakeKey(
             path: path,
             stamp: stamp,
-            longEdgePx: longEdgePx,
-            config: config
+            longEdgePx: resolvedEdge,
+            config: passConfig
         )
         let analysisKey = ReprintCache.analysisKey(
             bakeKey: bakeKey,
-            config: config,
+            config: passConfig,
             processMode: processMode
         )
 
-        let shouldCache = longEdgePx != nil
+        // Draft is a throwaway first paint — do not replace the settled reprint / Metal set.
+        let shouldCache = resolvedEdge != nil && previewPass != .draft
         let cached = shouldCache ? ReprintCache.shared.lookup(analysisKey: analysisKey) : nil
         let priorBaked = cached?.baked ?? (shouldCache ? ReprintCache.shared.lookupBaked(bakeKey: bakeKey) : nil)
         let reusedAnalysis = cached != nil
@@ -170,15 +210,19 @@ public struct NativePipeline: Sendable {
         if let priorBaked {
             baked = priorBaked
         } else {
-            var linear = try decodeForPrint(path: path, longEdgePx: longEdgePx)
-            if config.dustRemove {
+            var linear = try decodeForPrint(
+                path: path,
+                longEdgePx: resolvedEdge,
+                previewPass: previewPass
+            )
+            if passConfig.dustRemove {
                 PipelineStats.increment(.dust)
-                linear = OpticalDust.bake(linear, threshold: config.dustThreshold, size: config.dustSize)
+                linear = OpticalDust.bake(linear, threshold: passConfig.dustThreshold, size: passConfig.dustSize)
             }
-            if !config.healStrokes.isEmpty || !config.dustSpots.isEmpty {
+            if !passConfig.healStrokes.isEmpty || !passConfig.dustSpots.isEmpty {
                 PipelineStats.increment(.heal)
             }
-            linear = HealInpaint.bake(linear, strokes: config.healStrokes, spots: config.dustSpots)
+            linear = HealInpaint.bake(linear, strokes: passConfig.healStrokes, spots: passConfig.dustSpots)
             baked = linear
         }
 
@@ -188,7 +232,7 @@ public struct NativePipeline: Sendable {
         let bounds: LogNegativeBounds
         let analysis: PhotometricPrint.MeteringAnalysis
         if let cached {
-            var reprint = config
+            var reprint = passConfig
             if let crop = cached.armed.config.cropRect {
                 reprint.cropRect = crop
                 reprint.cropDetectKey = cached.armed.config.cropDetectKey
@@ -201,7 +245,7 @@ public struct NativePipeline: Sendable {
             bounds = cached.bounds
             analysis = cached.analysis
         } else {
-            armed = Autocrop.resolveArmed(baked, config: config)
+            armed = Autocrop.resolveArmed(baked, config: passConfig)
             PipelineStats.increment(.orient)
             if pixelBackend.resolved() == .metal,
                let gpuOriented = MetalGeometry.oriented(
@@ -262,7 +306,7 @@ public struct NativePipeline: Sendable {
             analysis: analysis
         )
         PipelineStats.increment(.print)
-        let persistResident = longEdgePx != nil
+        let persistResident = resolvedEdge != nil && previewPass != .draft
         if pixelBackend.resolved() == .metal,
            let gpu = MetalPrint.processDetailed(
                linear: oriented,
@@ -272,17 +316,38 @@ public struct NativePipeline: Sendable {
                params: params,
                baked: baked,
                bakeKey: bakeKey,
-               persistResident: persistResident
+               persistResident: persistResident,
+               readback: readback
            )
         {
-            return RenderPrintResult(
-                buffer: gpu.buffer,
-                resolvedAutocrop: armed.resolved,
-                cropRect: printConfig.cropRect,
-                reusedBake: reusedBake,
-                reusedAnalysis: reusedAnalysis,
-                uploadedLinear: gpu.uploaded
-            )
+            if let present = gpu.present, !readback {
+                return RenderPrintResult(
+                    buffer: LinearRGBBuffer.stub(width: 1, height: 1),
+                    resolvedAutocrop: armed.resolved,
+                    cropRect: printConfig.cropRect,
+                    reusedBake: reusedBake,
+                    reusedAnalysis: reusedAnalysis,
+                    uploadedLinear: gpu.uploaded,
+                    downloadedLinear: false,
+                    gpuPresent: present,
+                    previewPass: previewPass,
+                    analysisOversampled: oversampled
+                )
+            }
+            if let pixels = gpu.buffer {
+                return RenderPrintResult(
+                    buffer: pixels,
+                    resolvedAutocrop: armed.resolved,
+                    cropRect: printConfig.cropRect,
+                    reusedBake: reusedBake,
+                    reusedAnalysis: reusedAnalysis,
+                    uploadedLinear: gpu.uploaded,
+                    downloadedLinear: gpu.downloaded,
+                    gpuPresent: gpu.present,
+                    previewPass: previewPass,
+                    analysisOversampled: oversampled
+                )
+            }
         }
         let normalized = LogNormalization.process(
             linear: oriented,
@@ -296,13 +361,26 @@ public struct NativePipeline: Sendable {
         if printConfig.applyPixelCrop, let crop = printConfig.cropRect {
             printed = applyStoredCrop(printed, rect: crop, offsetPx: printConfig.autocropOffset)
         }
+        let encoded = WorkingOETF.encode(printed)
+        var present: GPUPresentImage?
+        if !readback, let image = try? DisplayTransform.workingImage(fromWorkingSpace: encoded) {
+            present = GPUPresentImage(
+                width: encoded.width,
+                height: encoded.height,
+                cgImage: image
+            )
+        }
         return RenderPrintResult(
-            buffer: WorkingOETF.encode(printed),
+            buffer: encoded,
             resolvedAutocrop: armed.resolved,
             cropRect: printConfig.cropRect,
             reusedBake: reusedBake,
             reusedAnalysis: reusedAnalysis,
-            uploadedLinear: false
+            uploadedLinear: false,
+            downloadedLinear: false,
+            gpuPresent: present,
+            previewPass: previewPass,
+            analysisOversampled: oversampled
         )
     }
 

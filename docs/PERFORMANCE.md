@@ -27,7 +27,9 @@ Swift UI timings (Debug only, env `NEGSWIFT_PERF_LOG=1`):
 |-----------|------------------|
 | `frame_switch_total` | `selectFrame` end-to-end |
 | `frame_switch_memo_hit` | `selectFrame` when preview memo restores canvas (Phase 5+) |
-| `render_ipc` | Engine `render` IPC wait |
+| `render_ipc` | Engine `render` IPC wait (settled / slider reprint) |
+| `native_first_paint` | S13g draft canvas render (512, no oversample) |
+| `native_full_preview` | S13g refine / settled canvas render (1600/2400) |
 | `render_decode` | Base64 decode + `NSImage` creation (PNG or JPEG). In-process Swift present skips this (S13c CGImage). |
 | `render_decode_png` | PNG decode only (when `preview_format` is `png`) |
 | `render_decode_jpeg` | JPEG decode only (when `preview_format` is `jpeg`) |
@@ -154,9 +156,9 @@ cd Engine && uv run pytest tests/test_perf.py -v
 
 ## Native Swift engine (S13 first-load)
 
-Separate from the M12 Python IPC harness above. S13a–f optimized slider reprints, fused first-open decode, Accelerate convert/resize, and splash/cheap thumbs (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests`). First open on the Swift backend is still a different path: Metal upload/download, ColorSync present, no progressive first paint.
+Separate from the M12 Python IPC harness above. S13a–h optimized slider reprints, fused first-open decode, Accelerate convert/resize, splash/cheap thumbs, progressive first paint, and GPU present without float readback (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests` + `ProgressivePaintTests` + `GPUPresentTests`). In-process preview presents an Adobe RGB `CIImage` / `CGImage` from an `rgba16Float` IOSurface; export / CLI / MAE still `getBytes`.
 
-`make compare-s13` includes decode-reuse, Accelerate convert, and splash/thumb tests. Do not add a `make bench-native` target until a script exists.
+`make compare-s13` includes decode-reuse, Accelerate convert, splash/thumb, and progressive-paint tests. Do not add a `make bench-native` target until a script exists.
 
 When `NEGSWIFT_PERF_LOG=1` and `PipelineStats` grow stage timers, record:
 
@@ -168,8 +170,10 @@ When `NEGSWIFT_PERF_LOG=1` and `PipelineStats` grow stage timers, record:
 | `native_analyze_ms` | Bounds + metering |
 | `native_metal_upload_ms` | vImage RGB→RGBA + GPU upload |
 | `native_metal_download_ms` | GPU `getBytes` + vImage RGBA→RGB |
-| `native_present_ms` | ColorSync / CGImage / texture present |
+| `native_present_ms` | IOSurface / CIImage / Adobe RGB present (no ColorSync hop) |
 | `native_first_open_ms` | `selectFrame` cold (no preview memo) |
+| `native_first_paint_ms` | S13g draft print (`PipelineStats` / `native_first_paint`) |
+| `native_full_preview_ms` | S13g settled refine (`PipelineStats` / `native_full_preview`) |
 | `native_thumb_ms` | One strip thumb |
 
 S13 phase order and gates: [PLAN.md](../PLAN.md) §14. Human rows: [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) § S13.

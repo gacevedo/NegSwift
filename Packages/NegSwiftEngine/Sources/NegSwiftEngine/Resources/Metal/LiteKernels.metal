@@ -500,3 +500,24 @@ kernel void geometry_main(
     int max_y = params.src_height - 1;
     outputTex.write(sample_replicate(inputTex, sx, sy, max_x, max_y), gid);
 }
+
+// S13h: copy a crop ROI from the rgba32Float working set into an
+// rgba16Float present texture. No CPU getBytes of the float buffer.
+struct PresentUniforms {
+    int origin_x;
+    int origin_y;
+};
+
+kernel void present_main(
+    texture2d<float, access::read> inputTex [[texture(0)]],
+    texture2d<float, access::write> outputTex [[texture(1)]],
+    constant PresentUniforms &params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= outputTex.get_width() || gid.y >= outputTex.get_height()) {
+        return;
+    }
+    uint2 src = uint2(uint(params.origin_x) + gid.x, uint(params.origin_y) + gid.y);
+    float4 c = inputTex.read(src);
+    outputTex.write(c, gid);
+}

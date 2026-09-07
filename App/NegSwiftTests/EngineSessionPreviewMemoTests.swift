@@ -31,6 +31,7 @@ struct EngineSessionPreviewMemoTests {
         session.setFrameEditForTests(path: frames[1].path, edit: FrameEditState())
         session.setHasSidecarForTests(path: frames[0].path)
         session.setHasSidecarForTests(path: frames[1].path)
+        session.setProgressiveFirstPaintForTests(false)
         session.clearRenderTestHandlerForTests()
         return session
     }

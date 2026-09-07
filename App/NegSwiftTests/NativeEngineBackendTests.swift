@@ -3,6 +3,7 @@
 //  NegSwiftTests
 //
 
+import CoreGraphics
 import Foundation
 import Testing
 @testable import NegSwift
@@ -40,6 +41,40 @@ struct NativeEngineBackendTests {
         } catch is CancellationError {
             return
         }
+    }
+
+    @Test func metalPreviewDoesNotDownloadFullFloatBuffer() async throws {
+        try #require(MetalDevice.isAvailable)
+        NativePipeline.resetWorkingSets()
+        let backend = NativeEngineBackend()
+        let result = try await backend.render(
+            path: sampleTIFFPath,
+            longEdgePx: 64,
+            preferGPU: true,
+            config: nil,
+            cropPreviewFull: false,
+            stripThumbnail: false,
+            previewFormat: .jpeg,
+            jpegQuality: 90
+        )
+        #expect(result.nativePreview != nil)
+        #expect(result.nativePreview?.cgImage.colorSpace?.name == CGColorSpace.adobeRGB1998)
+        #expect(PipelineStats.snapshot().download == 0)
+        let uploads = PipelineStats.snapshot().upload
+        var edit = FrameEditState()
+        edit.density = 1.15
+        _ = try await backend.render(
+            path: sampleTIFFPath,
+            longEdgePx: 64,
+            preferGPU: true,
+            config: edit,
+            cropPreviewFull: false,
+            stripThumbnail: false,
+            previewFormat: .jpeg,
+            jpegQuality: 90
+        )
+        #expect(PipelineStats.snapshot().upload == uploads)
+        #expect(PipelineStats.snapshot().download == 0)
     }
 
     @Test func normalizedRenderReturnsNativePreview() async throws {

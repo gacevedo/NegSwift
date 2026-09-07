@@ -4,6 +4,7 @@
 //
 
 import CoreGraphics
+import CoreImage
 import Foundation
 
 struct SaveConfigResult: Codable, Sendable {
@@ -135,9 +136,16 @@ struct RenderMetrics: Codable, Sendable {
     }
 }
 
-/// In-process CGImage present. Not part of the NDJSON contract.
+/// In-process present. Not part of the NDJSON contract.
+/// GPU path (S13h) may carry an Adobe RGB `CIImage` backed by the present texture.
 struct NativePreview: @unchecked Sendable {
     let cgImage: CGImage
+    let ciImage: CIImage?
+
+    init(cgImage: CGImage, ciImage: CIImage? = nil) {
+        self.cgImage = cgImage
+        self.ciImage = ciImage
+    }
 }
 
 struct RenderResult: Codable, Sendable {

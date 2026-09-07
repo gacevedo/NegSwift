@@ -5,6 +5,7 @@
 
 import AppKit
 import Foundation
+import NegSwiftEngine
 import Observation
 import SwiftUI
 
@@ -44,6 +45,10 @@ final class EngineSession {
     /// not a strip thumbnail or embedded-splash placeholder.
     private(set) var isPreviewSettled = false
 
+    /// True when ``previewImage`` is the S13g processed draft (512) for ``currentPath``.
+    /// The refine pass is still in flight; the canvas is already a real print.
+    private(set) var isPreviewDraft = false
+
     /// Tone snapshot when crop mode opens. Crop drags can re-meter live when
     /// ``autoDensityUsesCrop`` is on (via a wire ``analysis_rect`` that busts the engine cache).
     private var cropPreviewBaseline: FrameEditState?
@@ -79,6 +84,8 @@ final class EngineSession {
 
     private var exportTask: Task<[ExportResult], Error>?
     private var previewMemo = PreviewRenderMemo()
+    /// Tests pin progressive first paint so UserDefaults backend does not change call counts.
+    private var progressiveFirstPaintOverride: Bool?
 
     #if DEBUG
     private var exportTestRecords: [EngineExportCallRecord] = []
@@ -140,15 +147,22 @@ final class EngineSession {
         }
     }
 
-    /// True while the canvas does not yet have a settled preview for the selected frame.
-    /// Strip thumbs and splash stay visible underneath the overlay until the full print lands.
+    /// True while the canvas does not yet have a settled or draft preview for the selected frame.
+    /// Strip thumbs and splash stay visible underneath the overlay until a processed print lands.
     var isPreviewStale: Bool {
         guard let selected = selectedFramePath else { return false }
         if previewLoadingMessage != nil { return true }
         if currentPath == selected, isPreviewSettled { return false }
+        if currentPath == selected, isPreviewDraft { return false }
         if isRenderingPreview { return true }
         if previewError != nil { return false }
         return true
+    }
+
+    /// S13g two-pass first paint on the Swift backend (512 draft, then 1600/2400 refine).
+    private var usesProgressiveFirstPaint: Bool {
+        if let progressiveFirstPaintOverride { return progressiveFirstPaintOverride }
+        return preferences.engineBackend == .swift
     }
 
     func clearExportError() {
@@ -1019,6 +1033,7 @@ final class EngineSession {
         currentPath = nil
         isRenderingPreview = false
         isPreviewSettled = false
+        isPreviewDraft = false
         previewMemo.clear()
 
         if clearWorkspace {
@@ -1047,7 +1062,7 @@ final class EngineSession {
         let generation = previewGeneration
         Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.renderPreview(at: frame.url, generation: generation)
+            await self.renderPreview(at: frame.url, generation: generation, progressive: true)
             await self.loadMissingThumbnails()
         }
     }
@@ -1083,6 +1098,7 @@ final class EngineSession {
         previewError = nil
         currentPath = nil
         isPreviewSettled = false
+        isPreviewDraft = false
     }
 
     func noteImportError(_ message: String) {
@@ -1289,6 +1305,7 @@ final class EngineSession {
         previewError = nil
         isRenderingPreview = false
         isPreviewSettled = false
+        isPreviewDraft = false
     }
 
     private func activatePrimaryFrame(
@@ -1329,12 +1346,13 @@ final class EngineSession {
         }
 
         isPreviewSettled = false
+        isPreviewDraft = false
         applyThumbnailInterimPreview(for: frame)
         await warmOpenAsset(for: frame)
 
         previewGeneration += 1
         let generation = previewGeneration
-        await renderPreview(at: frame.url, generation: generation)
+        await renderPreview(at: frame.url, generation: generation, progressive: true)
         scheduleLoadMissingThumbnails()
         if PerformanceLogger.isEnabled {
             let ms = (CFAbsoluteTimeGetCurrent() - selectStart) * 1000
@@ -1435,6 +1453,7 @@ final class EngineSession {
         config: FrameEditState?,
         cropPreviewFull: Bool,
         stripThumbnail: Bool = false,
+        draftPreview: Bool = false,
         previewFormat: PreviewTransportFormat = .jpeg,
         jpegQuality: Int = PreviewRenderSettings.previewJPEGQuality
     ) async throws -> RenderResult {
@@ -1446,7 +1465,8 @@ final class EngineSession {
                 preferGPU: preferGPU,
                 config: config ?? FrameEditState(),
                 cropPreviewFull: cropPreviewFull,
-                stripThumbnail: stripThumbnail
+                stripThumbnail: stripThumbnail,
+                draftPreview: draftPreview
             )
             renderTestRecords.append(record)
             return try await renderTestHandler(record)
@@ -1459,12 +1479,18 @@ final class EngineSession {
             config: config,
             cropPreviewFull: cropPreviewFull,
             stripThumbnail: stripThumbnail,
+            draftPreview: draftPreview,
             previewFormat: previewFormat,
             jpegQuality: jpegQuality
         )
     }
 
-    private func renderPreview(at url: URL, generation: Int, config: FrameEditState? = nil) async {
+    private func renderPreview(
+        at url: URL,
+        generation: Int,
+        config: FrameEditState? = nil,
+        progressive: Bool = false
+    ) async {
         guard engineReady else { return }
 
         let gotAccess = beginFileAccess(for: url)
@@ -1486,76 +1512,128 @@ final class EngineSession {
         let baseConfig = frameEdits[path] ?? config ?? defaultEditState()
         let effectiveConfig = pipelineConfig(for: baseConfig)
         let refreshThumbnailAfterClose = pendingThumbnailRefreshAfterCropClose && path == selectedFramePath
+        let settings = PreviewRenderSettings(preferences: preferences)
+        let useProgressive = usesProgressiveFirstPaint
+            && progressive
+            && !isCropToolActive
+            && settings.longEdgePx > PreviewPass.draftLongEdge
 
+        if useProgressive {
+            _ = await performCanvasRender(
+                path: path,
+                generation: generation,
+                effectiveConfig: effectiveConfig,
+                settings: settings,
+                longEdgePx: PreviewPass.draftLongEdge,
+                draftPreview: true,
+                settle: false,
+                refreshThumbnailAfterClose: false,
+                perfLabel: "native_first_paint"
+            )
+            guard generation == previewGeneration else { return }
+        }
+
+        let settleLabel = useProgressive ? "native_full_preview" : "render_ipc"
+        _ = await performCanvasRender(
+            path: path,
+            generation: generation,
+            effectiveConfig: effectiveConfig,
+            settings: settings,
+            longEdgePx: settings.longEdgePx,
+            draftPreview: false,
+            settle: true,
+            refreshThumbnailAfterClose: refreshThumbnailAfterClose,
+            perfLabel: settleLabel
+        )
+    }
+
+    @discardableResult
+    private func performCanvasRender(
+        path: String,
+        generation: Int,
+        effectiveConfig: FrameEditState,
+        settings: PreviewRenderSettings,
+        longEdgePx: Int,
+        draftPreview: Bool,
+        settle: Bool,
+        refreshThumbnailAfterClose: Bool,
+        perfLabel: String
+    ) async -> Bool {
         do {
-            let settings = PreviewRenderSettings(preferences: preferences)
-            let result = try await PerformanceLogger.measure("render_ipc") {
+            let result = try await PerformanceLogger.measure(perfLabel) {
                 try await engineRender(
                     path: path,
-                    longEdgePx: settings.longEdgePx,
+                    longEdgePx: longEdgePx,
                     preferGPU: settings.preferGPU,
                     config: effectiveConfig,
-                    cropPreviewFull: isCropToolActive
+                    cropPreviewFull: isCropToolActive,
+                    draftPreview: draftPreview
                 )
             }
-            guard generation == previewGeneration else { return }
+            guard generation == previewGeneration else { return false }
             let image: NSImage?
             if let native = result.nativePreview {
-                image = NSImage(
-                    cgImage: native.cgImage,
-                    size: NSSize(width: native.cgImage.width, height: native.cgImage.height)
-                )
+                image = Self.nsImage(from: native)
             } else if let base64 = result.imageBase64 {
                 image = await decodePreviewImage(base64: base64, format: result.previewFormat)
             } else {
                 image = nil
             }
             guard let image else {
-                previewError = "Engine returned no preview image."
+                if settle {
+                    previewError = "Engine returned no preview image."
+                    await finishCropCloseThumbnailRefresh(
+                        for: path,
+                        generation: generation,
+                        refreshAfterClose: refreshThumbnailAfterClose
+                    )
+                }
+                return false
+            }
+            previewImage = image
+            previewPixelSize = CGSize(width: result.width, height: result.height)
+            currentPath = path
+            isPreviewDraft = !settle
+            isPreviewSettled = settle
+            if settle {
+                if isCropToolActive {
+                    storePreviewMemo(
+                        path: path,
+                        image: image,
+                        pixelSize: CGSize(width: result.width, height: result.height),
+                        cropPreviewFull: true
+                    )
+                    finishCropPreviewOverlay(for: path, result: result)
+                } else {
+                    _ = freezeResolvedAutoCropIfNeeded(from: result, for: path)
+                    storePreviewMemo(
+                        path: path,
+                        image: image,
+                        pixelSize: CGSize(width: result.width, height: result.height),
+                        cropPreviewFull: false
+                    )
+                    applyPreviewToSelectedThumbnail()
+                }
                 await finishCropCloseThumbnailRefresh(
                     for: path,
                     generation: generation,
                     refreshAfterClose: refreshThumbnailAfterClose
                 )
-                return
             }
-            previewImage = image
-            previewPixelSize = CGSize(width: result.width, height: result.height)
-            currentPath = path
-            isPreviewSettled = true
-            if isCropToolActive {
-                storePreviewMemo(
-                    path: path,
-                    image: image,
-                    pixelSize: CGSize(width: result.width, height: result.height),
-                    cropPreviewFull: true
-                )
-                finishCropPreviewOverlay(for: path, result: result)
-            } else {
-                _ = freezeResolvedAutoCropIfNeeded(from: result, for: path)
-                storePreviewMemo(
-                    path: path,
-                    image: image,
-                    pixelSize: CGSize(width: result.width, height: result.height),
-                    cropPreviewFull: false
-                )
-                applyPreviewToSelectedThumbnail()
-            }
-            await finishCropCloseThumbnailRefresh(
-                for: path,
-                generation: generation,
-                refreshAfterClose: refreshThumbnailAfterClose
-            )
+            return true
         } catch is CancellationError {
-            return
+            return false
         } catch {
-            guard generation == previewGeneration else { return }
-            previewError = error.localizedDescription
-            await finishCropCloseThumbnailRefresh(
-                for: path,
-                generation: generation,
-                refreshAfterClose: refreshThumbnailAfterClose
-            )
+            if settle {
+                guard generation == previewGeneration else { return false }
+                previewError = error.localizedDescription
+                await finishCropCloseThumbnailRefresh(
+                    for: path,
+                    generation: generation,
+                    refreshAfterClose: refreshThumbnailAfterClose
+                )
+            }
+            return false
         }
     }
 
@@ -1813,6 +1891,7 @@ final class EngineSession {
         previewPixelSize = nil
         currentPath = frame.path
         isPreviewSettled = false
+        isPreviewDraft = false
         previewError = nil
     }
 
@@ -1846,6 +1925,7 @@ final class EngineSession {
         }
         currentPath = path
         isPreviewSettled = false
+        isPreviewDraft = false
         previewError = nil
     }
 
@@ -1910,6 +1990,7 @@ final class EngineSession {
         pendingAutoCropSeed = false
         previewPixelSize = nil
         isPreviewSettled = false
+        isPreviewDraft = false
         previewMemo.clear()
     }
 
@@ -1930,6 +2011,7 @@ final class EngineSession {
         currentPath = path
         isRenderingPreview = false
         isPreviewSettled = true
+        isPreviewDraft = false
         previewError = nil
         if !isCropToolActive {
             applyPreviewToSelectedThumbnail()
@@ -2045,6 +2127,30 @@ final class EngineSession {
 
     func setPreviewSettledForTests(_ settled: Bool) {
         isPreviewSettled = settled
+        if settled { isPreviewDraft = false }
+    }
+
+    func setPreviewDraftForTests(_ draft: Bool) {
+        isPreviewDraft = draft
+        if draft { isPreviewSettled = false }
+    }
+
+    func setProgressiveFirstPaintForTests(_ enabled: Bool) {
+        progressiveFirstPaintOverride = enabled
+    }
+
+    func refreshPreviewNowForTests() async {
+        guard let path = selectedFramePath,
+              let frame = frames.first(where: { $0.path == path })
+        else { return }
+        previewDebounce.cancel()
+        previewGeneration += 1
+        let generation = previewGeneration
+        await renderPreview(at: frame.url, generation: generation)
+    }
+
+    var previewSettingsForTests: PreviewRenderSettings {
+        PreviewRenderSettings(preferences: preferences)
     }
 
     func applyThumbnailInterimPreviewForTests(for frame: ScanFrame) {
@@ -2159,13 +2265,25 @@ final class EngineSession {
         return true
     }
 
+    /// GPU present keeps a `CIImage` (IOSurface / MTLTexture). ColorSync happens at draw.
+    nonisolated private static func nsImage(from native: NativePreview) -> NSImage {
+        if let ciImage = native.ciImage {
+            let extent = ciImage.extent
+            let size = NSSize(width: extent.width, height: extent.height)
+            let image = NSImage(size: size)
+            image.addRepresentation(NSCIImageRep(ciImage: ciImage))
+            return image
+        }
+        return NSImage(
+            cgImage: native.cgImage,
+            size: NSSize(width: native.cgImage.width, height: native.cgImage.height)
+        )
+    }
+
     /// In-process Swift renders return ``RenderResult/nativePreview``; Python returns encoded bytes.
     nonisolated private static func nsImage(from result: RenderResult) -> NSImage? {
         if let native = result.nativePreview {
-            return NSImage(
-                cgImage: native.cgImage,
-                size: NSSize(width: native.cgImage.width, height: native.cgImage.height)
-            )
+            return nsImage(from: native)
         }
         if let data = result.imageData {
             return NSImage(data: data)
@@ -2235,5 +2353,6 @@ struct EngineRenderCallRecord: Sendable {
     let config: FrameEditState
     let cropPreviewFull: Bool
     let stripThumbnail: Bool
+    let draftPreview: Bool
 }
 #endif

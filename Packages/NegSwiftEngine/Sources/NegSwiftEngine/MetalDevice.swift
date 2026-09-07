@@ -1,13 +1,28 @@
 #if canImport(Metal)
 import Foundation
 import Metal
+#if canImport(CoreImage)
+import CoreImage
+#endif
+#if canImport(IOSurface)
+import IOSurface
+#endif
+#if canImport(CoreVideo)
+import CoreVideo
+#endif
 
-/// Shared Metal device + compiled S12 lite kernels. Nil when the GPU or
-/// `LiteKernels.metal` is unavailable — callers fall back to CPU.
+/// Shared Metal device + compiled S12 lite kernels. Prefers a precompiled
+/// `LiteKernels.metallib` (S13h); falls back to source when the library is
+/// missing. Nil when the GPU is unavailable — callers fall back to CPU.
 public enum MetalDevice: Sendable {
     public static let backendName = "metal"
 
     public static var isAvailable: Bool { runtime() != nil }
+
+    /// True when `Runtime.make` loaded the precompiled metallib (not source).
+    public static var loadedPrecompiledLibrary: Bool {
+        runtime()?.usedPrecompiledLibrary ?? false
+    }
 
     static func runtime() -> Runtime? {
         lock.lock()
@@ -35,13 +50,29 @@ public enum MetalDevice: Sendable {
         let labApply: MTLComputePipelineState
         let outputEncode: MTLComputePipelineState
         let geometry: MTLComputePipelineState
+        let present: MTLComputePipelineState
+        let usedPrecompiledLibrary: Bool
+        #if canImport(CoreImage)
+        let ciContext: CIContext
+        #endif
+
+        private var ping: MTLTexture?
+        private var pong: MTLTexture?
+        private var labTmp: MTLTexture?
+        private var labBlur: MTLTexture?
+        private var presentTex: MTLTexture?
+        #if canImport(IOSurface)
+        private var presentSurface: IOSurface?
+        #endif
 
         static func make() -> Runtime? {
             guard let device = MTLCreateSystemDefaultDevice(),
-                  let queue = device.makeCommandQueue(),
-                  let source = kernelSource(),
-                  let library = try? device.makeLibrary(source: source, options: nil)
+                  let queue = device.makeCommandQueue()
             else {
+                return nil
+            }
+            let loaded = makeLibrary(device: device)
+            guard let library = loaded.library else {
                 return nil
             }
             func pipeline(_ name: String) -> MTLComputePipelineState? {
@@ -54,7 +85,8 @@ public enum MetalDevice: Sendable {
                   let labSharpenV = pipeline("lab_sharpen_v"),
                   let labApply = pipeline("lab_apply"),
                   let outputEncode = pipeline("output_encode"),
-                  let geometry = pipeline("geometry_main")
+                  let geometry = pipeline("geometry_main"),
+                  let present = pipeline("present_main")
             else {
                 return nil
             }
@@ -67,7 +99,9 @@ public enum MetalDevice: Sendable {
                 labSharpenV: labSharpenV,
                 labApply: labApply,
                 outputEncode: outputEncode,
-                geometry: geometry
+                geometry: geometry,
+                present: present,
+                usedPrecompiledLibrary: loaded.precompiled
             )
         }
 
@@ -80,7 +114,9 @@ public enum MetalDevice: Sendable {
             labSharpenV: MTLComputePipelineState,
             labApply: MTLComputePipelineState,
             outputEncode: MTLComputePipelineState,
-            geometry: MTLComputePipelineState
+            geometry: MTLComputePipelineState,
+            present: MTLComputePipelineState,
+            usedPrecompiledLibrary: Bool
         ) {
             self.device = device
             self.queue = queue
@@ -91,6 +127,35 @@ public enum MetalDevice: Sendable {
             self.labApply = labApply
             self.outputEncode = outputEncode
             self.geometry = geometry
+            self.present = present
+            self.usedPrecompiledLibrary = usedPrecompiledLibrary
+            #if canImport(CoreImage)
+            let adobe = CGColorSpace(name: CGColorSpace.adobeRGB1998)
+            var options: [CIContextOption: Any] = [.cacheIntermediates: false]
+            if let adobe {
+                options[.workingColorSpace] = adobe
+                options[.outputColorSpace] = adobe
+            }
+            self.ciContext = CIContext(mtlDevice: device, options: options)
+            #endif
+        }
+
+        private static func makeLibrary(device: MTLDevice) -> (library: MTLLibrary?, precompiled: Bool) {
+            let metallibURLs = [
+                Bundle.module.url(forResource: "LiteKernels", withExtension: "metallib"),
+                Bundle.module.url(forResource: "LiteKernels", withExtension: "metallib", subdirectory: "Metal"),
+            ]
+            for url in metallibURLs {
+                if let url, let library = try? device.makeLibrary(URL: url) {
+                    return (library, true)
+                }
+            }
+            guard let source = kernelSource(),
+                  let library = try? device.makeLibrary(source: source, options: nil)
+            else {
+                return (nil, false)
+            }
+            return (library, false)
         }
 
         private static func kernelSource() -> String? {
@@ -107,8 +172,12 @@ public enum MetalDevice: Sendable {
         }
 
         func makeTexture(width: Int, height: Int) -> MTLTexture? {
+            makeTexture(width: width, height: height, pixelFormat: .rgba32Float)
+        }
+
+        func makeTexture(width: Int, height: Int, pixelFormat: MTLPixelFormat) -> MTLTexture? {
             let desc = MTLTextureDescriptor.texture2DDescriptor(
-                pixelFormat: .rgba32Float,
+                pixelFormat: pixelFormat,
                 width: width,
                 height: height,
                 mipmapped: false
@@ -117,6 +186,93 @@ public enum MetalDevice: Sendable {
             desc.storageMode = .shared
             return device.makeTexture(descriptor: desc)
         }
+
+        /// Reused rgba32Float ping/pong for the print chain (S13h).
+        func workingPair(width: Int, height: Int) -> (ping: MTLTexture, pong: MTLTexture)? {
+            if let ping, let pong, ping.width == width, ping.height == height {
+                return (ping, pong)
+            }
+            guard let a = makeTexture(width: width, height: height),
+                  let b = makeTexture(width: width, height: height)
+            else {
+                return nil
+            }
+            ping = a
+            pong = b
+            return (a, b)
+        }
+
+        /// Reused Lab blur temps (same size as the working pair).
+        func labScratch(width: Int, height: Int) -> (tmp: MTLTexture, blur: MTLTexture)? {
+            if let labTmp, let labBlur, labTmp.width == width, labTmp.height == height {
+                return (labTmp, labBlur)
+            }
+            guard let tmp = makeTexture(width: width, height: height),
+                  let blur = makeTexture(width: width, height: height)
+            else {
+                return nil
+            }
+            labTmp = tmp
+            labBlur = blur
+            return (tmp, blur)
+        }
+
+        /// rgba16Float present target, IOSurface-backed when the OS allows it.
+        func presentTarget(width: Int, height: Int) -> PresentTarget? {
+            if let presentTex, presentTex.width == width, presentTex.height == height {
+                #if canImport(IOSurface)
+                return PresentTarget(texture: presentTex, surface: presentSurface)
+                #else
+                return PresentTarget(texture: presentTex, surface: nil)
+                #endif
+            }
+            #if canImport(IOSurface) && canImport(CoreVideo)
+            if let built = makeIOSurfacePresent(width: width, height: height) {
+                presentTex = built.texture
+                presentSurface = built.surface
+                return built
+            }
+            #endif
+            guard let tex = makeTexture(width: width, height: height, pixelFormat: .rgba16Float) else {
+                return nil
+            }
+            presentTex = tex
+            #if canImport(IOSurface)
+            presentSurface = nil
+            #endif
+            return PresentTarget(texture: tex, surface: nil)
+        }
+
+        #if canImport(IOSurface) && canImport(CoreVideo)
+        private func makeIOSurfacePresent(width: Int, height: Int) -> PresentTarget? {
+            let bytesPerPixel = 8
+            let align = IOSurfaceAlignProperty(IOSurfacePropertyKey.bytesPerRow.rawValue as CFString, width * bytesPerPixel)
+            let bytesPerRow = max(align, width * bytesPerPixel)
+            let props: [IOSurfacePropertyKey: Any] = [
+                .width: width,
+                .height: height,
+                .pixelFormat: kCVPixelFormatType_64RGBAHalf,
+                .bytesPerElement: bytesPerPixel,
+                .bytesPerRow: bytesPerRow,
+                .allocSize: bytesPerRow * height,
+            ]
+            guard let surface = IOSurface(properties: props) else {
+                return nil
+            }
+            let desc = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: .rgba16Float,
+                width: width,
+                height: height,
+                mipmapped: false
+            )
+            desc.usage = [.shaderRead, .shaderWrite]
+            desc.storageMode = .shared
+            guard let texture = device.makeTexture(descriptor: desc, iosurface: surface, plane: 0) else {
+                return nil
+            }
+            return PresentTarget(texture: texture, surface: surface)
+        }
+        #endif
 
         func makeBuffer<T>(_ value: T) -> MTLBuffer? {
             var copy = value
@@ -130,11 +286,32 @@ public enum MetalDevice: Sendable {
                 device.makeBuffer(bytes: raw.baseAddress!, length: raw.count)
             }
         }
+
+        func resetScratch() {
+            ping = nil
+            pong = nil
+            labTmp = nil
+            labBlur = nil
+            presentTex = nil
+            #if canImport(IOSurface)
+            presentSurface = nil
+            #endif
+        }
+    }
+
+    struct PresentTarget {
+        let texture: MTLTexture
+        #if canImport(IOSurface)
+        let surface: IOSurface?
+        #else
+        let surface: Any?
+        #endif
     }
 }
 #else
 public enum MetalDevice: Sendable {
     public static let backendName = "metal"
     public static var isAvailable: Bool { false }
+    public static var loadedPrecompiledLibrary: Bool { false }
 }
 #endif

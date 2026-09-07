@@ -8,8 +8,10 @@ import Metal
 /// Analysis stays on CPU. Returns nil when Metal is unavailable so callers keep CPU.
 public enum MetalPrint: Sendable {
     public struct Output: Sendable {
-        public var buffer: LinearRGBBuffer
+        public var buffer: LinearRGBBuffer?
+        public var present: GPUPresentImage?
         public var uploaded: Bool
+        public var downloaded: Bool
     }
 
     public static func process(
@@ -34,7 +36,8 @@ public enum MetalPrint: Sendable {
         )?.buffer
     }
 
-    public static func processDetailed(
+    /// S13h: GPU present without float `getBytes`. Nil when Metal is unavailable.
+    public static func processPresent(
         linear: LinearRGBBuffer,
         processMode: FilmProcessMode,
         config: PrintConfig,
@@ -43,6 +46,32 @@ public enum MetalPrint: Sendable {
         baked: LinearRGBBuffer? = nil,
         bakeKey: String? = nil,
         persistResident: Bool = false
+    ) -> (present: GPUPresentImage, uploaded: Bool)? {
+        let out = processDetailed(
+            linear: linear,
+            processMode: processMode,
+            config: config,
+            bounds: bounds,
+            params: params,
+            baked: baked,
+            bakeKey: bakeKey,
+            persistResident: persistResident,
+            readback: false
+        )
+        guard let present = out?.present else { return nil }
+        return (present, out?.uploaded ?? false)
+    }
+
+    public static func processDetailed(
+        linear: LinearRGBBuffer,
+        processMode: FilmProcessMode,
+        config: PrintConfig,
+        bounds: LogNegativeBounds? = nil,
+        params: PhotometricPrint.PixelParams? = nil,
+        baked: LinearRGBBuffer? = nil,
+        bakeKey: String? = nil,
+        persistResident: Bool = false,
+        readback: Bool = true
     ) -> Output? {
         #if canImport(Metal)
         guard MetalDevice.isAvailable else { return nil }
@@ -73,7 +102,8 @@ public enum MetalPrint: Sendable {
             encode: true,
             baked: persistResident ? baked : nil,
             bakeKey: persistResident ? bakeKey : nil,
-            geometry: remapped
+            geometry: remapped,
+            readback: readback
         )
         #else
         return nil
@@ -184,7 +214,8 @@ extension MetalPrint {
         inputIsNormalized: Bool = false,
         baked: LinearRGBBuffer? = nil,
         bakeKey: String? = nil,
-        geometry: PrintConfig? = nil
+        geometry: PrintConfig? = nil,
+        readback: Bool = true
     ) -> Output? {
         encodeLock.lock()
         defer { encodeLock.unlock() }
@@ -219,11 +250,11 @@ extension MetalPrint {
             source = src
         }
 
-        guard let ping = gpu.makeTexture(width: width, height: height),
-              let pong = gpu.makeTexture(width: width, height: height)
-        else {
+        guard let pair = gpu.workingPair(width: width, height: height) else {
             return nil
         }
+        let ping = pair.ping
+        let pong = pair.pong
 
         guard let command = gpu.queue.makeCommandBuffer(),
               let encoder = command.makeComputeCommandEncoder()
@@ -267,7 +298,7 @@ extension MetalPrint {
                 encoder.endEncoding()
                 command.commit()
                 command.waitUntilCompleted()
-                return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
+                return readbackOutput(current, width: width, height: height, uploaded: uploaded)
             }
         }
 
@@ -286,7 +317,7 @@ extension MetalPrint {
                 encoder.endEncoding()
                 command.commit()
                 command.waitUntilCompleted()
-                return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
+                return readbackOutput(current, width: width, height: height, uploaded: uploaded)
             }
         }
 
@@ -296,12 +327,13 @@ extension MetalPrint {
             let labU = labUniforms(lab, kernelRadius: kernel.count / 2)
             guard let uBuf = gpu.makeBuffer(labU),
                   let kBuf = gpu.makeFloatBuffer(kernel),
-                  let tmp = gpu.makeTexture(width: width, height: height),
-                  let blur = gpu.makeTexture(width: width, height: height)
+                  let scratchPair = gpu.labScratch(width: width, height: height)
             else {
                 encoder.endEncoding()
                 return nil
             }
+            let tmp = scratchPair.tmp
+            let blur = scratchPair.blur
             if lab.sharpen > 0 {
                 encoder.setComputePipelineState(gpu.labSharpenH)
                 encoder.setTexture(current, index: 0)
@@ -329,13 +361,13 @@ extension MetalPrint {
                 encoder.endEncoding()
                 command.commit()
                 command.waitUntilCompleted()
-                return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
+                return readbackOutput(current, width: width, height: height, uploaded: uploaded)
             }
         } else if stopAfter == .lab {
             encoder.endEncoding()
             command.commit()
             command.waitUntilCompleted()
-            return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
+            return readbackOutput(current, width: width, height: height, uploaded: uploaded)
         }
 
         if encode {
@@ -349,6 +381,10 @@ extension MetalPrint {
         encoder.endEncoding()
         command.commit()
         command.waitUntilCompleted()
+        var outW = width
+        var outH = height
+        var originX = 0
+        var originY = 0
         if encode, let geometry, geometry.applyPixelCrop, let crop = geometry.cropRect,
            let roi = LinearRGBBuffer.storedCropPixelROI(
                width: width,
@@ -357,18 +393,54 @@ extension MetalPrint {
                offsetPx: geometry.autocropOffset
            )
         {
-            return Output(
-                buffer: download(
-                    current,
-                    width: roi.x2 - roi.x1,
-                    height: roi.y2 - roi.y1,
-                    originX: roi.x1,
-                    originY: roi.y1
-                ),
-                uploaded: uploaded
-            )
+            outW = roi.x2 - roi.x1
+            outH = roi.y2 - roi.y1
+            originX = roi.x1
+            originY = roi.y1
         }
-        return Output(buffer: download(current, width: width, height: height), uploaded: uploaded)
+        if !readback, encode, stopAfter == .encode,
+           let present = GPUPresent.image(
+               gpu: gpu,
+               source: current,
+               width: outW,
+               height: outH,
+               originX: originX,
+               originY: originY
+           )
+        {
+            return Output(buffer: nil, present: present, uploaded: uploaded, downloaded: false)
+        }
+        return readbackOutput(
+            current,
+            width: outW,
+            height: outH,
+            originX: originX,
+            originY: originY,
+            uploaded: uploaded
+        )
+    }
+
+    private static func readbackOutput(
+        _ texture: MTLTexture,
+        width: Int,
+        height: Int,
+        originX: Int = 0,
+        originY: Int = 0,
+        uploaded: Bool
+    ) -> Output {
+        PipelineStats.increment(.download)
+        return Output(
+            buffer: download(
+                texture,
+                width: width,
+                height: height,
+                originX: originX,
+                originY: originY
+            ),
+            present: nil,
+            uploaded: uploaded,
+            downloaded: true
+        )
     }
 
     private static func normalizeUniforms(_ bounds: LogNegativeBounds) -> NormalizeUniforms {

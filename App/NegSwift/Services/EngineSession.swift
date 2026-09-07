@@ -38,6 +38,7 @@ final class EngineSession {
     var scratchInProgressPoints: [CGPoint] = []
     private(set) var scratchInteractionRevision = 0
     private(set) var previewPixelSize: CGSize?
+    private(set) var sourcePixelSizes: [String: CGSize] = [:]
     /// When set, the canvas shows a loading overlay with this message (e.g. during reset).
     private(set) var previewLoadingMessage: String?
 
@@ -220,7 +221,14 @@ final class EngineSession {
             }
         }
         do {
-            _ = try await exportCurrentFrame(to: destination, settings: .quickExport)
+            if let path = selectedFramePath {
+                await ensureEditLoaded(for: path)
+            }
+            let settings = ExportSettings.quickExport(
+                for: currentEdit,
+                sourceSize: selectedFramePath.flatMap { sourcePixelSizes[$0] }
+            )
+            _ = try await exportCurrentFrame(to: destination, settings: settings)
             RecentPathsStore.remember(destination, for: .exportFolder)
         } catch is CancellationError {
             return
@@ -1106,6 +1114,45 @@ final class EngineSession {
         previewError = message
     }
 
+    func sourcePixelSize(for path: String) -> CGSize? {
+        sourcePixelSizes[path]
+    }
+
+    func exportLongEdgePx(for path: String, settings: ExportSettings) -> Int? {
+        guard let source = sourcePixelSizes[path] else { return nil }
+        let edit = frameEdits[path] ?? defaultEditState()
+        return ExportDimensionEstimate.exportLongEdgePx(
+            sourceSize: source,
+            edit: edit,
+            settings: settings
+        )
+    }
+
+    func ensureSourceSizes(for frames: [ScanFrame]) async {
+        guard engineReady else { return }
+        for frame in frames where sourcePixelSizes[frame.path] == nil {
+            let gotAccess = beginFileAccess(for: frame.url)
+            defer {
+                if gotAccess {
+                    endFileAccess(for: frame.url)
+                }
+            }
+            guard let result = try? await backend.open(
+                path: frame.path,
+                includeSplash: false,
+                config: nil
+            ) else { continue }
+            recordSourceSize(path: frame.path, width: result.width, height: result.height)
+        }
+    }
+
+    private func recordSourceSize(path: String, width: Int, height: Int) {
+        guard width > 0, height > 0 else { return }
+        var sizes = sourcePixelSizes
+        sizes[path] = CGSize(width: width, height: height)
+        sourcePixelSizes = sizes
+    }
+
     func importFolder(at url: URL) async {
         guard engineReady else { return }
         stopFolderAccess()
@@ -1114,6 +1161,7 @@ final class EngineSession {
         }
         stripGeneration += 1
         previewError = nil
+        sourcePixelSizes = [:]
         do {
             let discovered = try await backend.discover(paths: [url.path])
             frames = discovered.assets.map { asset in
@@ -1144,6 +1192,7 @@ final class EngineSession {
             name: url.lastPathComponent
         )
         frames = [frame]
+        sourcePixelSizes = [:]
         await selectFrame(frame.id)
     }
 
@@ -1183,6 +1232,7 @@ final class EngineSession {
         }
         stripGeneration += 1
         previewError = nil
+        sourcePixelSizes = [:]
         do {
             let discovered = try await backend.discover(paths: urls.map(\.path))
             frames = discovered.assets.map { asset in
@@ -1913,6 +1963,7 @@ final class EngineSession {
         let path = frame.path
         let config = pipelineConfig(for: frameEdits[path] ?? defaultEditState())
         guard let result = try? await backend.open(path: path, includeSplash: true, config: config) else { return }
+        recordSourceSize(path: path, width: result.width, height: result.height)
         applySuggestedCrop(from: result, for: path)
         dirtyPaths.insert(path)
         scheduleDebouncedSave(for: path)

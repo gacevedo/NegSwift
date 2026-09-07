@@ -31,7 +31,7 @@ struct ExportProgressView: View {
 }
 
 #Preview {
-    ExportProgressView(statusText: ExportSettings.quickExport.progressStatusText)
+    ExportProgressView(statusText: ExportSettings.quickExport().progressStatusText)
         .padding()
 }
 
@@ -39,7 +39,7 @@ struct ExportProgressView: View {
     ExportProgressView(
         statusText: BatchExportProgress(
             scope: .all,
-            settings: .quickExport,
+            settings: ExportSettings.quickExport(),
             completed: 2,
             total: 5,
             currentName: "scan_003.tif"

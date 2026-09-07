@@ -86,6 +86,42 @@ def test_export_applies_crop(sample_tiff, tmp_path: Path) -> None:
     assert crop_size < full_size
 
 
+def test_export_target_long_edge(sample_tiff, tmp_path: Path) -> None:
+    dest = tmp_path / "out"
+    full = ndjson_request(
+        "export",
+        {
+            "path": str(sample_tiff),
+            "dest_dir": str(dest / "full"),
+            "prefer_gpu": False,
+            "export": {"export_fmt": "JPEG", "export_color_space": "sRGB"},
+        },
+        req_id="export-full",
+    )
+    sized = ndjson_request(
+        "export",
+        {
+            "path": str(sample_tiff),
+            "dest_dir": str(dest / "edge"),
+            "prefer_gpu": False,
+            "export": {
+                "export_fmt": "JPEG",
+                "export_color_space": "sRGB",
+                "export_resolution_mode": "target_px",
+                "export_target_long_edge_px": 24,
+            },
+        },
+        req_id="export-edge",
+    )
+    assert full["ok"] is True
+    assert sized["ok"] is True
+    full_le = max(full["result"]["width"], full["result"]["height"])
+    sized_le = max(sized["result"]["width"], sized["result"]["height"])
+    assert sized_le == 24
+    assert sized_le < full_le
+    assert sized["result"]["width"] * sized["result"]["height"] < full["result"]["width"] * full["result"]["height"]
+
+
 def test_export_missing_path(tmp_path: Path) -> None:
     msg = ndjson_request(
         "export",

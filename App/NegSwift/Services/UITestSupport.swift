@@ -121,7 +121,7 @@ enum UITestSupport {
         _ = try? await session.exportBatch(
             scope: .all,
             to: destination,
-            settings: .quickExport
+            settings: ExportSettings.quickExport()
         )
     }
 

@@ -45,7 +45,7 @@ struct EngineSessionBatchExportTests {
         let results = try await session.exportBatch(
             scope: .all,
             to: destination,
-            settings: .quickExport
+            settings: ExportSettings.quickExport()
         )
 
         #expect(results.count == 3)
@@ -70,7 +70,7 @@ struct EngineSessionBatchExportTests {
         let results = try await session.exportBatch(
             scope: .selected,
             to: destination,
-            settings: .quickExport
+            settings: ExportSettings.quickExport()
         )
 
         #expect(results.count == 2)
@@ -91,7 +91,7 @@ struct EngineSessionBatchExportTests {
 
         let destination = URL(fileURLWithPath: "/tmp/NegSwiftBatchExportTests")
         let exportTask = Task {
-            try await session.exportBatch(scope: .all, to: destination, settings: .quickExport)
+            try await session.exportBatch(scope: .all, to: destination, settings: ExportSettings.quickExport())
         }
 
         try await Task.sleep(nanoseconds: 50_000_000)
@@ -124,7 +124,7 @@ struct EngineSessionBatchExportTests {
 
         let destination = URL(fileURLWithPath: "/tmp/NegSwiftBatchExportTests")
         let exportTask = Task {
-            try await session.exportBatch(scope: .all, to: destination, settings: .quickExport)
+            try await session.exportBatch(scope: .all, to: destination, settings: ExportSettings.quickExport())
         }
 
         try await Task.sleep(nanoseconds: 20_000_000)
@@ -141,7 +141,7 @@ struct EngineSessionBatchExportTests {
         session.setExportTestHandlerForTests { [mockResult] record in mockResult(record) }
 
         let destination = URL(fileURLWithPath: "/tmp/NegSwiftBatchExportTests")
-        _ = try await session.exportBatch(scope: .all, to: destination, settings: .quickExport)
+        _ = try await session.exportBatch(scope: .all, to: destination, settings: ExportSettings.quickExport())
 
         #expect(!session.isExporting)
         #expect(session.batchExportProgress == nil)

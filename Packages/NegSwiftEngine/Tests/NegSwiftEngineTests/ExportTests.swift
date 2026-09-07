@@ -100,6 +100,36 @@ struct ExportTests {
         #expect(cut.width * cut.height < full.width * full.height)
     }
 
+    @Test func exportTargetLongEdgeDownsamplesOutput() throws {
+        let frame = try writeExportSizingTIFF(width: 512, height: 384)
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent("negswift-s9-edge-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: frame)
+            try? FileManager.default.removeItem(at: dest)
+        }
+        let full = try NativePipeline().export(
+            path: frame.path,
+            destDir: dest.appendingPathComponent("full").path,
+            processMode: .colorNegative,
+            config: sizedPrintConfig
+        )
+        let sized = try NativePipeline().export(
+            path: frame.path,
+            destDir: dest.appendingPathComponent("edge").path,
+            processMode: .colorNegative,
+            config: sizedPrintConfig,
+            settings: NativeExportSettings(
+                format: .jpeg,
+                resolutionMode: .targetPx,
+                targetLongEdgePx: 256
+            )
+        )
+        #expect(max(full.width, full.height) == 512)
+        #expect(max(sized.width, sized.height) == 256)
+        #expect(sized.width * sized.height < full.width * full.height)
+    }
+
     @Test func protocolExportMatchesPythonContract() throws {
         let frame = try writeProtocolTIFF()
         let dest = FileManager.default.temporaryDirectory
@@ -129,4 +159,19 @@ struct ExportTests {
         )
         #expect((missing["error"] as? [String: Any])?["code"] as? String == "NOT_FOUND")
     }
+}
+
+private func writeExportSizingTIFF(width: Int, height: Int) throws -> URL {
+    let samples = [UInt16](repeating: 40_000, count: width * height * 3)
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("negswift-s9-size-\(UUID().uuidString).tif")
+    try UncompressedTIFF.writeRGB16(width: width, height: height, samples: samples, to: url)
+    return url
+}
+
+private var sizedPrintConfig: PrintConfig {
+    var config = PrintConfig.s8Pin
+    config.autoCropEnabled = false
+    config.cropFromAuto = false
+    return config
 }

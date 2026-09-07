@@ -396,7 +396,9 @@ actor NativeEngineBackend: EngineBackend {
         let nativeSettings = NativeExportSettings(
             format: settings.format == .tiff ? .tiff : .jpeg,
             jpegQuality: settings.jpegQuality,
-            overwrite: false
+            overwrite: false,
+            resolutionMode: settings.resolutionMode == .targetLongEdge ? .targetPx : .original,
+            targetLongEdgePx: settings.targetLongEdgePx
         )
         let result: ExportResult
         do {

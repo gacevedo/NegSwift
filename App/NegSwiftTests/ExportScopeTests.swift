@@ -51,18 +51,18 @@ struct ExportScopeTests {
   @Test func batchProgressStatusTextForSingleFrameUsesSettingsText() {
     let progress = BatchExportProgress(
       scope: .current,
-      settings: .quickExport,
+      settings: ExportSettings.quickExport(),
       completed: 0,
       total: 1,
       currentName: "a.tif"
     )
-    #expect(progress.statusText == ExportSettings.quickExport.progressStatusText)
+    #expect(progress.statusText == ExportSettings.quickExport().progressStatusText)
   }
 
   @Test func batchProgressStatusTextForBatchShowsIndexAndName() {
     let progress = BatchExportProgress(
       scope: .all,
-      settings: .quickExport,
+      settings: ExportSettings.quickExport(),
       completed: 2,
       total: 5,
       currentName: "scan_003.tif"

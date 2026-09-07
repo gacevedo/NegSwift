@@ -383,7 +383,7 @@ struct NativeEngineBackendTests {
             path: sampleTIFFPath,
             destDir: dest.path,
             config: FrameEditState(),
-            export: .quickExport,
+            export: ExportSettings.quickExport(),
             preferGPU: false
         )
         #expect(result.width > 0)
@@ -402,7 +402,7 @@ struct NativeEngineBackendTests {
             path: sampleTIFFPath,
             destDir: dest.appendingPathComponent("full").path,
             config: FrameEditState(),
-            export: .quickExport,
+            export: ExportSettings.quickExport(),
             preferGPU: false
         )
         var cropped = FrameEditState()
@@ -412,7 +412,7 @@ struct NativeEngineBackendTests {
             path: sampleTIFFPath,
             destDir: dest.appendingPathComponent("crop").path,
             config: cropped,
-            export: .quickExport,
+            export: ExportSettings.quickExport(),
             preferGPU: false
         )
         #expect(cut.width * cut.height < full.width * full.height)

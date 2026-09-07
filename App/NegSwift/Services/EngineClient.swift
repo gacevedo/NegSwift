@@ -539,19 +539,24 @@ actor EngineClient {
         let exportFmt: String
         let exportColorSpace: String
         let exportResolutionMode: String
+        let exportTargetLongEdgePx: Int?
         let jpegQuality: Int?
 
         enum CodingKeys: String, CodingKey {
             case exportFmt = "export_fmt"
             case exportColorSpace = "export_color_space"
             case exportResolutionMode = "export_resolution_mode"
+            case exportTargetLongEdgePx = "export_target_long_edge_px"
             case jpegQuality = "jpeg_quality"
         }
 
         init(settings: ExportSettings) {
             exportFmt = settings.format.rawValue
             exportColorSpace = settings.colorSpace
-            exportResolutionMode = "original"
+            exportResolutionMode = settings.resolutionMode.rawValue
+            exportTargetLongEdgePx = settings.resolutionMode == .targetLongEdge
+                ? settings.targetLongEdgePx
+                : nil
             jpegQuality = settings.format == .jpeg ? settings.jpegQuality : nil
         }
     }

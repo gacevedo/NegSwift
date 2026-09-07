@@ -471,7 +471,7 @@ public struct NativePipeline: Sendable {
         return (buffer.width, buffer.height)
     }
 
-    /// Full-res sRGB JPEG/TIFF. Same print config as preview; no long-edge downsample.
+    /// Full-res sRGB JPEG/TIFF. Same print config as preview; optional long-edge downsample after print.
     public func export(
         path: String,
         destDir: String,
@@ -479,12 +479,15 @@ public struct NativePipeline: Sendable {
         config: PrintConfig = .s8Pin,
         settings: NativeExportSettings = NativeExportSettings()
     ) throws -> (url: URL, width: Int, height: Int, format: String) {
-        let buffer = try renderPrint(
+        var buffer = try renderPrint(
             path: path,
             longEdgePx: nil,
             processMode: processMode,
             config: config
         )
+        if settings.resolutionMode == .targetPx {
+            buffer = buffer.areaDownsampled(toLongEdge: settings.targetLongEdgePx)
+        }
         let dest = try ExportNaming.outputURL(
             sourcePath: path,
             destDir: destDir,

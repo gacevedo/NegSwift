@@ -111,6 +111,8 @@ Native-engine RAW ARW (S14): /Users/gacevedo/Downloads/7C_04669.ARW
 ## M9 — Export ✅
 
 - [x] Export JPEG / TIFF at full resolution (automated)
+- [x] Export long edge (`target_px`) downsample (automated — `test_export_target_long_edge`, `ExportTests.exportTargetLongEdgeDownsamplesOutput`)
+- [ ] Export sheet **Long edge** — default px follows crop ratio (1:1 → 1080, 4:5 → 1350, 3:2 → 1620, 16:9 → 1920, else 1080); output long edge matches stepper
 - [x] Output dimensions reflect crop (automated)
 - [x] NegPy desktop export matches (same config) — manual compare
 

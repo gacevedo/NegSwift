@@ -12,24 +12,35 @@ public enum NativeExportFormat: String, Sendable, Equatable {
     }
 }
 
-/// Lite export sheet: sRGB JPEG/TIFF at original resolution.
+/// Lite export sheet: sRGB JPEG/TIFF at original or target long-edge resolution.
 public struct NativeExportSettings: Sendable, Equatable {
+    public enum ResolutionMode: String, Sendable, Equatable {
+        case original
+        case targetPx = "target_px"
+    }
+
     public var format: NativeExportFormat
     public var jpegQuality: Int
     public var overwrite: Bool
     /// TIFF only. JPEG is always 8-bit. NegPy default is 16.
     public var tiffBitDepth: Int
+    public var resolutionMode: ResolutionMode
+    public var targetLongEdgePx: Int
 
     public init(
         format: NativeExportFormat = .jpeg,
         jpegQuality: Int = 90,
         overwrite: Bool = false,
-        tiffBitDepth: Int = 16
+        tiffBitDepth: Int = 16,
+        resolutionMode: ResolutionMode = .original,
+        targetLongEdgePx: Int = 1080
     ) {
         self.format = format
         self.jpegQuality = min(100, max(1, jpegQuality))
         self.overwrite = overwrite
         self.tiffBitDepth = tiffBitDepth >= 16 ? 16 : 8
+        self.resolutionMode = resolutionMode
+        self.targetLongEdgePx = min(32768, max(256, targetLongEdgePx))
     }
 
     /// Parse protocol `export` object. Unknown lite formats are rejected.
@@ -65,6 +76,30 @@ public struct NativeExportSettings: Sendable, Equatable {
                 )
             }
             settings.tiffBitDepth = value
+        }
+        if let raw = ConfigJSON.stringValue(dict["export_resolution_mode"]) {
+            switch raw {
+            case ResolutionMode.original.rawValue:
+                settings.resolutionMode = .original
+            case ResolutionMode.targetPx.rawValue:
+                settings.resolutionMode = .targetPx
+            default:
+                throw ProtocolFailure(
+                    code: "INVALID_REQUEST",
+                    message: "params.export.export_resolution_mode must be original or target_px"
+                )
+            }
+        }
+        if dict["export_target_long_edge_px"] != nil {
+            guard let value = ConfigJSON.intValue(dict["export_target_long_edge_px"]),
+                  (256 ... 32768).contains(value)
+            else {
+                throw ProtocolFailure(
+                    code: "INVALID_REQUEST",
+                    message: "params.export.export_target_long_edge_px must be an integer from 256 to 32768"
+                )
+            }
+            settings.targetLongEdgePx = value
         }
         return settings
     }

@@ -225,7 +225,7 @@ Future: `rgba_base64` + dimensions, or shared memory handle for zero-copy Metal 
 
 ### `export`
 
-Full-resolution export.
+Full-resolution export, or target long-edge downsample.
 
 **Params:**
 
@@ -237,6 +237,7 @@ Full-resolution export.
     "export_fmt": "JPEG",
     "export_color_space": "sRGB",
     "export_resolution_mode": "original",
+    "export_target_long_edge_px": 1620,
     "jpeg_quality": 90
   },
   "dest_dir": "/absolute/output/dir",
@@ -244,7 +245,9 @@ Full-resolution export.
 }
 ```
 
-Lite Swift (S9) honors JPEG/TIFF, sRGB, original resolution, and the `stem` / `stem_2` overwrite suffix. Other formats are `INVALID_REQUEST`.
+`export_resolution_mode` — `"original"` (default) or `"target_px"`. When `"target_px"`, `export_target_long_edge_px` (256–32768) caps the output long edge after the print pipeline. The Python backend uses NegPy `ExportResolutionMode.TARGET_PX`; the Swift backend area-downsamples the rendered buffer.
+
+Lite Swift (S9) honors JPEG/TIFF, sRGB, `original` / `target_px`, and the `stem` / `stem_2` overwrite suffix. Other formats and resolution modes are `INVALID_REQUEST`.
 
 **Result:** `{ "output_path": "/absolute/output/dir/scan.jpg", "width": 4000, "height": 3000, "format": "JPEG" }`
 

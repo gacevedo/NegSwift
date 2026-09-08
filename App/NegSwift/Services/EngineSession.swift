@@ -66,6 +66,11 @@ final class EngineSession {
     private var fineRotationPreviewTask: Task<Void, Never>?
     private var fineRotationPreviewDirty = false
 
+    /// Screen-axis leveling grid shown while adjusting fine rotation (NegPy parity).
+    private(set) var showRotationGuide = false
+    private var rotationGuideHideTask: Task<Void, Never>?
+    private var rotationGuideLingerDuration: Duration = .seconds(1)
+
     private var backend: any EngineBackend
     private let preferences: AppPreferences
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
@@ -649,6 +654,7 @@ final class EngineSession {
         scheduleDebouncedSave(for: path)
         syncCropPreviewBaselineGeometry(from: edit)
         if isFineRotationInteracting {
+            pulseRotationGuide()
             scheduleFineRotationInteractionPreview()
         } else {
             scheduleDebouncedPreview(for: frame)
@@ -660,6 +666,17 @@ final class EngineSession {
         isFineRotationInteracting = true
         fineRotationMeteringAnchor = currentEdit.fineRotation
         previewDebounce.cancel()
+        pulseRotationGuide()
+    }
+
+    func pulseRotationGuide() {
+        showRotationGuide = true
+        rotationGuideHideTask?.cancel()
+        rotationGuideHideTask = Task {
+            try? await Task.sleep(for: rotationGuideLingerDuration)
+            guard !Task.isCancelled else { return }
+            showRotationGuide = false
+        }
     }
 
     func endFineRotationInteraction() {
@@ -2455,6 +2472,10 @@ final class EngineSession {
     func previewMemoHitForTests(path: String) -> Bool {
         let fingerprint = previewMemoFingerprint(for: path, cropPreviewFull: false)
         return previewMemo.get(path: path, fingerprint: fingerprint) != nil
+    }
+
+    func setRotationGuideLingerDurationForTests(_ duration: Duration) {
+        rotationGuideLingerDuration = duration
     }
     #endif
 

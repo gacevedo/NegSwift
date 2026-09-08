@@ -11,6 +11,7 @@ struct CropOverlayView: View {
     @Binding var fineRotation: Double
     let aspectRatio: CropAspectRatio
     let imagePixelSize: CGSize
+    var showRotationGuide = false
     var onClickOutside: () -> Void = {}
     var onFineRotationDragChanged: (Bool) -> Void = { _ in }
 
@@ -47,6 +48,10 @@ struct CropOverlayView: View {
             let rotationHandles = rotationHandlePoints(cropScreenRect: cropScreenRect, container: container)
 
             ZStack(alignment: .topLeading) {
+                if showRotationGuide {
+                    RotationAlignmentGridView(rect: imageRect)
+                }
+
                 Path { path in
                     path.addRect(CGRect(origin: .zero, size: container))
                     path.addRect(cropScreenRect)

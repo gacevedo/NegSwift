@@ -133,6 +133,10 @@ struct PreviewCanvasView: View {
                 .resizable()
                 .frame(width: contentSize.width, height: contentSize.height)
 
+            if session.showRotationGuide, !session.isCropToolActive || !session.isCropOverlayReady {
+                RotationAlignmentGridView(rect: CGRect(origin: .zero, size: contentSize))
+            }
+
             toolOverlays(visibleContentRect: visibleContentRect)
                 .frame(width: contentSize.width, height: contentSize.height)
         }
@@ -305,6 +309,7 @@ struct PreviewCanvasView: View {
             fineRotation: fineRotationBinding,
             aspectRatio: CropAspectRatio.canonical(session.currentEdit.autocropRatio),
             imagePixelSize: session.previewPixelSize ?? image.size,
+            showRotationGuide: session.showRotationGuide,
             onClickOutside: applyCrop,
             onFineRotationDragChanged: { active in
                 if active {

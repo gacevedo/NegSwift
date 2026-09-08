@@ -57,4 +57,22 @@ struct EngineSessionFineRotationInteractionTests {
         #expect(settled?.meteringAnchorFineRotation == nil)
         #expect(session.frameEdits[path]?.fineRotation == 2.5)
     }
+
+    @Test @MainActor func rotationGuideShowsDuringInteractionAndHidesAfterLinger() async {
+        let session = makeSession()
+        session.setRotationGuideLingerDurationForTests(.milliseconds(50))
+
+        #expect(session.showRotationGuide == false)
+        session.beginFineRotationInteraction()
+        #expect(session.showRotationGuide == true)
+
+        session.setFineRotation(1.0)
+        #expect(session.showRotationGuide == true)
+
+        session.endFineRotationInteraction()
+        #expect(session.showRotationGuide == true)
+
+        try? await Task.sleep(for: .milliseconds(80))
+        #expect(session.showRotationGuide == false)
+    }
 }

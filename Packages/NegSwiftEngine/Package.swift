@@ -63,7 +63,6 @@ let package = Package(
     name: "NegSwiftEngine",
     platforms: [
         .macOS(.v14),
-        .iOS(.v17),
     ],
     products: [
         .library(name: "NegSwiftEngine", targets: ["NegSwiftEngine"]),

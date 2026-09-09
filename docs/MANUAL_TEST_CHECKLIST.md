@@ -4,7 +4,7 @@ Run these after each milestone before moving on. Record date, macOS version, and
 
 **Current app (M0–M15):** fully tested — automated gates and remaining manual rows below are checked. Re-run the [regression smoke](#regression-smoke-any-milestone-after-m4) before a release tag.
 
-Native engine **S0–S14** automated gates are in. **S13** is reopened for first-load performance (S13a–k shipped; next is **S13m**). **S15** iOS harness is later — do not start while S13 is open. Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
+Native engine **S0–S14** automated gates are in. **S13** is reopened for first-load performance (S13a–k shipped; next is **S13m**). Record the local ≥16 MP C-41 path in the header before any S look gate. S14 human A/B still needs a named local NEF and ARW.
 
 **Header template:**
 
@@ -20,7 +20,7 @@ Native-engine RAW NEF (S14): /Users/gacevedo/Downloads/Kodak Portra Gold 120 K65
 Native-engine RAW ARW (S14): /Users/gacevedo/Downloads/7C_04669.ARW
 ```
 
-`App/NegSwiftUITests/Fixtures/sample.tif` is a tiny CI fixture. Every **S0–S15** look gate uses the named local ≥16 MP C-41 path above. Prefer a full-bleed or already-cropped frame for S4/S5 so holder borders do not dominate normalize bounds. S14 also names a local NEF and ARW.
+`App/NegSwiftUITests/Fixtures/sample.tif` is a tiny CI fixture. Every **S0–S14** look gate uses the named local ≥16 MP C-41 path above. Prefer a full-bleed or already-cropped frame for S4/S5 so holder borders do not dominate normalize bounds. S14 also names a local NEF and ARW.
 
 ---
 
@@ -285,7 +285,7 @@ See [PLAN.md](../PLAN.md) §7 M15.
 
 ---
 
-## Native Swift engine (S0–S15)
+## Native Swift engine (S0–S14)
 
 Python remains the default backend. A/B means Preferences **Engine: Python | Swift** on the **same** named scan, then the checks below. Do not fail a vertical for items listed under **Still wrong** in the native-engine plan. Do not compare Swift-at-S4 to Python-at-app-defaults (autos + sharpen on) — that is S5+S8.
 
@@ -297,7 +297,7 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 
 ### S0 — Scaffold, A/B hook, harness
 
-- [x] `Packages/NegSwiftEngine` builds for macOS (`make test-native-engine`) and iOS Simulator (`make test-native-engine-ios`)
+- [x] `Packages/NegSwiftEngine` builds for macOS (`make test-native-engine`)
 - [x] Preferences shows **Engine: Python | Swift**; Python is default
 - [x] Switching backend restarts the session (workspace preserved)
 - [x] MAE harness runs on `/Users/gacevedo/Downloads/Kodak\ Portra\ Gold\ 120\ K6500-008.TIFF` and writes a report (no look claim) — `make compare-engines`
@@ -469,10 +469,6 @@ S13a–k (slider reprints + one decode + Accelerate + splash/thumbs + progressiv
 - [x] Human: same for ARW (and any other camera RAW you have)
 - [ ] Human: Swift backend, Import Folder of 3+ RAWs — tracked under S13f / S13j (thumbs + first-open), not a closed S14 look gate
 - [x] Still wrong: JXL, Coolscan NEF, Noritsu / FFF / Pakon special loaders, demosaic picker, IR sidecars
-
-### S15 — iOS (later)
-
-- [ ] S15: tiny in-process harness only — not an App Store product; do not start before S4a, or while S13 is open
 
 ---
 

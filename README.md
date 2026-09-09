@@ -30,7 +30,7 @@ Advanced workflows (scanner capture, dodge/burn, gear library, soft proof, conta
 |-------|--------|
 | **M0–M15** (lite shell) | **Feature complete** — import, controls, crop, export, batch export, scratch tool, zone tone |
 | **M12** (performance) | **In progress** — JPEG preview transport and instant revisit done; manual benches remain |
-| **S0–S15** (native engine) | **S13 reopened** — S13a–k and S14 camera RAW shipped; next **S13m** export performance. S15 (iOS harness) later |
+| **S0–S14** (native engine) | **S13 reopened** — S13a–k and S14 camera RAW shipped; next **S13m** export performance |
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Contributors and agents: read **[AGENTS.md](AGENTS.md)** first.
 
@@ -88,7 +88,7 @@ Distribution builds, signing, and notarization: [docs/RELEASE.md](docs/RELEASE.m
 
 | Doc | Purpose |
 |-----|---------|
-| [PLAN.md](PLAN.md) | Roadmap and milestones (M0–M15 + S0–S15) |
+| [PLAN.md](PLAN.md) | Roadmap and milestones (M0–M15 + S0–S14) |
 | [AGENTS.md](AGENTS.md) | Agent and contributor conventions |
 | [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md) | NDJSON IPC between app and engine |
 | [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) | Batch export design |

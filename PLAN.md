@@ -2,13 +2,13 @@
 
 A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing engine. The shipping path has no algorithm fork: NegSwift owns UI, orchestration, and packaging; NegPy owns pixels, pipeline, and file formats.
 
-**Native engine exception:** `Packages/NegSwiftEngine` is an approved third implementation of the **NegSwift lite** path (CPU-first, Python as oracle). Do not copy NegPy sources into `App/`. Milestones **S0–S15** are in §14; this file also keeps the M0–M15 lite-shell roadmap.
+**Native engine exception:** `Packages/NegSwiftEngine` is an approved third implementation of the **NegSwift lite** path (CPU-first, Python as oracle). Do not copy NegPy sources into `App/`. Milestones **S0–S14** are in §14; **M16** removes runtime dual-engine switching (build-time selection, Swift default). This file also keeps the M0–M16 lite-shell roadmap.
 
 **License:** GPL-3.0 for the whole shipped product (Swift shell + bundled engine). NegPy is GPL-3.0; combining and distributing them requires the same license and source availability for NegSwift’s own code.
 
 ---
 
-## Plan status (last updated: 2026-09-06)
+## Plan status (last updated: 2026-09-08)
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
@@ -29,11 +29,12 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
 | **M14** Batch export | **Done** | Sheet scope + tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
-| **S0–S15** Native Swift engine | **S13 reopened** | S13a–k done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch + disk preview cache). Next: **S13m** export perf. S14 RAW look is in. S15 later. See §14 |
+| **M16** Build-time engine | **Planned** | Remove runtime Python\|Swift toggle; engine chosen at build time; **Swift default**. Python stays oracle-only. See §7 M16 |
+| **S0–S14** Native Swift engine | **S13 reopened** | S13a–k done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch + disk preview cache). Next: **S13m** export perf. S14 RAW look is in. See §14 |
 
-**Resume here:** Native engine **S13m** (export performance). S13a–k shipped (slider reprints, one linear decode per file, vImage/vDSP convert/resize, embedded-preview splash + cheap strip thumbs, progressive draft / refine first paint, GPU present without float readback, X-Trans preview PPG + one libraw handle per file, parallel TIFF/JPEG decode with selected-frame priority and neighbor linear prefetch, processed-preview disk cache + longer-lived working sets). S9 export look is in (`original` + `target_px` downsample); export still runs full-res pipeline unless S13m lands. S14 camera RAW is in (oracle for S13i). S15 iOS stays later while S13 is open. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Resume here:** **M16** (build-time engine selection) in parallel with native engine **S13m** (export performance). S13a–k shipped (slider reprints, one linear decode per file, vImage/vDSP convert/resize, embedded-preview splash + cheap strip thumbs, progressive draft / refine first paint, GPU present without float readback, X-Trans preview PPG + one libraw handle per file, parallel TIFF/JPEG decode with selected-frame priority and neighbor linear prefetch, processed-preview disk cache + longer-lived working sets). S9 export look is in (`original` + `target_px` downsample); export still runs full-res pipeline unless S13m lands. S14 camera RAW is in (oracle for S13i). See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
-**Verify:** `make test` · `make bundle-engine` · `make build-release` · copy `.app` to Mac without Python.
+**Verify:** `make test` · `make build-app` (Swift default; no `make sync` required) · `make build-release` · copy `.app` to Mac without Python.
 
 ---
 
@@ -52,7 +53,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 - Windows/Linux
 - SANE scanner UI, gphoto2 tethering, RGB-scan merge UI, stitch UI
 - Full panel parity with NegPy desktop (history branching, work prints, metadata gear library, soft-proof UI, printing notes)
-- Rewriting pipeline in Swift/Metal **in `App/`** — the approved port is `Packages/NegSwiftEngine` (S0–S15), not a UI-side fork
+- Rewriting pipeline in Swift/Metal **in `App/`** — the approved port is `Packages/NegSwiftEngine` (S0–S14), not a UI-side fork
 
 ---
 
@@ -870,6 +871,110 @@ HDR merge seeding of `shadow_density` (`seed_shadow_density`) is NegPy desktop b
 
 ---
 
+### M16 — Build-time engine selection (planned)
+
+Remove **runtime** dual-engine support. Each built `.app` links exactly one rendering backend, chosen at **build time**. **Swift (native)** is the default for Debug, Release, CI, and `make build-release`. The Python `negswift-engine` subprocess path remains in the repo as the **parity oracle** — not a user-facing Settings toggle.
+
+**Non-goals:** Deleting `Engine/` or `Vendor/NegPy`; removing `negswift-engine-swift serve --stdio`; finishing S13m before M16 (can land in parallel).
+
+#### Current vs target
+
+| | Today | After M16 |
+|---|--------|-----------|
+| Selection | Settings → Rendering → Engine (`EngineBackendKind` in UserDefaults) | Xcode scheme / build setting `NEGSWIFT_ENGINE=swift\|python` |
+| Default | Python subprocess | Swift in-process (`NegSwiftEngine`) |
+| Release | PyInstaller bundle in `Contents/Resources/engine/` | Swift-only `.app` (no frozen Python by default) |
+| A/B in app | Preferences picker restarts session | `make compare-*` scripts + optional `NegSwift-Python` scheme |
+
+#### Build knob
+
+Canonical name everywhere:
+
+```
+NEGSWIFT_ENGINE = swift | python    # default: swift
+```
+
+Maps to Swift active compilation condition `NEGSWIFT_ENGINE_SWIFT` or `NEGSWIFT_ENGINE_PYTHON`.
+
+**Recommended wiring:** two shared Xcode schemes — `NegSwift` (Swift, default) and `NegSwift-Python` (oracle). Alternative: `Debug-Python` / `Release-Python` build configurations.
+
+#### Deliverables
+
+**Build infrastructure**
+
+- [ ] User-defined build setting `NEGSWIFT_ENGINE` (`swift` default) → `SWIFT_ACTIVE_COMPILATION_CONDITIONS`
+- [ ] Schemes: `NegSwift` (Swift) and `NegSwift-Python` (oracle)
+- [ ] `make build-app` / `make build-release` — Swift only (no `make sync`, no PyInstaller)
+- [ ] `make build-app-python` / `make build-release-python` — explicit oracle builds (`make sync` + `make bundle-engine`)
+
+**App code**
+
+- [ ] Remove `EngineBackendKind`, UserDefaults key `negSwift.preferences.engineBackend`, and Settings engine picker
+- [ ] Remove `EngineBackendFactory` — compile-time `SelectedEngineBackend` alias (`NativeEngineBackend` vs `PythonEngineBackend`)
+- [ ] Remove `onEngineBackendChanged` / engine-toggle restart path from `EngineSession`
+- [ ] `#if NEGSWIFT_ENGINE_PYTHON` around `PythonEngineBackend`, `EngineClient`, `EngineProcess`, `EngineLocator`, `Info.plist` `NegSwiftEnginePath`
+- [ ] `EngineSheetView` — Swift build shows native backend; hide or `n/a` Python row
+- [ ] Ignore stored `engineBackend` preference on upgrade (no migration needed)
+
+**Tests**
+
+- [ ] Remove `AppPreferencesTests` engine-backend storage tests
+- [ ] `NativeEngineBackendTests` — drop factory python/swift cases; keep native behavior
+- [ ] `EngineClientIntegrationTests` — `#if NEGSWIFT_ENGINE_PYTHON` or rely on `make test-s7-stdio`
+- [ ] UI tests — stop requiring Python venv (`NEGSWIFT_ENGINE` launch env); run on Swift build
+
+**CI**
+
+- [ ] Default job: `xcodebuild -scheme NegSwift` (Swift); drop PyInstaller from required path
+- [ ] Keep `Engine/` pytest and `make test-s7-stdio` for protocol parity
+- [ ] Optional `workflow_dispatch` oracle job: `make bundle-engine` + `build-release-python`
+
+**Packaging**
+
+- [ ] Default `make build-release` — Xcode Release only; no `Contents/Resources/engine/`
+- [ ] Revisit App Sandbox for Swift Release (`docs/RELEASE.md`)
+- [ ] Document LibRaw distribution for Swift-only release (`brew install libraw` dev; bundle dylib for ship)
+
+**Docs**
+
+- [ ] New [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md) — how to choose engine at build time
+- [ ] Update `README.md`, `AGENTS.md`, `docs/RELEASE.md`, `docs/MANUAL_TEST_CHECKLIST.md`, `Engine/README.md`
+
+#### PR sequence
+
+1. Build flag + schemes (default flips to Swift; both backends still compile)
+2. Remove runtime picker + UserDefaults
+3. Makefile + CI
+4. Tests (UI off Python; conditional integration tests)
+5. Docs (`ENGINE_SELECTION.md` + cross-refs)
+6. Release packaging (Swift-only `build-release`; optional sandbox)
+
+#### Acceptance criteria
+
+- [ ] Fresh clone: `make build-app` succeeds **without** `make sync`
+- [ ] Settings has **no** Engine picker
+- [ ] `EngineSheetView` reports Swift backend on default build
+- [ ] `make test` passes (Swift app tests + `Engine/` pytest + `NegSwiftEngine` tests)
+- [ ] `make build-release` produces a runnable `.app` without `Contents/Resources/engine/`
+- [ ] `make build-app-python && make sync` still produces a working Python-subprocess app
+- [ ] `docs/ENGINE_SELECTION.md` explains build-time selection
+
+#### Risks
+
+| Risk | Mitigation |
+|------|------------|
+| Swift parity gaps at app defaults | S8 MAE already gated; checklist **Still wrong** rows |
+| UI tests depended on Python subprocess | Migrate to Swift build; optional Python UI job |
+| Contributors lose in-app A/B | `make compare-*` + `NegSwift-Python` scheme |
+| LibRaw not bundled in Swift Release | Track in packaging deliverable; document dev dep |
+| GPL NegPy still in tree | Keep `NOTICE`; Python engine stays for oracle |
+
+**Automated:** `make test` · `make test-s7-stdio` · `xcodebuild -scheme NegSwift test`.
+
+**Manual:** Default build — import → preview → export with no venv; Engine sheet shows Swift; `make build-release-python` smoke on oracle build.
+
+---
+
 ## 8. Project structure
 
 ```
@@ -943,15 +1048,9 @@ NegSwift/
 
 ## 10. iOS and long-term notes
 
-**iOS is not in scope for this plan.** App Store rules, no arbitrary subprocesses, and no full CPython/NumPy stack make “drop-in NegPy” impractical on iPhone/iPad today.
+**iOS is permanently out of scope.** NegSwift ships under GPL-3.0 (via NegPy); Apple’s App Store terms are incompatible with distributing GPL-licensed apps there. Even aside from licensing, no arbitrary subprocesses and no full CPython/NumPy stack make “drop-in NegPy” impractical on iPhone/iPad.
 
-What *does* transfer if iOS ever matters:
-
-- **Stable JSON config** (`WorkspaceConfig`) — already Codable-friendly as flat dict
-- **IPC boundary** — today engine is local; tomorrow could be macOS helper syncing via CloudKit while iOS shows proxies only
-- **Embedded CPython on macOS** — practice for “host process + script engine” without PyInstaller
-
-A future iOS app would likely need **Metal port of subset pipeline** or **render-on-Mac sync** — not PyInstaller. Keeping NegSwift’s engine behind a clean protocol avoids painting into a corner. The shared library for that path is `Packages/NegSwiftEngine` (**S15** in §14); do not start an iPad target until **S4a** has a golden gate.
+NegSwift is **macOS-only**. `Packages/NegSwiftEngine` exists to replace the Python subprocess on Mac, not to seed an iOS product.
 
 ---
 
@@ -985,19 +1084,20 @@ A future iOS app would likely need **Metal port of subset pipeline** or **render
 2. **Release smoke (parallel):** Manual M10 checklist on a Mac without system Python — `make build-release`, copy `.app`, import → render → export (see `docs/MANUAL_TEST_CHECKLIST.md` M10).
 3. **M15:** Wire zone tone sliders (shadows/highlights density + ISO-R split grade) per §7 M15. — **Done**
 4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
-5. **Native engine S13:** First-load performance — **S13k done**; next **S13m** (export perf). S13a–k stay done. Do not start S15 while S13 is open. See §14.
+5. **M16:** Build-time engine selection — remove runtime Python\|Swift toggle; Swift default. See §7 M16.
+6. **Native engine S13:** First-load performance — **S13k done**; next **S13m** (export perf). S13a–k stay done. See §14.
 
 ---
 
-## 14. Native Swift engine (S0–S15)
+## 14. Native Swift engine (S0–S14)
 
-Approved exception to “never reimplement pipeline math”: **`Packages/NegSwiftEngine` only**. Python stays the default backend and the oracle until each vertical’s goldens pass.
+Approved exception to “never reimplement pipeline math”: **`Packages/NegSwiftEngine` only**. Python remains the **oracle** for parity gates (`make compare-*`, `Engine/` pytest). After **M16**, Swift is the default **app** backend; build-time selection replaces the Settings toggle.
 
-S13 phase cards live in this section. Human rows are in [`docs/MANUAL_TEST_CHECKLIST.md`](docs/MANUAL_TEST_CHECKLIST.md) § S0–S15. First-load timers are in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+S13 phase cards live in this section. Human rows are in [`docs/MANUAL_TEST_CHECKLIST.md`](docs/MANUAL_TEST_CHECKLIST.md) § S0–S14. First-load timers are in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
 | Milestone | Focus | First human gate |
 |-----------|--------|------------------|
-| **S0** | SwiftPM + `EngineBackend` + Preferences Python\|Swift + MAE harness | Toggle exists; name a local ≥16 MP C-41 TIFF |
+| **S0** | SwiftPM + `EngineBackend` + MAE harness | **Done** — was runtime toggle (removed in **M16**); name a local ≥16 MP C-41 TIFF |
 | **S1** | Linear ImageIO decode + `detect_process_mode` (0.12 crop) | Orange mask still orange |
 | **S2** | Kept log-normalize (not invert) | C-41 is a harsh positive |
 | **S3** | Adobe RGB 563/256 OETF | Unit/synthetic only — no scan A/B |
@@ -1014,9 +1114,8 @@ S13 phase cards live in this section. Human rows are in [`docs/MANUAL_TEST_CHECK
 | **S12** | Metal (optional) | **Done** — CPU-vs-Metal MAE (`make compare-s12`); slider feel on ~20 MP. Not a look gate. |
 | **S13** | Interactive + first-load performance | **Reopened** — S13a–k done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch + disk preview cache). **S13l–m** open (optional later GPU / **export perf**). Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE). |
 | **S14** | Camera RAW (LibRaw) | **Done** — sensor-native linear for NegPy’s camera RAW list; ImageIO is not the look path. Preview/thumb uses LibRaw `half_size` (Bayer) like NegPy |
-| **S15** | iOS harness (later) | After S4a; not an App Store product. Do not start while S13 is open. |
 
-Do not start S12–S15 before S4a. Do not start S11 before S6. Do not start S15 while S13 is open. Do not compare Swift-at-S4 to Python-at-app-defaults.
+Do not start S12–S14 before S4a. Do not start S11 before S6. Do not compare Swift-at-S4 to Python-at-app-defaults.
 
 ### S13 — Interactive + first-load performance
 
@@ -1087,6 +1186,8 @@ flowchart LR
   M10 --> M11 --> M12
   M9 --> M14
   M6 --> M15
+  M15 --> M16
+  S14 --> M16
 ```
 
-M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work. Native engine **S0–S15** is a parallel track (§14); S11 depends on S6 stored-crop, S12–S15 depend on S4a goldens. **S13** first-load is open; do not start S15 while S13 is open.
+M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work. **M16** depends on S14 (Swift default is shippable) and can overlap **S13m**. Native engine **S0–S14** is a parallel track (§14); S11 depends on S6 stored-crop, S12–S14 depend on S4a goldens. **S13** first-load is open.

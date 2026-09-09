@@ -1,4 +1,4 @@
-.PHONY: sync lint format test test-swift test-native-engine test-native-engine-ios \
+.PHONY: sync lint format test test-swift test-native-engine \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
 	compare-s8 compare-s9 compare-s9-target compare-s10b compare-s11 compare-s12 compare-s13 compare-s14 \
 	compare-s13l-dust \
@@ -29,12 +29,6 @@ test-swift:
 test-native-engine:
 	cd Packages/NegSwiftEngine && swift test
 	cd Packages/NegSwiftEngine && swift build
-
-test-native-engine-ios:
-	cd Packages/NegSwiftEngine && xcodebuild -scheme NegSwiftEngine \
-		-destination 'generic/platform=iOS Simulator' \
-		-derivedDataPath .derived \
-		build
 
 compare-engines: sync
 	cd Engine && uv run python scripts/compare_engine_renders.py

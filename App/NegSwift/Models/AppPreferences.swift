@@ -42,20 +42,6 @@ struct PreviewRenderSettings: Equatable, Sendable {
     }
 }
 
-enum EngineBackendKind: String, CaseIterable, Identifiable, Sendable {
-    case python
-    case swift
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .python: "Python (oracle)"
-        case .swift: "Swift (native)"
-        }
-    }
-}
-
 enum NegPyUserDataLocation: String, CaseIterable, Identifiable, Sendable {
     case negSwift
     case negPyDesktop
@@ -83,7 +69,6 @@ enum AppPreferencesStorage {
         static let opticalDustSize = "negSwift.preferences.opticalDustSize"
         static let userDataLocation = "negSwift.preferences.userDataLocation"
         static let customUserDataPath = "negSwift.preferences.customUserDataPath"
-        static let engineBackend = "negSwift.preferences.engineBackend"
     }
 
     private static var defaults: UserDefaults {
@@ -250,19 +235,6 @@ enum AppPreferencesStorage {
         }
     }
 
-    static func engineBackend() -> EngineBackendKind {
-        guard let raw = defaults.string(forKey: Key.engineBackend),
-              let kind = EngineBackendKind(rawValue: raw)
-        else {
-            return .python
-        }
-        return kind
-    }
-
-    static func setEngineBackend(_ value: EngineBackendKind) {
-        defaults.set(value.rawValue, forKey: Key.engineBackend)
-    }
-
     static func defaultNegSwiftUserDirectory() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return base.appendingPathComponent("NegSwift", isDirectory: true)
@@ -278,6 +250,15 @@ enum AppPreferencesStorage {
             location: userDataLocation(),
             customPath: customUserDataPath()
         )
+    }
+
+    /// Swift builds no longer offer a NegPy-desktop shared folder; preserve the path as custom.
+    static func migrateAwayFromNegPyDesktopFolderIfNeeded() {
+        #if !NEGSWIFT_ENGINE_PYTHON
+        guard userDataLocation() == .negPyDesktop else { return }
+        setCustomUserDataPath(negPyDesktopUserDirectory().path)
+        setUserDataLocation(.custom)
+        #endif
     }
 
     static func resolvedNegPyUserDirectoryURL(
@@ -367,14 +348,6 @@ final class AppPreferences {
         }
     }
 
-    var engineBackend: EngineBackendKind {
-        didSet {
-            guard engineBackend != oldValue else { return }
-            AppPreferencesStorage.setEngineBackend(engineBackend)
-            onEngineBackendChanged?()
-        }
-    }
-
     var customUserDataPath: String?
 
     var resolvedUserDataDirectory: URL {
@@ -383,9 +356,9 @@ final class AppPreferences {
 
     var onPreviewSettingsChanged: (() -> Void)?
     var onUserDataLocationChanged: (() -> Void)?
-    var onEngineBackendChanged: (() -> Void)?
 
     init() {
+        AppPreferencesStorage.migrateAwayFromNegPyDesktopFolderIfNeeded()
         previewQuality = AppPreferencesStorage.previewQuality()
         preferGPU = AppPreferencesStorage.preferGPU()
         autodetectProcessMode = AppPreferencesStorage.autodetectProcessMode()
@@ -395,7 +368,6 @@ final class AppPreferences {
         opticalDustSize = AppPreferencesStorage.opticalDustSize()
         userDataLocation = AppPreferencesStorage.userDataLocation()
         customUserDataPath = AppPreferencesStorage.customUserDataPath()
-        engineBackend = AppPreferencesStorage.engineBackend()
     }
 
     func updateCustomUserDataPath(_ path: String?) {

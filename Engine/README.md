@@ -1,6 +1,6 @@
 # negswift-engine
 
-Headless wrapper around upstream NegPy. See [../PLAN.md](../PLAN.md).
+Headless wrapper around upstream NegPy — the **parity oracle** for NegSwift. The default shipping app uses the in-process Swift engine ([../docs/ENGINE_SELECTION.md](../docs/ENGINE_SELECTION.md)). See [../PLAN.md](../PLAN.md).
 
 ## NegPy source
 

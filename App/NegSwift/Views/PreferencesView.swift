@@ -12,13 +12,6 @@ struct PreferencesView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Engine", selection: $preferences.engineBackend) {
-                    ForEach(EngineBackendKind.allCases) { kind in
-                        Text(kind.label).tag(kind)
-                    }
-                }
-                .accessibilityIdentifier("negSwift.prefs.engineBackend")
-
                 Picker("Preview quality", selection: $preferences.previewQuality) {
                     ForEach(PreviewQuality.allCases) { quality in
                         Text(quality.label).tag(quality)
@@ -38,9 +31,7 @@ struct PreferencesView: View {
                 Text("Rendering")
             } footer: {
                 Text(
-                    "Python is the oracle. Swift is an in-progress native engine — S0 is a gray stub, not a look match. "
-                        + "Changing the engine restarts the session. "
-                        + "Lower preview quality renders faster. GPU falls back to CPU when unavailable. "
+                    "Lower preview quality renders faster. GPU falls back to CPU when unavailable. "
                         + "Auto-detect runs only on scans without a saved .negpy sidecar. "
                         + "Auto crop trims scanner bed borders on new scans; turn off to keep the full frame."
                 )
@@ -93,8 +84,8 @@ struct PreferencesView: View {
             }
 
             Section {
-                Picker("NegPy data folder", selection: $preferences.userDataLocation) {
-                    ForEach(NegPyUserDataLocation.allCases) { location in
+                Picker(BuiltInEngineBackend.userDataPickerLabel, selection: $preferences.userDataLocation) {
+                    ForEach(BuiltInEngineBackend.selectableUserDataLocations) { location in
                         Text(location.label).tag(location)
                     }
                 }
@@ -126,12 +117,9 @@ struct PreferencesView: View {
                         .frame(maxWidth: 260, alignment: .trailing)
                 }
             } header: {
-                Text("Engine data")
+                Text(BuiltInEngineBackend.userDataSectionTitle)
             } footer: {
-                Text(
-                    "Stores edits.db and cache. Choose NegPy desktop to share the database with full NegPy. "
-                        + "Changing this restarts the engine."
-                )
+                Text(BuiltInEngineBackend.userDataSectionFooter)
             }
         }
         .formStyle(.grouped)

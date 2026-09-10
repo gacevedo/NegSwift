@@ -1,6 +1,8 @@
 # Release builds
 
-NegSwift ships a frozen `negswift-engine` helper inside the app bundle. The SwiftUI shell is a normal Xcode app; only the Python engine is PyInstaller-frozen.
+**Default (M16):** `make build-release` produces a **Swift-only** `.app` — no bundled Python engine. The native engine in `Packages/NegSwiftEngine` runs in-process.
+
+**Oracle distribution:** `make build-release-python` still freezes `negswift-engine` with PyInstaller and copies it into `Contents/Resources/engine/` for the **NegSwift-Python** build configuration.
 
 ## Prerequisites
 
@@ -10,7 +12,7 @@ NegSwift ships a frozen `negswift-engine` helper inside the app bundle. The Swif
 - NegPy submodule: `git submodule update --init --recursive`
 - **Distribution to other Macs:** Apple Developer Program membership, **Developer ID Application** certificate, and notarization credentials (`notarytool` keychain profile)
 
-## Build a release `.app`
+## Build a release `.app` (Swift default)
 
 ```bash
 make build-release
@@ -18,12 +20,25 @@ make build-release
 
 This runs, in order:
 
+1. `xcodebuild -scheme NegSwift -configuration Release` (derived data under `App/build/`)
+2. **`Packaging/sign_app.sh`** — sign the app
+
+No `Contents/Resources/engine/` directory is staged. For LibRaw on end-user Macs, document or bundle the dylib as packaging evolves.
+
+## Build a release `.app` (Python oracle)
+
+```bash
+make build-release-python
+```
+
+This runs, in order:
+
 1. `Packaging/build_engine.sh` — PyInstaller onedir from `Vendor/NegPy` → `Packaging/out/negswift-engine/`
-2. `xcodebuild -configuration Release` (derived data under `App/build/`)
-3. `ditto` the frozen engine into `Contents/Resources/engine/` (PyInstaller onedir)
+2. `xcodebuild -scheme NegSwift-Python -configuration Release-Python`
+3. `ditto` the frozen engine into `Contents/Resources/engine/`
 4. **`Packaging/sign_app.sh`** — re-sign the app and every Mach-O in the bundled engine
 
-Release builds currently run with **App Sandbox off** so the bundled PyInstaller tree can spawn from `Resources/`. Mac App Store / strict sandbox would need a one-file engine in `Contents/Helpers/` or an XPC helper.
+Oracle release builds run with **App Sandbox off** so the PyInstaller tree can spawn from `Resources/`.
 
 Do **not** copy the engine into `App/NegSwift/Resources/` — Xcode's synchronized group flattens nested package metadata and Release builds fail.
 
@@ -91,15 +106,18 @@ Packaging/out/negswift-engine/negswift-engine info
 
 ## Runtime layout
 
-Engine binary: `NegSwift.app/Contents/Resources/engine/negswift-engine`
+| Build | Engine |
+|-------|--------|
+| **NegSwift** (default) | In-process `NegSwiftEngine`; no subprocess |
+| **NegSwift-Python** | `NegSwift.app/Contents/Resources/engine/negswift-engine` (release) or venv (debug) |
 
-Resolution order:
+Python subprocess resolution order (oracle builds only):
 
 1. `NEGSWIFT_ENGINE` environment variable
 2. Bundled `Contents/Resources/engine/negswift-engine`
-3. `NegSwiftEnginePath` from Info.plist (Debug venv)
+3. `NegSwiftEnginePath` from `Info-Python.plist` (Debug venv)
 
-The engine subprocess gets `NEGPY_USER_DIR=~/Library/Application Support/NegSwift/`.
+The Python engine subprocess gets `NEGPY_USER_DIR=~/Library/Application Support/NegSwift/`.
 
 ## Distribution checklist
 
@@ -112,10 +130,12 @@ The engine subprocess gets `NEGPY_USER_DIR=~/Library/Application Support/NegSwif
 
 ## Debug vs release
 
-| Configuration | Engine source | Sandbox |
-|---------------|---------------|---------|
-| Debug | venv via `NEGSWIFT_ENGINE_PATH` | Off |
-| Release | Bundled `Resources/engine/` | On |
+| Scheme | Debug | Release |
+|--------|-------|---------|
+| **NegSwift** (Swift) | In-process native | In-process native |
+| **NegSwift-Python** | venv via `Info-Python.plist` | Bundled `Resources/engine/` |
+
+App Sandbox is **off** for both release flavors today.
 
 ## PyInstaller warnings (benign)
 

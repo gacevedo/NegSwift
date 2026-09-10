@@ -8,6 +8,7 @@ import Testing
 @testable import NegSwift
 
 struct EngineLocatorTests {
+#if NEGSWIFT_ENGINE_PYTHON
     @Test func bundledRelativePathIsStable() {
         #expect(EngineLocator.bundledRelativePath == "engine/negswift-engine")
     }
@@ -23,6 +24,7 @@ struct EngineLocatorTests {
         let cwd = EngineProcess.workingDirectory(for: exe)
         #expect(cwd.path.hasSuffix("engine"))
     }
+#endif
 
     @Test func negpyUserDirectoryUnderApplicationSupport() {
         let dir = AppPreferencesStorage.resolvedNegPyUserDirectoryURL(

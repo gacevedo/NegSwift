@@ -71,7 +71,7 @@ final class EngineSession {
     private var rotationGuideHideTask: Task<Void, Never>?
     private var rotationGuideLingerDuration: Duration = .seconds(1)
 
-    private var backend: any EngineBackend
+    private var backend: SelectedEngineBackend
     private let preferences: AppPreferences
     private let previewDebounce = DebounceScheduler(interval: DebounceScheduler.previewInterval)
     private let saveDebounce = DebounceScheduler(interval: DebounceScheduler.saveInterval)
@@ -112,13 +112,13 @@ final class EngineSession {
         return false
     }
 
-    var activeEngineBackend: EngineBackendKind {
-        preferences.engineBackend
+    var activeEngineBackendLabel: String {
+        BuiltInEngineBackend.label
     }
 
     init(preferences: AppPreferences) {
         self.preferences = preferences
-        self.backend = EngineBackendFactory.make(preferences.engineBackend)
+        self.backend = SelectedEngineBackend()
         preferences.onPreviewSettingsChanged = { [weak self] in
             Task { @MainActor in
                 self?.applyAutoCropPreferenceToLoadedEdits()
@@ -127,11 +127,6 @@ final class EngineSession {
             }
         }
         preferences.onUserDataLocationChanged = { [weak self] in
-            Task { @MainActor in
-                await self?.restartEnginePreservingWorkspace()
-            }
-        }
-        preferences.onEngineBackendChanged = { [weak self] in
             Task { @MainActor in
                 await self?.restartEnginePreservingWorkspace()
             }
@@ -175,7 +170,7 @@ final class EngineSession {
     /// S13g two-pass first paint on the Swift backend (512 draft, then 1600/2400 refine).
     private var usesProgressiveFirstPaint: Bool {
         if let progressiveFirstPaintOverride { return progressiveFirstPaintOverride }
-        return preferences.engineBackend == .swift
+        return BuiltInEngineBackend.usesProgressiveFirstPaint
     }
 
     func clearExportError() {
@@ -1154,7 +1149,7 @@ final class EngineSession {
         saveDebounce.cancel()
 
         await backend.stop()
-        backend = EngineBackendFactory.make(preferences.engineBackend)
+        backend = SelectedEngineBackend()
         state = .idle
         previewImage = nil
         previewError = nil

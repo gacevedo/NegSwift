@@ -8,7 +8,7 @@ import XCTest
 
 /// Shared launch configuration for functional UI tests.
 ///
-/// Requires `cd Engine && uv sync` so `NEGSWIFT_ENGINE` resolves to the venv binary.
+/// Default builds use the in-process Swift engine (no Python venv required).
 /// Quit any manually launched NegSwift instance before running UI tests — XCTest spawns its own copy.
 class NegSwiftUITestCase: XCTestCase {
     var app: XCUIApplication!
@@ -22,7 +22,6 @@ class NegSwiftUITestCase: XCTestCase {
     }
 
     func configureLaunchEnvironment() {
-        app.launchEnvironment["NEGSWIFT_ENGINE"] = Self.engineExecutablePath
         let defaultsSuite = "uitest.\(UUID().uuidString)"
         app.launchEnvironment["NEGSWIFT_UI_TEST_DEFAULTS_SUITE"] = defaultsSuite
         storeUITestDefaults(in: defaultsSuite)
@@ -181,22 +180,6 @@ class NegSwiftUITestCase: XCTestCase {
             .matching(identifier: AccessibilityID.settings)
             .firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings window did not open")
-    }
-
-    static var engineExecutablePath: String {
-        let candidates = [
-            repoRoot.appendingPathComponent("Engine/.venv/bin/negswift-engine"),
-            URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("Engine/.venv/bin/negswift-engine"),
-        ]
-        for url in candidates {
-            if FileManager.default.isExecutableFile(atPath: url.path) {
-                return url.path
-            }
-        }
-        preconditionFailure("negswift-engine not found — run: cd Engine && uv sync")
     }
 
     static var repoRoot: URL {

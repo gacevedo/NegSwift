@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -48,8 +49,37 @@ jobs:
             -destination 'platform=macOS' \
             -only-testing:NegSwiftTests test -quiet
 
+  oracle-bundle:
+    name: Oracle engine bundle (optional)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: "Engine/uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install libomp (numba OpenMP)
+        run: brew install libomp
+
+      - name: Install engine dependencies
+        working-directory: Engine
+        run: uv sync --locked
+
       - name: Bundle engine (PyInstaller)
         run: make bundle-engine
 
       - name: Smoke test bundled engine
         run: chmod +x Packaging/smoke_test_engine.sh && ./Packaging/smoke_test_engine.sh
+
+      - name: Build Python-oracle app
+        run: make build-release-python

@@ -1,8 +1,9 @@
-.PHONY: sync lint format test test-swift test-native-engine \
+.PHONY: sync lint format test test-engine test-swift test-native-engine \
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
 	compare-s8 compare-s9 compare-s9-target compare-s10b compare-s11 compare-s12 compare-s13 compare-s14 \
 	compare-s13l-dust \
-	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bench-native bundle-engine build-app build-release \
+	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bench-native bundle-engine \
+	build-app build-app-python build-release build-release-python \
 	stage-engine-in-release-app sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -20,7 +21,9 @@ format:
 	cd Engine && uv run ruff format negswift_engine tests
 	cd Engine && uv run ruff check --fix negswift_engine tests
 
-test: sync test-native-engine test-swift
+test: test-native-engine test-swift test-engine
+
+test-engine: sync
 	cd Engine && uv run pytest tests/ -v
 
 test-swift:
@@ -151,11 +154,23 @@ build-app:
 	rm -rf App/NegSwift/Resources/engine
 	cd App && xcodebuild -scheme NegSwift -configuration Debug build
 
-build-release: bundle-engine
+build-app-python: sync
+	mkdir -p App/NegSwift/Legal
+	cp NOTICE LICENSE App/NegSwift/Legal/
+	cd App && xcodebuild -scheme NegSwift-Python -configuration Debug-Python build
+
+build-release:
 	mkdir -p App/NegSwift/Legal
 	cp NOTICE LICENSE App/NegSwift/Legal/
 	rm -rf App/NegSwift/Resources/engine
 	cd App && xcodebuild -scheme NegSwift -configuration Release -derivedDataPath build build
+	$(MAKE) sign-release-app
+
+build-release-python: sync bundle-engine
+	mkdir -p App/NegSwift/Legal
+	cp NOTICE LICENSE App/NegSwift/Legal/
+	rm -rf App/NegSwift/Resources/engine
+	cd App && xcodebuild -scheme NegSwift-Python -configuration Release-Python -derivedDataPath build build
 	$(MAKE) stage-engine-in-release-app
 	$(MAKE) sign-release-app
 

@@ -66,16 +66,21 @@ struct EngineSheetView: View {
             HStack {
                 ProgressView()
                     .controlSize(.small)
-                Text(session.activeEngineBackend == .swift ? "Starting Swift engine…" : "Starting negswift-engine…")
+                Text(BuiltInEngineBackend.showsPythonRuntime ? "Starting negswift-engine…" : "Starting Swift engine…")
             }
         case let .ready(info):
             VStack(alignment: .leading, spacing: 8) {
-                statusRow("Backend", session.activeEngineBackend.label)
+                statusRow("Backend", session.activeEngineBackendLabel)
                 statusRow("NegSwift", info.negswiftVersion)
-                statusRow("NegPy", info.negpyVersion)
-                statusRow("Python", info.python)
+                if BuiltInEngineBackend.showsNegPyBranding {
+                    statusRow("NegPy", info.negpyVersion)
+                    statusRow("Python", info.python)
+                }
                 statusRow("GPU", info.gpuAvailable ? (info.gpuBackend ?? "yes") : "CPU fallback")
-                statusRow("Data", AppPreferencesStorage.resolvedNegPyUserDirectoryURL().path)
+                statusRow(
+                    BuiltInEngineBackend.engineDataStatusLabel,
+                    AppPreferencesStorage.resolvedNegPyUserDirectoryURL().path
+                )
                 statusRow("Frames", "\(session.frames.count)")
                 if let path = session.currentPath {
                     statusRow("File", (path as NSString).lastPathComponent)

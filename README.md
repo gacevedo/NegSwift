@@ -1,13 +1,13 @@
 # NegSwift
 
-macOS-native app for **quick film scan processing** — import negatives, adjust crop, tone and color, export. NegSwift ships two rendering backends that share the same UI, sidecars, and export flow:
+macOS-native app for **quick film scan processing** — import negatives, adjust crop, tone and color, export. The shipping app links the **Swift (native)** engine in `Packages/NegSwiftEngine` (in-process, CPU-first, Metal for selected stages). Python remains the **parity oracle** for `make compare-*` and `Engine/` pytest — build it with the **NegSwift-Python** scheme when you need the subprocess path.
 
 | Backend | Role | How it runs |
 |---------|------|-------------|
-| **Python (oracle)** — default | Full [NegPy](https://github.com/marcinz606/NegPy) pipeline (GPU via wgpu/Metal, density curves, white balance, crop, heal strokes, and more) | Separate `negswift-engine` subprocess; bundled in release builds |
-| **Swift (native)** — optional | Approved in-process port of the NegSwift lite path in `Packages/NegSwiftEngine` (CPU-first, Metal for selected stages; Python is the look oracle) | Linked into the app; no subprocess |
+| **Swift (native)** — default | Approved in-process port of the NegSwift lite path | Linked into the app; no subprocess |
+| **Python (oracle)** — build-time only | Full [NegPy](https://github.com/marcinz606/NegPy) pipeline | Separate `negswift-engine` subprocess; optional `make build-release-python` |
 
-Both backends speak the same [NDJSON protocol](docs/ENGINE_PROTOCOL.md). Switch engines in **NegSwift → Settings → Rendering → Engine** (restarts the session). Release builds default to Python; the native engine is for development, A/B testing, and first-load performance work.
+Both backends speak the same [NDJSON protocol](docs/ENGINE_PROTOCOL.md). Engine selection is **compile-time** — see [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md).
 
 **Platform:** macOS 14+ only. **License:** GPL-3.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). Camera RAW uses [LibRaw](https://www.libraw.org/) (LGPL-2.1 or CDDL-1.0).
 
@@ -35,14 +35,15 @@ Advanced workflows (scanner capture, dodge/burn, gear library, soft proof, conta
 See **[PLAN.md](PLAN.md)** for the full roadmap. Contributors and agents: read **[AGENTS.md](AGENTS.md)** first.
 
 ```bash
-make sync               # init submodule + uv sync (first time)
-make test               # native SwiftPM tests + Swift UI tests + engine pytest
-make test-native-engine # NegSwiftEngine package only
-make bench-engine       # M12: refresh synthetic perf baseline JSON
-make compare-engines    # Python vs Swift display MAE (informational)
-make build-app          # Xcode Debug build
-make build-release      # PyInstaller engine + Xcode Release build
-make bundle-engine      # freeze negswift-engine only (smoke test)
+make sync                  # init submodule + uv sync (oracle / pytest)
+make test                  # native SwiftPM + Swift tests + engine pytest
+make test-native-engine    # NegSwiftEngine package only
+make bench-engine          # M12: refresh synthetic perf baseline JSON
+make compare-engines       # Python vs Swift display MAE (informational)
+make build-app             # Swift Debug build (no sync required)
+make build-release         # Swift Release .app (no bundled Python)
+make build-release-python  # oracle Release .app + PyInstaller engine
+make bundle-engine         # freeze negswift-engine only (smoke test)
 ```
 
 ## Layout
@@ -64,21 +65,19 @@ NegSwift/
 ```bash
 git clone --recurse-submodules https://github.com/gacevedo/NegSwift.git
 cd NegSwift
-make sync
-make test
-make build-app   # Xcode Debug build; run from Xcode (⌘R)
+make build-app   # Swift default; run from Xcode (⌘R) with scheme NegSwift
+make test        # needs make sync for engine pytest
 ```
 
 If you already cloned without submodules:
 
 ```bash
 git submodule update --init --recursive
-make sync
 ```
 
-**Python backend (default):** Debug builds spawn the venv engine at `Engine/.venv/bin/negswift-engine` (run `make sync` first). Override the subprocess path with the `NEGSWIFT_ENGINE` env var in the Xcode scheme.
+**Swift backend (default):** scheme **NegSwift** — in-process engine, no Python venv for preview/export. Camera RAW needs `brew install libraw`.
 
-**Swift backend:** Choose **Swift (native)** in Settings. The engine runs in-process — no Python venv required for preview/export on that path. The standalone CLI `negswift-engine-swift serve --stdio` lives under `Packages/NegSwiftEngine` and passes the same protocol tests (`make test-s7-stdio`).
+**Python oracle:** scheme **NegSwift-Python** or `make build-app-python` after `make sync`. Override the subprocess path with the `NEGSWIFT_ENGINE` env var. The standalone CLI `negswift-engine-swift serve --stdio` passes protocol tests via `make test-s7-stdio`.
 
 NegPy contributors can point the Python engine at a sibling checkout via `Engine/pyproject.override.toml` (see [Engine/README.md](Engine/README.md)).
 
@@ -88,7 +87,8 @@ Distribution builds, signing, and notarization: [docs/RELEASE.md](docs/RELEASE.m
 
 | Doc | Purpose |
 |-----|---------|
-| [PLAN.md](PLAN.md) | Roadmap and milestones (M0–M15 + S0–S14) |
+| [PLAN.md](PLAN.md) | Roadmap and milestones (M0–M16 + S0–S14) |
+| [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md) | Build-time Swift vs Python engine |
 | [AGENTS.md](AGENTS.md) | Agent and contributor conventions |
 | [docs/ENGINE_PROTOCOL.md](docs/ENGINE_PROTOCOL.md) | NDJSON IPC between app and engine |
 | [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) | Batch export design |

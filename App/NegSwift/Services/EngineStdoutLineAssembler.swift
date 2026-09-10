@@ -3,6 +3,7 @@
 //  NegSwift
 //
 
+#if NEGSWIFT_ENGINE_PYTHON
 import Foundation
 
 /// Serializes stdout pipe chunks into complete NDJSON lines (order-preserving).
@@ -36,3 +37,4 @@ final class EngineStdoutLineAssembler: @unchecked Sendable {
         }
     }
 }
+#endif

@@ -54,17 +54,44 @@ protocol EngineBackend: Sendable {
     func hasSettledPreviewDiskCache(path: String, config: FrameEditState?, previewLongEdgePx: Int) async -> Bool
 }
 
-enum EngineBackendFactory {
-    static func make(_ kind: EngineBackendKind) -> any EngineBackend {
-        switch kind {
-        case .python:
-            PythonEngineBackend()
-        case .swift:
-            NativeEngineBackend()
-        }
+#if NEGSWIFT_ENGINE_PYTHON
+typealias SelectedEngineBackend = PythonEngineBackend
+
+enum BuiltInEngineBackend {
+    static let label = "Python (oracle)"
+    static var usesProgressiveFirstPaint = false
+    static var showsPythonRuntime = true
+    static var showsNegPyBranding = true
+    static let userDataSectionTitle = "Engine data"
+    static let userDataPickerLabel = "NegPy data folder"
+    static let userDataSectionFooter =
+        "Stores edits.db and cache. Choose NegPy desktop to share the database with full NegPy. "
+        + "Changing this restarts the engine."
+    static let engineDataStatusLabel = "Data"
+    static var selectableUserDataLocations: [NegPyUserDataLocation] {
+        NegPyUserDataLocation.allCases
     }
 }
+#else
+typealias SelectedEngineBackend = NativeEngineBackend
 
+enum BuiltInEngineBackend {
+    static let label = "Swift (native)"
+    static var usesProgressiveFirstPaint = true
+    static var showsPythonRuntime = false
+    static var showsNegPyBranding = false
+    static let userDataSectionTitle = "App data"
+    static let userDataPickerLabel = "Data folder"
+    static let userDataSectionFooter =
+        "Stores preview cache and local app data. Changing this restarts the engine."
+    static let engineDataStatusLabel = "Cache"
+    static var selectableUserDataLocations: [NegPyUserDataLocation] {
+        [.negSwift, .custom]
+    }
+}
+#endif
+
+#if NEGSWIFT_ENGINE_PYTHON
 actor PythonEngineBackend: EngineBackend {
     private let client = EngineClient()
 
@@ -183,6 +210,7 @@ actor PythonEngineBackend: EngineBackend {
         false
     }
 }
+#endif
 
 actor NativeEngineBackend: EngineBackend {
     /// Bumped on ``stop`` so an in-flight detached render is discarded.

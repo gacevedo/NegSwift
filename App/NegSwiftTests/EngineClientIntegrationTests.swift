@@ -3,6 +3,7 @@
 //  NegSwiftTests
 //
 
+#if NEGSWIFT_ENGINE_PYTHON
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -141,3 +142,4 @@ struct EngineClientIntegrationTests {
         return dest
     }
 }
+#endif

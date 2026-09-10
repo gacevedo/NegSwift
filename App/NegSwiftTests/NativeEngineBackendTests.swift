@@ -157,16 +157,6 @@ struct NativeEngineBackendTests {
         #expect(loaded.config["sharpen"] != nil)
     }
 
-    @Test func factoryDefaultIsPython() {
-        let backend = EngineBackendFactory.make(.python)
-        #expect(backend is PythonEngineBackend)
-    }
-
-    @Test func factoryMakesSwiftBackend() {
-        let backend = EngineBackendFactory.make(.swift)
-        #expect(backend is NativeEngineBackend)
-    }
-
     @Test func openReportsSourceDimensions() async throws {
         let backend = NativeEngineBackend()
         let result = try await backend.open(path: sampleTIFFPath, includeSplash: false, config: nil)

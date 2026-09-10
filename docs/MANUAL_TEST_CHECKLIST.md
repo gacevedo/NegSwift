@@ -285,9 +285,22 @@ See [PLAN.md](../PLAN.md) §7 M15.
 
 ---
 
+## M16 — Build-time engine selection ✅
+
+See [PLAN.md](../PLAN.md) §7 M16 and [ENGINE_SELECTION.md](ENGINE_SELECTION.md).
+
+- [x] `make build-app` succeeds without `make sync` (Swift default)
+- [x] Settings has **no** Engine picker
+- [x] Engine sheet reports **Swift (native)** on default build
+- [x] Import → preview → export works with no Python venv (default scheme **NegSwift**)
+- [x] `make build-release` produces `.app` without `Contents/Resources/engine/`
+- [ ] `make build-release-python` smoke: oracle app imports → preview → export on a Mac without system Python
+
+---
+
 ## Native Swift engine (S0–S14)
 
-Python remains the default backend. A/B means Preferences **Engine: Python | Swift** on the **same** named scan, then the checks below. Do not fail a vertical for items listed under **Still wrong** in the native-engine plan. Do not compare Swift-at-S4 to Python-at-app-defaults (autos + sharpen on) — that is S5+S8.
+Swift is the default **app** backend (M16). Parity A/B uses `make compare-*` scripts or a **NegSwift-Python** build on the **same** named scan, then the checks below. Do not fail a vertical for items listed under **Still wrong** in the native-engine plan. Do not compare Swift-at-S4 to Python-at-app-defaults (autos + sharpen on) — that is S5+S8.
 
 Pinned S4 config (both backends): `auto_exposure=false`, `auto_normalize_contrast=false`, Lab off (`sharpen=0`, `skin_protection=0`, `saturation=1`), identity geometry, no heal/dust, `cast_removal_strength=0.5` (C-41), Neutral paper, BPC on (`paper_black=false`).
 
@@ -298,8 +311,8 @@ Pinned S8 config (both backends): S5 pin plus Lab defaults (`saturation=1`, `sha
 ### S0 — Scaffold, A/B hook, harness
 
 - [x] `Packages/NegSwiftEngine` builds for macOS (`make test-native-engine`)
-- [x] Preferences shows **Engine: Python | Swift**; Python is default
-- [x] Switching backend restarts the session (workspace preserved)
+- [x] ~~Preferences Engine toggle~~ removed in M16 — use `NegSwift-Python` scheme or `make compare-*` for A/B
+- [x] ~~Switching backend restarts session~~ — build-time selection only (M16)
 - [x] MAE harness runs on `/Users/gacevedo/Downloads/Kodak\ Portra\ Gold\ 120\ K6500-008.TIFF` and writes a report (no look claim) — `make compare-engines`
 - [x] Header above names a local C-41 TIFF ≥16 MP
 - [x] Still wrong at S0: Swift preview was a gray stub. From S2 it is a log-normalized positive (harsh/flat vs Python; not a look claim)

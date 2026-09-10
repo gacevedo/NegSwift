@@ -3,6 +3,7 @@
 //  NegSwift
 //
 
+#if NEGSWIFT_ENGINE_PYTHON
 import Foundation
 import os
 
@@ -101,3 +102,4 @@ final class EngineProcess: @unchecked Sendable {
         stdoutHandle = nil
     }
 }
+#endif

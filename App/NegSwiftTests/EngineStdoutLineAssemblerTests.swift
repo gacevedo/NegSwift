@@ -3,6 +3,7 @@
 //  NegSwiftTests
 //
 
+#if NEGSWIFT_ENGINE_PYTHON
 import Foundation
 import Testing
 @testable import NegSwift
@@ -41,3 +42,4 @@ struct EngineStdoutLineAssemblerTests {
         #expect(lines == ["{\"id\":\"a\"}", "{\"id\":\"b\"}"])
     }
 }
+#endif

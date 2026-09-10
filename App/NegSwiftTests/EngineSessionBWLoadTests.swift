@@ -62,10 +62,18 @@ struct EngineSessionBWLoadTests {
         await session.stop()
     }
 
+    private static var engineVenvRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Engine/.venv")
+    }
+
     private static func engineAvailable() throws -> Bool {
-        let executable = try EngineLocator.executableURL()
-        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
-            Issue.record("Dev engine not found at \(executable.path). Run `cd Engine && uv sync`.")
+        let python = engineVenvRoot.appendingPathComponent("bin/python3")
+        guard FileManager.default.isExecutableFile(atPath: python.path) else {
+            Issue.record("Engine venv python missing at \(python.path). Run `cd Engine && uv sync`.")
             return false
         }
         return true
@@ -76,9 +84,7 @@ struct EngineSessionBWLoadTests {
         let fileName = name ?? "bw-\(UUID().uuidString).tif"
         let url = (directory ?? FileManager.default.temporaryDirectory)
             .appendingPathComponent(fileName)
-        let engineRoot = try EngineLocator.executableURL()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
+        let engineRoot = engineVenvRoot
         let python = engineRoot.appendingPathComponent("bin/python3")
         guard FileManager.default.isExecutableFile(atPath: python.path) else {
             throw NSError(domain: "EngineSessionBWLoadTests", code: 1, userInfo: [

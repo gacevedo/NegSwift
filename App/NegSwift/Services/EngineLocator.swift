@@ -5,6 +5,7 @@
 
 import Foundation
 
+#if NEGSWIFT_ENGINE_PYTHON
 enum EngineLocator {
     static let bundledRelativePath = "engine/negswift-engine"
 
@@ -64,6 +65,7 @@ enum EngineLocatorError: LocalizedError {
         }
     }
 }
+#endif
 
 enum ProcessInfoPreview {
     static var isRunningForPreviews: Bool {

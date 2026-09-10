@@ -18,9 +18,6 @@ final class NegSwiftUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
-        if FileManager.default.isExecutableFile(atPath: NegSwiftUITestCase.engineExecutablePath) {
-            app.launchEnvironment["NEGSWIFT_ENGINE"] = NegSwiftUITestCase.engineExecutablePath
-        }
         app.launchArguments.append(UITestLaunch.launchArgument)
         app.launch()
 

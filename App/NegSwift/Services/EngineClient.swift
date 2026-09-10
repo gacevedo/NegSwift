@@ -337,6 +337,7 @@ enum EngineClientError: LocalizedError {
     }
 }
 
+#if NEGSWIFT_ENGINE_PYTHON
 /// NDJSON client over a long-lived `serve --stdio` process.
 actor EngineClient {
     private let processOwner = EngineProcess()
@@ -773,3 +774,4 @@ private extension Encodable {
         return try JSONSerialization.jsonObject(with: data)
     }
 }
+#endif

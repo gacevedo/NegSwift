@@ -156,9 +156,9 @@ cd Engine && uv run pytest tests/test_perf.py -v
 
 ## Native Swift engine (S13 first-load)
 
-Separate from the M12 Python IPC harness above. S13a–k optimized slider reprints, fused first-open decode, Accelerate convert/resize, splash/cheap thumbs, progressive first paint, GPU present without float readback, X-Trans preview PPG, queue/prefetch, and processed-preview disk cache (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests` + `ProgressivePaintTests` + `GPUPresentTests` + `RawDecodeTests` + `QueuePrefetchTests` + `ProcessedPreviewDiskCacheTests`). In-process preview presents an Adobe RGB `CIImage` / `CGImage` from an `rgba16Float` IOSurface; export / CLI / MAE still `getBytes`.
+Separate from the M12 Python IPC harness above. S13a–m optimized slider reprints, fused first-open decode, Accelerate convert/resize, splash/cheap thumbs, progressive first paint, GPU present without float readback, X-Trans preview PPG, queue/prefetch, processed-preview disk cache, and **`target_px` export at export long edge with preview cache reuse** (`make compare-s13` = reprint cache + Metal geometry + `DecodeReuseTests` + `AccelerateConvertTests` + `SplashThumbTests` + `ProgressivePaintTests` + `GPUPresentTests` + `RawDecodeTests` + `QueuePrefetchTests` + `ProcessedPreviewDiskCacheTests` + `ExportPerfTests`; `make compare-s9-target` = Python-vs-Swift `target_px` MAE). In-process preview presents an Adobe RGB `CIImage` / `CGImage` from an `rgba16Float` IOSurface; export / CLI / MAE still use CPU encoded readback.
 
-`make compare-s13` includes decode-reuse, Accelerate convert, splash/thumb, progressive-paint, queue/prefetch, and disk preview cache tests. Do not add a `make bench-native` target until a script exists.
+`make compare-s13` includes decode-reuse, Accelerate convert, splash/thumb, progressive-paint, queue/prefetch, disk preview cache, and export-perf tests. Do not add a `make bench-native` target until a script exists.
 
 When `NEGSWIFT_PERF_LOG=1` and `PipelineStats` grow stage timers, record:
 
@@ -174,6 +174,7 @@ When `NEGSWIFT_PERF_LOG=1` and `PipelineStats` grow stage timers, record:
 | `native_first_open_ms` | `selectFrame` cold (no preview memo) |
 | `native_first_paint_ms` | S13g draft print (`PipelineStats` / `native_first_paint`) |
 | `native_full_preview_ms` | S13g settled refine (`PipelineStats` / `native_full_preview`) |
+| `native_export_ms` | S13m `export()` (`PipelineStats.exportMs` / `NEGSWIFT_PERF_LOG`) |
 | `native_thumb_ms` | One strip thumb |
 
 S13 phase order and gates: [PLAN.md](../PLAN.md) §14. Human rows: [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) § S13.

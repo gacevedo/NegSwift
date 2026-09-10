@@ -107,6 +107,7 @@ compare-s13:
 	cd Packages/NegSwiftEngine && swift test --filter RawDecodeTests
 	cd Packages/NegSwiftEngine && swift test --filter QueuePrefetchTests
 	cd Packages/NegSwiftEngine && swift test --filter ProcessedPreviewDiskCacheTests
+	cd Packages/NegSwiftEngine && swift test --filter ExportPerfTests
 
 # S13i: time X-Trans preview AHD+OpenMP vs PPG+1-thread (skip-if-missing local RAF).
 compare-s13i-timing:

@@ -30,7 +30,7 @@ Advanced workflows (scanner capture, dodge/burn, gear library, soft proof, conta
 |-------|--------|
 | **M0–M15** (lite shell) | **Feature complete** — import, controls, crop, export, batch export, scratch tool, zone tone |
 | **M12** (performance) | **In progress** — JPEG preview transport and instant revisit done; manual benches remain |
-| **S0–S14** (native engine) | **S13 reopened** — S13a–k and S14 camera RAW shipped; next **S13m** export performance |
+| **S0–S14** (native engine) | **S13 automated done** — S13a–m and S14 camera RAW shipped; optional S13l + human rows remain |
 
 See **[PLAN.md](PLAN.md)** for the full roadmap. Contributors and agents: read **[AGENTS.md](AGENTS.md)** first.
 

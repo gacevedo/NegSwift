@@ -54,6 +54,7 @@ make compare-s12                           # S12: CPU-vs-Metal MAE on used WGSL 
 make compare-s13                           # S13a–k: reprint + geometry + decode reuse + Accelerate + splash/thumbs + progressive paint + GPU present + RAW PPG + queue/prefetch + disk preview cache
 make compare-s14                           # S14: RAW linear + S8 MAE (synthetic DNG; skip-if-missing locals)
 make compare-s9                            # S9: Python vs Swift export dimensions
+make compare-s9-target                     # S13m: Python vs Swift target_px export MAE
 make test-s9-stdio                         # S9: test_export.py against Swift serve --stdio
 ```
 
@@ -101,9 +102,9 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M14** | **Done** — Batch export (sheet scope + tests) — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** | **Done** — Zone tone controls (shadows/highlights density + split grade) |
 | **M16** | **Done** — Build-time engine selection; Swift default — [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md) |
-| **S0–S14** | Native Swift engine — **S13 reopened**. Next **S13m** export perf. S13k disk cache is in. S14 RAW look is in. Checklist § S0–S14 |
+| **S0–S14** | Native Swift engine — **S13 automated done** (optional S13l; human rows open). S13m export perf is in. S14 RAW look is in. Checklist § S0–S14 |
 
-**Current status (2026-09-08):** M0–M16 feature complete. **M16** — Swift is the default app backend; Python oracle via `NegSwift-Python` / `make build-release-python`. Native engine **S14** is in. **S13** is reopened (next **S13m** export perf). **M12** manual benches remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Camera RAW on the Swift backend needs Homebrew `libraw`. `NEGSWIFT_LIBRAW=0 swift test` still builds the stub. iOS is out of scope (GPL vs App Store).
+**Current status (2026-09-09):** M0–M16 feature complete. **M16** — Swift is the default app backend; Python oracle via `NegSwift-Python` / `make build-release-python`. Native engine **S14** is in; **S13m** export perf is in. **M12** manual benches and **S13 human rows** remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Camera RAW on the Swift backend needs Homebrew `libraw`. `NEGSWIFT_LIBRAW=0 swift test` still builds the stub. iOS is out of scope (GPL vs App Store).
 
 ## Architecture rules
 

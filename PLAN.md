@@ -8,7 +8,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 ---
 
-## Plan status (last updated: 2026-09-08)
+## Plan status (last updated: 2026-09-09)
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
@@ -30,9 +30,9 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M14** Batch export | **Done** | Sheet scope + tests — [docs/BATCH_EXPORT.md](docs/BATCH_EXPORT.md) |
 | **M15** Zone tone controls | **Done** | Shadows/Highlights Density + Shadows/Highlights Grade (ISO-R split grade), same as NegPy Tone panel |
 | **M16** Build-time engine | **Done** | Runtime toggle removed; **Swift default**; oracle via `NegSwift-Python` scheme. See §7 M16, [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md) |
-| **S0–S14** Native Swift engine | **S13 reopened** | S13a–k done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch + disk preview cache). Next: **S13m** export perf. S14 RAW look is in. See §14 |
+| **S0–S14** Native Swift engine | **S13 done** (human + optional S13l) | S13a–m done (through export perf). Optional **S13l** (Metal dust / autocrop / histograms) only if profiling shows hot CPU stages. S14 RAW look is in. See §14 |
 
-**Resume here:** Native engine **S13m** (export performance). **M16** build-time engine selection is done. S13a–k shipped (slider reprints, one linear decode per file, vImage/vDSP convert/resize, embedded-preview splash + cheap strip thumbs, progressive draft / refine first paint, GPU present without float readback, X-Trans preview PPG + one libraw handle per file, parallel TIFF/JPEG decode with selected-frame priority and neighbor linear prefetch, processed-preview disk cache + longer-lived working sets). S9 export look is in (`original` + `target_px` downsample); export still runs full-res pipeline unless S13m lands. S14 camera RAW is in (oracle for S13i). See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+**Resume here:** **M12 manual benches** on a real ≥20 MP scan ([docs/PERFORMANCE.md](docs/PERFORMANCE.md)); **S13 human rows** in [docs/MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) § S13; then **release smoke** (M10 checklist) and sign/notarize per [docs/RELEASE.md](docs/RELEASE.md). Native engine **S13m** export perf is in (`target_px` prints at export long edge, reuses preview cache, `make compare-s9-target`, `ExportPerfTests`). Full-res `original` export and JPEG/TIFF encode still use CPU readback by design.
 
 **Verify:** `make test` · `make build-app` (Swift default; no `make sync` required) · `make build-release` · copy `.app` to Mac without Python.
 
@@ -875,7 +875,7 @@ HDR merge seeding of `shadow_density` (`seed_shadow_density`) is NegPy desktop b
 
 Remove **runtime** dual-engine support. Each built `.app` links exactly one rendering backend, chosen at **build time**. **Swift (native)** is the default for Debug, Release, CI, and `make build-release`. The Python `negswift-engine` subprocess path remains in the repo as the **parity oracle** — not a user-facing Settings toggle.
 
-**Non-goals:** Deleting `Engine/` or `Vendor/NegPy`; removing `negswift-engine-swift serve --stdio`; finishing S13m before M16 (can land in parallel).
+**Non-goals:** Deleting `Engine/` or `Vendor/NegPy`; removing `negswift-engine-swift serve --stdio`.
 
 #### Current vs target
 
@@ -1085,7 +1085,7 @@ NegSwift is **macOS-only**. `Packages/NegSwiftEngine` exists to replace the Pyth
 3. **M15:** Wire zone tone sliders (shadows/highlights density + ISO-R split grade) per §7 M15. — **Done**
 4. **Ship:** Sign and notarize per `docs/RELEASE.md` when ready to distribute.
 5. **M16:** Build-time engine selection — **Done**. See §7 M16, [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md).
-6. **Native engine S13:** First-load performance — **S13k done**; next **S13m** (export perf). S13a–k stay done. See §14.
+6. **Native engine S13:** **S13a–m done**; optional **S13l** if profiling shows hot CPU stages. Close remaining human rows in the checklist. See §14.
 
 ---
 
@@ -1107,21 +1107,21 @@ S13 phase cards live in this section. Human rows are in [`docs/MANUAL_TEST_CHECK
 | **S6** | Stored crop / 90° / flip / fine rot | Overlay + export dims |
 | **S7** | `.negpy` + `serve --stdio` | Quit/reopen; desktop NegPy opens sidecar |
 | **S8** | Lab sat + sharpen 0.25 + skin 0.5 | Default look lock |
-| **S9** | sRGB JPEG/TIFF export | **Done** — goldens / stdio for `original` + `target_px` downsample; Instagram long-edge in Export sheet + Quick Export. Full-res `original` and encode path still CPU readback. Perf: **S13m**. |
+| **S9** | sRGB JPEG/TIFF export | **Done** — goldens / stdio for `original` + `target_px` downsample; Instagram long-edge in Export sheet + Quick Export. Full-res `original` and encode path still CPU readback. `target_px` perf: **S13m** (done). |
 | **S10a** | Heal mapping + preview inpaint | **Done** — ⇧S / ⌘Z / rotate / sidecar restore |
 | **S10b** | Optical dust | **Done** — Preferences toggle vs Python on a dirty scan |
 | **S11** | Autocrop detect-once | **Done** — holder fixture + detect-once stdio; human holder-scan A/B done |
 | **S12** | Metal (optional) | **Done** — CPU-vs-Metal MAE (`make compare-s12`); slider feel on ~20 MP. Not a look gate. |
-| **S13** | Interactive + first-load performance | **Reopened** — S13a–k done (slider reprints + one decode + Accelerate + splash/thumbs + progressive first paint + GPU present + X-Trans PPG + queue/prefetch + disk preview cache). **S13l–m** open (optional later GPU / **export perf**). Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE). |
+| **S13** | Interactive + first-load performance | **Done** (automated) — S13a–m shipped. **S13l** optional (Metal dust / autocrop / histograms if profiling shows hot CPU stages). Human checklist rows remain. Not a look gate except S13i X-Trans PPG (keep S8/S14 MAE). |
 | **S14** | Camera RAW (LibRaw) | **Done** — sensor-native linear for NegPy’s camera RAW list; ImageIO is not the look path. Preview/thumb uses LibRaw `half_size` (Bayer) like NegPy |
 
 Do not start S12–S14 before S4a. Do not start S11 before S6. Do not compare Swift-at-S4 to Python-at-app-defaults.
 
 ### S13 — Interactive + first-load performance
 
-S13a–k shipped (slider reprints + one linear decode per file + Accelerate convert/resize + embedded-preview splash + cheap strip thumbs + progressive draft / refine first paint + GPU present without float `getBytes` + X-Trans preview PPG + queue/prefetch + processed-preview disk cache). In-process preview presents an Adobe RGB `CIImage` from an `rgba16Float` IOSurface. **Export / CLI stay CPU encoded readback** and, today, usually **full-res decode + full print pipeline** even for `target_px` / Quick Export (downsample is last). **S13m** closes that gap.
+S13a–m shipped (slider reprints + one linear decode per file + Accelerate convert/resize + embedded-preview splash + cheap strip thumbs + progressive draft / refine first paint + GPU present without float `getBytes` + X-Trans preview PPG + queue/prefetch + processed-preview disk cache + **`target_px` export at export long edge with preview cache reuse**). In-process preview presents an Adobe RGB `CIImage` from an `rgba16Float` IOSurface. **Export / CLI stay CPU encoded readback**; full-res `original` export (RAW AHD) is unchanged by design.
 
-Sequence: **S13d → S13e → S13f → S13g** in parallel with **S13i → S13h → S13j → S13k → S13m**. **S13l** (Metal dust / autocrop / histograms) only if Instruments shows those CPU stages hot.
+Sequence: **S13d → S13e → S13f → S13g** in parallel with **S13i → S13h → S13j → S13k → S13m** (all done). **S13l** (Metal dust / autocrop / histograms) only if Instruments shows those CPU stages hot.
 
 | Phase | Focus | Gate |
 |-------|--------|------|
@@ -1137,9 +1137,9 @@ Sequence: **S13d → S13e → S13f → S13g** in parallel with **S13i → S13h �
 | **S13j** | Queue split and prefetch | **Done** — TIFF/JPEG decode in parallel; RAW serial. Selected-frame preview outranks strip. Neighbor prefetch loads linear buffers (`QueuePrefetchTests`). |
 | **S13k** | Longer-lived caches | **Done** — `ProcessedPreviewDiskCache` (path + mtime + sidecar + config fingerprint) under `~/Library/Application Support/NegSwift/processed_previews`. Reprint / linear / Metal working sets raised (16 / 16+1.2 GB / 12). `ProcessedPreviewDiskCacheTests`. Human quit/reopen row still open. |
 | **S13l** | Later GPU stages (optional) | Metal dust / autocrop / histograms only if Instruments still shows those CPU stages hot after S13d–h. UX knobs (Fast 1200, defer autocrop, process-mode from splash) were tried and dropped. Optional; profile first. |
-| **S13m** | Export performance | **Open** — `export()` always calls `renderPrint(longEdgePx: nil)` (full-res linear decode; camera RAW uses full AHD, not preview PPG / `half_size`), then optional `areaDownsampled` for `target_px`. Reprint cache is off when `longEdgePx` is nil, so export after preview still re-decodes. **Work:** (1) when `export_resolution_mode == target_px`, decode + print at `export_target_long_edge_px` instead of full-res-then-shrink (Quick Export / Instagram sizes); (2) reuse settled preview reprint / linear cache when export edge ≤ preview edge and config matches; (3) log `native_export_ms` under `NEGSWIFT_PERF_LOG`; (4) extend `make compare-s9` or add `compare-s9-target` MAE at pinned `target_px`. Full-res `original` export keeps AHD on RAW. Gate: dimensions + MAE — not a new look milestone. |
+| **S13m** | Export performance | **Done** — `target_px` calls `renderPrint(longEdgePx: export_target_long_edge_px)` (not full-res-then-shrink); reuses settled preview linear / reprint cache when export edge ≤ preview edge; logs `native_export_ms` under `NEGSWIFT_PERF_LOG`; `make compare-s9-target` + `ExportPerfTests`. Full-res `original` export keeps AHD on RAW. Gate: dimensions + MAE — not a new look milestone. |
 
-S14 RAW look gates stay closed; S13 consumes them as oracles. `make compare-s13` is reprint + geometry + decode reuse + Accelerate convert + splash/thumbs + progressive paint + GPU present + RAW PPG (`RawDecodeTests`) + queue/prefetch (`QueuePrefetchTests`) + disk preview cache (`ProcessedPreviewDiskCacheTests`). Export perf is tracked under **S13m**, not S9.
+S14 RAW look gates stay closed; S13 consumes them as oracles. `make compare-s13` is reprint + geometry + decode reuse + Accelerate convert + splash/thumbs + progressive paint + GPU present + RAW PPG (`RawDecodeTests`) + queue/prefetch (`QueuePrefetchTests`) + disk preview cache (`ProcessedPreviewDiskCacheTests`) + export perf (`ExportPerfTests`). `make compare-s9-target` is the Python-vs-Swift `target_px` MAE gate.
 
 ---
 
@@ -1190,4 +1190,4 @@ flowchart LR
   S14 --> M16
 ```
 
-M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work. **M16** depends on S14 (Swift default is shippable) and can overlap **S13m**. Native engine **S0–S14** is a parallel track (§14); S11 depends on S6 stored-crop, S12–S14 depend on S4a goldens. **S13** first-load is open.
+M1–M3 require no Swift. M4 is the first end-to-end user-visible app. **M9b blocks M10** — submodule pin before bundling. **M12** is independent of release signing; run measurement (Phase 0) before optimization PRs. **M15** is Swift-only UI on top of M6 controls — no engine work. **M16** depends on S14 (Swift default is shippable). Native engine **S0–S14** is a parallel track (§14); S11 depends on S6 stored-crop, S12–S14 depend on S4a goldens. **S13** automated gates are closed; human rows and optional **S13l** remain.

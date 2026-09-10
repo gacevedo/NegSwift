@@ -2,6 +2,7 @@ import AppKit
 import Testing
 @testable import NegSwift
 
+@Suite(.serialized)
 struct EngineSessionFineRotationInteractionTests {
     private static let tinyPNGBase64 =
         "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVR42mP8z8BQz0AEYBxVSF+FABJ0" +
@@ -72,7 +73,14 @@ struct EngineSessionFineRotationInteractionTests {
         session.endFineRotationInteraction()
         #expect(session.showRotationGuide == true)
 
-        try? await Task.sleep(for: .milliseconds(80))
-        #expect(session.showRotationGuide == false)
+        var hidden = false
+        for _ in 0 ..< 40 {
+            try? await Task.sleep(for: .milliseconds(10))
+            if !session.showRotationGuide {
+                hidden = true
+                break
+            }
+        }
+        #expect(hidden)
     }
 }

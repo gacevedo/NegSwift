@@ -9,7 +9,11 @@ import Testing
 @testable import NegSwift
 import NegSwiftEngine
 
-private let sampleTIFFPath = "/Users/gacevedo/Development/NegSwift/App/NegSwiftUITests/Fixtures/sample.tif"
+private let sampleTIFFPath = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent("NegSwiftUITests/Fixtures/sample.tif")
+    .path
 
 @Suite(.serialized)
 struct NativeEngineBackendTests {
@@ -43,9 +47,10 @@ struct NativeEngineBackendTests {
         }
     }
 
-    @Test func metalPreviewDoesNotDownloadFullFloatBuffer() async throws {
-        try #require(MetalDevice.isAvailable)
+    @Test(.enabled(if: MetalDevice.isAvailable))
+    func metalPreviewDoesNotDownloadFullFloatBuffer() async throws {
         NativePipeline.resetWorkingSets()
+        PipelineStats.reset()
         let backend = NativeEngineBackend()
         let result = try await backend.render(
             path: sampleTIFFPath,
@@ -183,6 +188,7 @@ struct NativeEngineBackendTests {
         let url = try writeFrameTIFF(width: 48, height: 32)
         defer { try? FileManager.default.removeItem(at: url) }
         NativePipeline.resetWorkingSets()
+        PipelineStats.reset()
         let backend = NativeEngineBackend()
         let result = try await backend.render(
             path: url.path,
@@ -384,25 +390,35 @@ struct NativeEngineBackendTests {
     }
 
     @Test func exportAppliesCropAndShrinksPixels() async throws {
+        NativePipeline.resetWorkingSets()
+        let scan = try writeFrameTIFF(width: 160, height: 120)
+        defer { try? FileManager.default.removeItem(at: scan) }
         let backend = NativeEngineBackend()
         let dest = FileManager.default.temporaryDirectory
             .appendingPathComponent("negswift-s9-be-crop-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: dest) }
+        var exportSettings = ExportSettings.quickExport()
+        exportSettings.resolutionMode = .original
+        var fullConfig = FrameEditState()
+        fullConfig.autoCropEnabled = false
+        fullConfig.cropFromAuto = false
         let full = try await backend.export(
-            path: sampleTIFFPath,
+            path: scan.path,
             destDir: dest.appendingPathComponent("full").path,
-            config: FrameEditState(),
-            export: ExportSettings.quickExport(),
+            config: fullConfig,
+            export: exportSettings,
             preferGPU: false
         )
         var cropped = FrameEditState()
+        cropped.autoCropEnabled = false
         cropped.manualCropRect = NormalizedRect(x1: 0.25, y1: 0.25, x2: 0.75, y2: 0.75)
         cropped.cropFromAuto = false
+        cropped.autoDensityUsesCrop = false
         let cut = try await backend.export(
-            path: sampleTIFFPath,
+            path: scan.path,
             destDir: dest.appendingPathComponent("crop").path,
             config: cropped,
-            export: ExportSettings.quickExport(),
+            export: exportSettings,
             preferGPU: false
         )
         #expect(cut.width * cut.height < full.width * full.height)

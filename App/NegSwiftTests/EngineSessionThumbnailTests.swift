@@ -8,10 +8,12 @@ import CoreGraphics
 import Testing
 @testable import NegSwift
 
+@Suite(.serialized)
 struct EngineSessionThumbnailTests {
     @Test @MainActor func stripThumbnailsUseNativePreviewWhenEncodedImageIsMissing() async {
         let session = EngineSession.preview
-        session.setCurrentPathForTests(nil)
+        session.setCurrentPathForTests(session.frames[0].path)
+        session.setPreviewSettledForTests(true)
         session.setPreviewImageForTests(nil)
         session.setFrameEditForTests(path: session.frames[0].path, edit: FrameEditState())
         session.setFrameEditForTests(path: session.frames[1].path, edit: FrameEditState())
@@ -50,7 +52,8 @@ struct EngineSessionThumbnailTests {
         }
         session.setFramesForTests(frames)
         session.setFilmStripSelectionForTests(primary: frames[0].id, ids: [frames[0].id])
-        session.setCurrentPathForTests(nil)
+        session.setCurrentPathForTests(frames[0].path)
+        session.setPreviewSettledForTests(true)
         session.setPreviewImageForTests(nil)
         for frame in frames {
             session.setFrameEditForTests(path: frame.path, edit: FrameEditState())

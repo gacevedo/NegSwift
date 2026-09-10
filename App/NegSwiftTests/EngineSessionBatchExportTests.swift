@@ -7,6 +7,7 @@ import Foundation
 import Testing
 @testable import NegSwift
 
+@Suite(.serialized)
 struct EngineSessionBatchExportTests {
     @MainActor
     private func makeSessionWithFrames(_ count: Int) -> EngineSession {

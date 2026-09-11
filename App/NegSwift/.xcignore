@@ -1,3 +1,0 @@
-# PyInstaller output must not enter the synchronized Xcode group — it flattens
-# nested package metadata (INSTALLER, METADATA, …) into Resources and breaks Release builds.
-Resources/engine

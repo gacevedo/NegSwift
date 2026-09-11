@@ -5,7 +5,7 @@ macOS-native app for **quick film scan processing** — import negatives, adjust
 | Backend | Role | How it runs |
 |---------|------|-------------|
 | **Swift (native)** — default | Approved in-process port of the NegSwift lite path | Linked into the app; no subprocess |
-| **Python (oracle)** — build-time only | Full [NegPy](https://github.com/marcinz606/NegPy) pipeline | Separate `negswift-engine` subprocess; optional `make build-release-python` |
+| **Python (oracle)** — dev only | Full [NegPy](https://github.com/marcinz606/NegPy) pipeline | `Engine/.venv` subprocess via **NegSwift-Python** scheme; not shipped |
 
 Both backends speak the same [NDJSON protocol](docs/ENGINE_PROTOCOL.md). Engine selection is **compile-time** — see [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md).
 
@@ -41,9 +41,7 @@ make test-native-engine    # NegSwiftEngine package only
 make bench-engine          # M12: refresh synthetic perf baseline JSON
 make compare-engines       # Python vs Swift display MAE (informational)
 make build-app             # Swift Debug build (no sync required)
-make build-release         # Swift Release .app (no bundled Python)
-make build-release-python  # oracle Release .app + PyInstaller engine
-make bundle-engine         # freeze negswift-engine only (smoke test)
+make build-release         # Swift Release .app
 ```
 
 ## Layout
@@ -54,7 +52,7 @@ NegSwift/
 ├── Packages/NegSwiftEngine/ # native Swift engine + negswift-engine-swift CLI
 ├── App/                    # SwiftUI macOS app (Xcode)
 ├── Engine/                 # thin Python daemon + CLI (imports negpy)
-├── Packaging/              # PyInstaller bundle scripts + frozen engine output
+├── Packaging/              # signing + notarization scripts
 └── docs/                   # protocol, performance, batch export, release, manual checklist
 ```
 

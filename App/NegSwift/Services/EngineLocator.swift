@@ -7,8 +7,6 @@ import Foundation
 
 #if NEGSWIFT_ENGINE_PYTHON
 enum EngineLocator {
-    static let bundledRelativePath = "engine/negswift-engine"
-
     /// Resolved path to `negswift-engine` for the current build.
     static func executableURL(bundle: Bundle = .main) throws -> URL {
         for candidate in candidateURLs(bundle: bundle) {
@@ -23,24 +21,17 @@ enum EngineLocator {
         throw EngineLocatorError.notConfigured
     }
 
-    /// Search order: `NEGSWIFT_ENGINE` env → bundled Resources → Info.plist dev path.
+    /// Search order: `NEGSWIFT_ENGINE` env → Info.plist dev venv path.
     static func candidateURLs(bundle: Bundle = .main) -> [URL] {
         configuredURLs(bundle: bundle)
             .filter { !$0.path.contains("$(") }
             .map { $0.standardizedFileURL }
     }
 
-    static func bundledEngineURL(bundle: Bundle = .main) -> URL? {
-        bundle.resourceURL?.appendingPathComponent(bundledRelativePath)
-    }
-
     private static func configuredURLs(bundle: Bundle = .main) -> [URL] {
         var urls: [URL] = []
         if let env = ProcessInfo.processInfo.environment["NEGSWIFT_ENGINE"], !env.isEmpty {
             urls.append(URL(fileURLWithPath: env))
-        }
-        if let bundled = bundledEngineURL(bundle: bundle) {
-            urls.append(bundled)
         }
         if let plist = bundle.object(forInfoDictionaryKey: "NegSwiftEnginePath") as? String, !plist.isEmpty {
             urls.append(URL(fileURLWithPath: plist))

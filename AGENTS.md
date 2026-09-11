@@ -10,7 +10,7 @@ Guidance for AI agents working in the NegSwift repository.
 
 ## What this repo is
 
-NegSwift is a **macOS-only SwiftUI lite shell** for film-negative processing. The **default shipping app** links the native engine in `Packages/NegSwiftEngine` (in-process). Python **NegPy** (`negpy` import) remains the parity oracle via `Engine/` and optional **NegSwift-Python** builds.
+NegSwift is a **macOS-only SwiftUI lite shell** for film-negative processing. The **shipping app** links the native engine in `Packages/NegSwiftEngine` (in-process). Python **NegPy** (`negpy` import) is the dev parity oracle via `Engine/`, `make compare-*`, and optional **NegSwift-Python** scheme builds — not bundled in release.
 
 **Exception (native port only):** `Packages/NegSwiftEngine` is an approved third implementation of NegSwift-lite pipeline math (CPU-first, Python as oracle). Do **not** copy NegPy `.py` / `.wgsl` into `App/`. See the native-engine plan and `docs/MANUAL_TEST_CHECKLIST.md` § S0–S14. All other Swift code still must not reimplement pipeline math.
 
@@ -68,7 +68,7 @@ xcodebuild -scheme NegSwift -configuration Debug test -destination 'platform=mac
 # Run from Xcode (⌘R) — scheme NegSwift (native engine in-process)
 ```
 
-**Build-time engine (M16):** default scheme **NegSwift** links `Packages/NegSwiftEngine`. Oracle builds use **NegSwift-Python** (`Debug-Python` / `Release-Python`) with `Info-Python.plist` + venv; run `make sync` first. See [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md).
+**Build-time engine (M16):** default scheme **NegSwift** links `Packages/NegSwiftEngine`. Dev oracle builds use **NegSwift-Python** (`Debug-Python` / `Release-Python`) with `Info-Python.plist` + venv; run `make sync` first. NegPy is not bundled in release builds. See [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md).
 
 The native package binary (`negswift-engine-swift serve --stdio`) speaks the same NDJSON contract. Point Engine pytest at it with `make test-s7-stdio` or `NEGSWIFT_ENGINE=/path/to/negswift-engine-swift`.
 
@@ -95,7 +95,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | M1–M3 | Engine CLI, PNG render, NDJSON daemon — **no Swift required** |
 | M4–M9 | SwiftUI shell, controls, sidecars, crop, export |
 | **M9b** | **Done** — NegPy submodule at `Vendor/NegPy` |
-| M10 | PyInstaller / bundle — **Done** |
+| M10 | PyInstaller / bundle — **Done** (superseded: Swift-only release; NegPy dev oracle only) |
 | M11 | Polish — **Done** |
 | **M12** | **In progress** — Performance; Phase 4 JPEG transport + Phase 5 preview memo done |
 | **M13** | **Done** — Scratch tool (polyline heal); HUD controls; M13b ⌘Z undo last heal |
@@ -104,7 +104,7 @@ Work incrementally per **`PLAN.md`**. Each milestone must be **manually testable
 | **M16** | **Done** — Build-time engine selection; Swift default — [docs/ENGINE_SELECTION.md](docs/ENGINE_SELECTION.md) |
 | **S0–S14** | Native Swift engine — **S13 automated done** (optional S13l; human rows open). S13m export perf is in. S14 RAW look is in. Checklist § S0–S14 |
 
-**Current status (2026-09-09):** M0–M16 feature complete. **M16** — Swift is the default app backend; Python oracle via `NegSwift-Python` / `make build-release-python`. Native engine **S14** is in; **S13m** export perf is in. **M12** manual benches and **S13 human rows** remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Camera RAW on the Swift backend needs Homebrew `libraw`. `NEGSWIFT_LIBRAW=0 swift test` still builds the stub. iOS is out of scope (GPL vs App Store).
+**Current status (2026-09-10):** M0–M16 feature complete. **M16** — Swift is the default and only shipped app backend; Python oracle via `NegSwift-Python` scheme and `make compare-*` (dev only). Native engine **S14** is in; **S13m** export perf is in. **M12** manual benches and **S13 human rows** remain — [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Camera RAW on the Swift backend needs Homebrew `libraw`. `NEGSWIFT_LIBRAW=0 swift test` still builds the stub. iOS is out of scope (GPL vs App Store).
 
 ## Architecture rules
 
@@ -188,7 +188,7 @@ NegSwift/
 │   ├── pyproject.toml
 │   ├── negswift_engine/   # CLI + serve + protocol
 │   └── tests/
-├── Packaging/             # PyInstaller scripts (M10)
+├── Packaging/             # signing + notarization scripts
 ├── Tests/                 # Swift XCTest
 └── docs/
     ├── BATCH_EXPORT.md
@@ -209,14 +209,11 @@ NegSwift/
 
 Add tests for new engine methods and non-trivial Swift logic. Do not add tests that only assert mocks or trivial getters.
 
-## Packaging (M10)
+## Packaging
 
-- Freeze **engine only** (no PyQt6) via PyInstaller `--onedir` — see `Packaging/build_engine.sh` and `Packaging/engine.spec`.
-- Input tree: **`Vendor/NegPy`**.
-- Bundle WGSL shaders, `icc/`, `crosstalk/`, `gear/` from NegPy package data.
-- `make build-release` runs PyInstaller then `ditto` into the built Release `.app` at `Contents/Resources/engine/`
-- App locates engine at `Contents/Resources/engine/negswift-engine` (after bundled path in `EngineLocator`).
-- Engine subprocess gets `NEGPY_USER_DIR=~/Library/Application Support/NegSwift/`.
+- `make build-release` produces a Swift-only `.app` (in-process `NegSwiftEngine`).
+- NegPy is **not** bundled; it remains the dev parity oracle via `Engine/` and `make compare-*`.
+- Dev oracle app builds use **NegSwift-Python** with the venv at `Engine/.venv/bin/negswift-engine`.
 
 See `docs/RELEASE.md` for signing/notarization.
 
@@ -258,7 +255,7 @@ NegSwift engine should stay thin as upstream adds headless APIs.
 
 - Ship `LICENSE` and `NOTICE` with the app (`make build-app` copies them into `App/NegSwift/Legal/`).
 - About box (NegSwift menu → About NegSwift) and README credit Gabriel Acevedo, NegPy upstream, LibRaw (LGPL-2.1 / CDDL-1.0), and link to source.
-- Bundled engine contains NegPy under GPL-3.0.
+- Credit NegPy as upstream/oracle in NOTICE and About; shipped binaries use the native Swift engine.
 
 ## Related docs
 

@@ -4,7 +4,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 
 **Native engine exception:** `Packages/NegSwiftEngine` is an approved third implementation of the **NegSwift lite** path (CPU-first, Python as oracle). Do not copy NegPy sources into `App/`. Milestones **S0–S14** are in §14; **M16** removes runtime dual-engine switching (build-time selection, Swift default). This file also keeps the M0–M16 lite-shell roadmap.
 
-**License:** GPL-3.0 for the whole shipped product (Swift shell + bundled engine). NegPy is GPL-3.0; combining and distributing them requires the same license and source availability for NegSwift’s own code.
+**License:** GPL-3.0 for the whole shipped product (Swift shell + native engine). NegPy is GPL-3.0 and remains the dev parity oracle; source availability applies to NegSwift’s own code.
 
 ---
 
@@ -23,7 +23,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
 | **M8** Crop | **Done** | Crop overlay, rotation, aspect ratio, fine rotation |
 | **M9** Export | **Done** | Engine `export`, Swift export sheet |
 | **M9b** NegPy submodule | **Done** | `Vendor/NegPy` @ 0.58.0, CI, `uv.lock` |
-| **M10** Bundle | **Done** | PyInstaller in `Packaging/`; bundled engine resolution; `docs/RELEASE.md` |
+| **M10** Bundle | **Done** (superseded) | Was PyInstaller bundle; release is Swift-only; NegPy dev oracle only |
 | M11 | **Done** | DnD edge cases verified; ⇧C crop shortcut; crop overlay sync on 90° rotate |
 | **M12** Performance | **In progress** | Phase 4 transport done (JPEG preview IPC); Phase 5 instant revisit done |
 | **M13** Scratch Tool | **Done** | Polyline scratch/hair heal; sidebar Scratch panel; ⇧S; M13b ⌘Z undo last heal |
@@ -69,7 +69,7 @@ A macOS-only SwiftUI app that reuses **upstream NegPy** as a drop-in processing 
                             │ JSON-RPC over Unix domain socket
                             │ (dev: stdio or TCP localhost)
 ┌───────────────────────────▼─────────────────────────────────────┐
-│  negswift-engine (Python helper — bundled in production)         │
+│  negswift-engine (Python helper — dev oracle only)               │
 │  • Thin wrapper: no duplicated math                             │
 │  • Imports: negpy.services.*, negpy.domain.*, negpy.features.*  │
 │  • Long-lived daemon OR one-shot CLI per milestone              │
@@ -180,6 +180,8 @@ None of these block Milestone 1 — the engine can call existing APIs immediatel
 ---
 
 ## 4. Packaging: PyInstaller vs embedded CPython
+
+> **Superseded (2026-09-10):** Release builds are Swift-only. NegPy remains the dev parity oracle. The PyInstaller path below is historical M10 context.
 
 Both ship a self-contained app with **no user Python install**. Recommendation: **hybrid**.
 
@@ -501,9 +503,9 @@ cd NegSwift/Engine && uv sync && uv run negswift-engine info
 - [x] App finds engine relative to bundle; sets `NEGPY_USER_DIR` to Application Support
 - [x] Signed/notarized build instructions in `docs/RELEASE.md`
 
-**Automated:** CI runs `make bundle-engine` and smoke-tests `negswift-engine info`.
+**Automated:** (historical) CI bundled PyInstaller engine — removed; release is Swift-only.
 
-**Manual:** Copy `.app` to another Mac (no Python installed) → import → render → export.
+**Manual:** Copy Swift `.app` to another Mac → import → render → export.
 
 ---
 
@@ -883,7 +885,7 @@ Remove **runtime** dual-engine support. Each built `.app` links exactly one rend
 |---|--------|-----------|
 | Selection | Settings → Rendering → Engine (`EngineBackendKind` in UserDefaults) | Xcode scheme / build setting `NEGSWIFT_ENGINE=swift\|python` |
 | Default | Python subprocess | Swift in-process (`NegSwiftEngine`) |
-| Release | PyInstaller bundle in `Contents/Resources/engine/` | Swift-only `.app` (no frozen Python by default) |
+| Release | PyInstaller bundle in `Contents/Resources/engine/` | Swift-only `.app` (no NegPy bundle) |
 | A/B in app | Preferences picker restarts session | `make compare-*` scripts + optional `NegSwift-Python` scheme |
 
 #### Build knob
@@ -905,7 +907,8 @@ Maps to Swift active compilation condition `NEGSWIFT_ENGINE_SWIFT` or `NEGSWIFT_
 - [x] User-defined build setting `NEGSWIFT_ENGINE` (`swift` default) → `SWIFT_ACTIVE_COMPILATION_CONDITIONS`
 - [x] Schemes: `NegSwift` (Swift) and `NegSwift-Python` (oracle)
 - [x] `make build-app` / `make build-release` — Swift only (no `make sync`, no PyInstaller)
-- [x] `make build-app-python` / `make build-release-python` — explicit oracle builds (`make sync` + `make bundle-engine`)
+- [x] `make build-app-python` — dev oracle build (`make sync` + Debug-Python)
+- [x] ~~`make build-release-python`~~ — removed; NegPy not bundled in release
 
 **App code**
 
@@ -927,7 +930,7 @@ Maps to Swift active compilation condition `NEGSWIFT_ENGINE_SWIFT` or `NEGSWIFT_
 
 - [x] Default job: `xcodebuild -scheme NegSwift` (Swift); drop PyInstaller from required path
 - [x] Keep `Engine/` pytest and `make test-s7-stdio` for protocol parity
-- [x] Optional `workflow_dispatch` oracle job: `make bundle-engine` + `build-release-python`
+- [x] ~~Optional `workflow_dispatch` oracle bundle job~~ — removed with bundled release
 
 **Packaging**
 
@@ -971,7 +974,7 @@ Maps to Swift active compilation condition `NEGSWIFT_ENGINE_SWIFT` or `NEGSWIFT_
 
 **Automated:** `make test` · `make test-s7-stdio` · `xcodebuild -scheme NegSwift test`.
 
-**Manual:** Default build — import → preview → export with no venv; Engine sheet shows Swift; `make build-release-python` smoke on oracle build.
+**Manual:** Default build — import → preview → export with no venv; Engine sheet shows Swift; `make build-app-python` smoke for dev oracle.
 
 ---
 
@@ -1015,9 +1018,8 @@ NegSwift/
 │       ├── test_render.py
 │       └── test_protocol.py
 ├── Packaging/
-│   ├── build_engine.sh              # PyInstaller
-│   ├── engine.spec                  # derived from NegPy build.py minus Qt
-│   └── embed_python.sh              # optional CPython path
+│   ├── sign_app.sh                  # codesign release .app
+│   └── notarize_app.sh              # notarytool wrapper
 ├── Tests/
 │   └── NegSwiftTests/               # Swift tests
 └── docs/

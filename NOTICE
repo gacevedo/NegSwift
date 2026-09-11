@@ -10,11 +10,10 @@ NegSwift source: https://github.com/gacevedo/NegSwift
 
 This program incorporates NegPy (https://github.com/marcinz606/NegPy),
 Copyright (C) NegPy contributors, also licensed under GPL-3.0.
-
-When distributed as a binary, NegPy engine components are bundled under the
-same license. Corresponding source for NegPy is available at the URL above.
-NegPy's own third-party notices are in Vendor/NegPy/NOTICE.md when building
-from source.
+NegPy is used as the development parity oracle; shipped binaries use the
+native Swift engine. Corresponding source for NegPy is available at the URL
+above. NegPy's own third-party notices are in Vendor/NegPy/NOTICE.md when
+building from source.
 
 The native engine links LibRaw (https://www.libraw.org/) for camera RAW
 decode, Copyright (C) 2008-2025 LibRaw LLC. LibRaw is dual-licensed under

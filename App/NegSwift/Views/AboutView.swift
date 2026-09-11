@@ -33,14 +33,15 @@ struct AboutView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 creditRow(title: "NegSwift source", url: AppMetadata.negSwiftSourceURL)
-                creditRow(title: "NegPy upstream", url: AppMetadata.negPySourceURL)
+                creditRow(title: "NegPy source", url: AppMetadata.negPySourceURL)
                 creditRow(title: "LibRaw", url: AppMetadata.libRawSourceURL)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(
-                "NegSwift and the bundled NegPy engine are free software under "
-                    + "GNU GPL v3. Corresponding source must be offered with any binary distribution."
+                "NegSwift is free software under GNU GPL v3. "
+                    + "Corresponding source must be offered with any binary distribution. "
+                    + "NegPy is credited as the upstream parity oracle."
             )
             .font(.caption)
             .foregroundStyle(.secondary)

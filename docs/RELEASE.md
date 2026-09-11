@@ -1,18 +1,14 @@
 # Release builds
 
-**Default (M16):** `make build-release` produces a **Swift-only** `.app` — no bundled Python engine. The native engine in `Packages/NegSwiftEngine` runs in-process.
-
-**Oracle distribution:** `make build-release-python` still freezes `negswift-engine` with PyInstaller and copies it into `Contents/Resources/engine/` for the **NegSwift-Python** build configuration.
+`make build-release` produces a **Swift-only** `.app`. The native engine in `Packages/NegSwiftEngine` runs in-process. NegPy is not bundled — it remains the development parity oracle via `Engine/` and `make compare-*`.
 
 ## Prerequisites
 
 - macOS 14+ (match `MACOSX_DEPLOYMENT_TARGET` in the Xcode project)
 - Xcode with command-line tools
-- [uv](https://docs.astral.sh/uv/) and Python 3.13
-- NegPy submodule: `git submodule update --init --recursive`
 - **Distribution to other Macs:** Apple Developer Program membership, **Developer ID Application** certificate, and notarization credentials (`notarytool` keychain profile)
 
-## Build a release `.app` (Swift default)
+## Build a release `.app`
 
 ```bash
 make build-release
@@ -35,30 +31,13 @@ Debug builds already set `ONLY_ACTIVE_ARCH=YES`. Release defaults to a **univers
 |------|---------|
 | Release with RAW (default on a Mac with `brew install libraw`) | `make build-release` → single-arch for the build machine |
 | Universal binary, **no** camera RAW | `NEGSWIFT_LIBRAW=0 make build-release` |
-| Universal binary **with** RAW | Build or install a **universal** LibRaw and link it from `Package.swift` (not Homebrew’s default) |
+| Universal binary **with** RAW | Build or install a **universal** LibRaw and link it from `Package.swift` (not Homebrew's default) |
 
 Verify the built executable:
 
 ```bash
 lipo -info App/build/Build/Products/Release/NegSwift.app/Contents/MacOS/NegSwift
 ```
-
-## Build a release `.app` (Python oracle)
-
-```bash
-make build-release-python
-```
-
-This runs, in order:
-
-1. `Packaging/build_engine.sh` — PyInstaller onedir from `Vendor/NegPy` → `Packaging/out/negswift-engine/`
-2. `xcodebuild -scheme NegSwift-Python -configuration Release-Python`
-3. `ditto` the frozen engine into `Contents/Resources/engine/`
-4. **`Packaging/sign_app.sh`** — re-sign the app and every Mach-O in the bundled engine
-
-Oracle release builds run with **App Sandbox off** so the PyInstaller tree can spawn from `Resources/`.
-
-Do **not** copy the engine into `App/NegSwift/Resources/` — Xcode's synchronized group flattens nested package metadata and Release builds fail.
 
 The built app is at `App/build/Build/Products/Release/NegSwift.app`.
 
@@ -68,7 +47,6 @@ macOS often shows **damaged** when Gatekeeper rejects the bundle. Common causes 
 
 | Cause | Fix |
 |-------|-----|
-| Engine copied **after** Xcode signed the app (broken seal) | Fixed — `make build-release` re-signs automatically. Rebuild and re-copy. |
 | **Ad-hoc** signature only (`-`) | Expected on other Macs. Sign with **Developer ID** and **notarize** (below). |
 | Quarantine from AirDrop / zip / browser download | On the receiving Mac: `xattr -dr com.apple.quarantine /path/to/NegSwift.app` then open once via **Right-click → Open**. |
 
@@ -115,27 +93,11 @@ make build-release
 
 Without notarization, other Macs may still prompt or block depending on macOS settings.
 
-## Smoke test (no Xcode)
-
-```bash
-make bundle-engine
-Packaging/out/negswift-engine/negswift-engine info
-```
-
 ## Runtime layout
 
 | Build | Engine |
 |-------|--------|
 | **NegSwift** (default) | In-process `NegSwiftEngine`; no subprocess |
-| **NegSwift-Python** | `NegSwift.app/Contents/Resources/engine/negswift-engine` (release) or venv (debug) |
-
-Python subprocess resolution order (oracle builds only):
-
-1. `NEGSWIFT_ENGINE` environment variable
-2. Bundled `Contents/Resources/engine/negswift-engine`
-3. `NegSwiftEnginePath` from `Info-Python.plist` (Debug venv)
-
-The Python engine subprocess gets `NEGPY_USER_DIR=~/Library/Application Support/NegSwift/`.
 
 ## Distribution checklist
 
@@ -143,7 +105,7 @@ The Python engine subprocess gets `NEGPY_USER_DIR=~/Library/Application Support/
 - [ ] `codesign --verify --deep --strict` passes on the built `.app`
 - [ ] Signed with **Developer ID Application** (not ad-hoc `-`)
 - [ ] `make notarize-release-app` succeeds; `spctl -a -vv` accepts on build machine
-- [ ] Copy to another Mac **without** Python → import → preview → export
+- [ ] Copy to another Mac → import → preview → export
 - [ ] No "damaged" / Gatekeeper block on the receiving Mac
 
 ## Debug vs release
@@ -151,14 +113,5 @@ The Python engine subprocess gets `NEGPY_USER_DIR=~/Library/Application Support/
 | Scheme | Debug | Release |
 |--------|-------|---------|
 | **NegSwift** (Swift) | In-process native | In-process native |
-| **NegSwift-Python** | venv via `Info-Python.plist` | Bundled `Resources/engine/` |
 
-App Sandbox is **off** for both release flavors today.
-
-## PyInstaller warnings (benign)
-
-| Warning | Meaning |
-|---------|---------|
-| `wgpu.utils.imgui` / `imgui_bundle` | Optional wgpu UI; not used headless |
-| `pycparser.lextab` / `yacctab` | Generated on demand; safe to ignore |
-| `libomp.dylib` | Install `brew install libomp` before `make bundle-engine` to bundle it |
+App Sandbox is **off** for release builds today.

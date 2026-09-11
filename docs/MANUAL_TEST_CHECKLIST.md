@@ -128,13 +128,12 @@ Native-engine RAW ARW (S14): /Users/gacevedo/Downloads/7C_04669.ARW
 
 ---
 
-## M10 — Bundled app ✅
+## M10 — Bundled app ✅ (superseded)
 
-- [x] `make bundle-engine` → `Packaging/out/negswift-engine/negswift-engine info` succeeds
-- [x] CI smoke-tests bundled engine
-- [x] Built `.app` runs on Mac without system Python
-- [x] `Contents/Resources/engine/` present in Release build
-- [x] Import → render → export on clean user account or second Mac
+Historical: PyInstaller bundled `negswift-engine` into Release `.app`. **Superseded** — release is Swift-only; NegPy is dev oracle only.
+
+- [x] `make build-release` produces Swift `.app` without `Contents/Resources/engine/`
+- [x] Import → render → export on second Mac (no Python required)
 
 ---
 
@@ -294,7 +293,7 @@ See [PLAN.md](../PLAN.md) §7 M16 and [ENGINE_SELECTION.md](ENGINE_SELECTION.md)
 - [x] Engine sheet reports **Swift (native)** on default build
 - [x] Import → preview → export works with no Python venv (default scheme **NegSwift**)
 - [x] `make build-release` produces `.app` without `Contents/Resources/engine/`
-- [ ] `make build-release-python` smoke: oracle app imports → preview → export on a Mac without system Python
+- [x] ~~`make build-release-python`~~ — removed; use `make build-app-python` for dev oracle smoke
 
 ---
 

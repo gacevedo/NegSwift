@@ -2,13 +2,12 @@
 	compare-engines compare-linear-decode compare-s4a compare-s4b compare-s5 compare-s6 \
 	compare-s8 compare-s9 compare-s9-target compare-s10b compare-s11 compare-s12 compare-s13 compare-s14 \
 	compare-s13l-dust \
-	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bench-native bundle-engine \
-	build-app build-app-python build-release build-release-python \
-	stage-engine-in-release-app sign-release-app notarize-release-app all
+	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bench-native \
+	build-app build-app-python build-release \
+	sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
 RELEASE_APP := $(XCODE_DERIVED)/Build/Products/Release/NegSwift.app
-ENGINE_BUNDLE := Packaging/out/negswift-engine
 
 # Homebrew LibRaw is single-arch (/opt/homebrew = arm64, /usr/local = x86_64).
 # Universal Release then fails linking the other slice (see Package.swift).
@@ -143,16 +142,6 @@ bench-native:
 		NEGSWIFT_PERF_OUTPUT="$${NEGSWIFT_PERF_OUTPUT:-Tests/NegSwiftEngineTests/Fixtures/native_perf_baseline.json}" \
 		swift test --filter NativeStageTimingTests 2>&1 | tee /tmp/negswift_bench_native.log
 
-bundle-engine:
-	./Packaging/build_engine.sh
-
-# Copy frozen engine into Resources/ (PyInstaller onedir; sandbox off for Release until onefile/XPC).
-stage-engine-in-release-app:
-	@test -d "$(RELEASE_APP)" || (echo "Release .app missing — run xcodebuild Release first" >&2; exit 1)
-	@test -x "$(ENGINE_BUNDLE)/negswift-engine" || (echo "Engine bundle missing — run make bundle-engine first" >&2; exit 1)
-	rm -rf "$(RELEASE_APP)/Contents/Resources/engine" "$(RELEASE_APP)/Contents/Helpers/engine"
-	ditto "$(ENGINE_BUNDLE)" "$(RELEASE_APP)/Contents/Resources/engine"
-
 sign-release-app:
 	chmod +x Packaging/sign_app.sh
 	./Packaging/sign_app.sh "$(RELEASE_APP)"
@@ -164,7 +153,6 @@ notarize-release-app:
 build-app:
 	mkdir -p App/NegSwift/Legal
 	cp NOTICE LICENSE App/NegSwift/Legal/
-	rm -rf App/NegSwift/Resources/engine
 	cd App && xcodebuild -scheme NegSwift -configuration Debug build
 
 build-app-python: sync
@@ -178,19 +166,7 @@ ifneq ($(RELEASE_XCODE_ARGS),)
 endif
 	mkdir -p App/NegSwift/Legal
 	cp NOTICE LICENSE App/NegSwift/Legal/
-	rm -rf App/NegSwift/Resources/engine
 	cd App && xcodebuild -scheme NegSwift -configuration Release -derivedDataPath build $(RELEASE_XCODE_ARGS) build
-	$(MAKE) sign-release-app
-
-build-release-python: sync bundle-engine
-ifneq ($(RELEASE_XCODE_ARGS),)
-	@echo "Release: $(RELEASE_XCODE_ARGS) (Homebrew LibRaw is single-arch; NEGSWIFT_LIBRAW=0 for universal without RAW)."
-endif
-	mkdir -p App/NegSwift/Legal
-	cp NOTICE LICENSE App/NegSwift/Legal/
-	rm -rf App/NegSwift/Resources/engine
-	cd App && xcodebuild -scheme NegSwift-Python -configuration Release-Python -derivedDataPath build $(RELEASE_XCODE_ARGS) build
-	$(MAKE) stage-engine-in-release-app
 	$(MAKE) sign-release-app
 
 all: lint test build-app

@@ -78,7 +78,7 @@ final class EngineProcess: @unchecked Sendable {
         stopLocked()
     }
 
-    /// PyInstaller onedir lives beside `_internal/`; venv binaries live under `.venv/bin/`.
+    /// Venv binaries live under `.venv/bin/`; use the venv root as cwd.
     static func workingDirectory(for executable: URL) -> URL {
         let parent = executable.deletingLastPathComponent()
         if parent.lastPathComponent == "bin" {

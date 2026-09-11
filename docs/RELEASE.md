@@ -25,6 +25,24 @@ This runs, in order:
 
 No `Contents/Resources/engine/` directory is staged. For LibRaw on end-user Macs, document or bundle the dylib as packaging evolves.
 
+### Release architecture (LibRaw)
+
+Debug builds already set `ONLY_ACTIVE_ARCH=YES`. Release defaults to a **universal** binary (arm64 + x86_64), which **fails to link** when Homebrew LibRaw is installed — Homebrew ships a **single-arch** `libraw_r` (`/opt/homebrew` on Apple Silicon, `/usr/local` on Intel).
+
+`make build-release` detects Homebrew LibRaw and passes **`ONLY_ACTIVE_ARCH=YES`** automatically, producing an **arm64-only** app on Apple Silicon (or **x86_64-only** on Intel) with camera RAW enabled.
+
+| Goal | Command |
+|------|---------|
+| Release with RAW (default on a Mac with `brew install libraw`) | `make build-release` → single-arch for the build machine |
+| Universal binary, **no** camera RAW | `NEGSWIFT_LIBRAW=0 make build-release` |
+| Universal binary **with** RAW | Build or install a **universal** LibRaw and link it from `Package.swift` (not Homebrew’s default) |
+
+Verify the built executable:
+
+```bash
+lipo -info App/build/Build/Products/Release/NegSwift.app/Contents/MacOS/NegSwift
+```
+
 ## Build a release `.app` (Python oracle)
 
 ```bash

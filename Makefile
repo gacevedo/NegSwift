@@ -10,6 +10,18 @@ XCODE_DERIVED := App/build
 RELEASE_APP := $(XCODE_DERIVED)/Build/Products/Release/NegSwift.app
 ENGINE_BUNDLE := Packaging/out/negswift-engine
 
+# Homebrew LibRaw is single-arch (/opt/homebrew = arm64, /usr/local = x86_64).
+# Universal Release then fails linking the other slice (see Package.swift).
+# NEGSWIFT_LIBRAW=0 skips LibRaw and allows a fat binary without camera RAW.
+RELEASE_XCODE_ARGS :=
+ifeq ($(NEGSWIFT_LIBRAW),0)
+else
+  LIBRAW_HEADER := $(firstword $(wildcard /opt/homebrew/opt/libraw/include/libraw/libraw.h) $(wildcard /usr/local/opt/libraw/include/libraw/libraw.h))
+  ifneq ($(LIBRAW_HEADER),)
+    RELEASE_XCODE_ARGS := ONLY_ACTIVE_ARCH=YES
+  endif
+endif
+
 sync:
 	@test -f Vendor/NegPy/VERSION || (echo "NegPy submodule missing — run: git submodule update --init --recursive" && exit 1)
 	cd Engine && uv sync --locked
@@ -161,17 +173,23 @@ build-app-python: sync
 	cd App && xcodebuild -scheme NegSwift-Python -configuration Debug-Python build
 
 build-release:
+ifneq ($(RELEASE_XCODE_ARGS),)
+	@echo "Release: $(RELEASE_XCODE_ARGS) (Homebrew LibRaw is single-arch; NEGSWIFT_LIBRAW=0 for universal without RAW)."
+endif
 	mkdir -p App/NegSwift/Legal
 	cp NOTICE LICENSE App/NegSwift/Legal/
 	rm -rf App/NegSwift/Resources/engine
-	cd App && xcodebuild -scheme NegSwift -configuration Release -derivedDataPath build build
+	cd App && xcodebuild -scheme NegSwift -configuration Release -derivedDataPath build $(RELEASE_XCODE_ARGS) build
 	$(MAKE) sign-release-app
 
 build-release-python: sync bundle-engine
+ifneq ($(RELEASE_XCODE_ARGS),)
+	@echo "Release: $(RELEASE_XCODE_ARGS) (Homebrew LibRaw is single-arch; NEGSWIFT_LIBRAW=0 for universal without RAW)."
+endif
 	mkdir -p App/NegSwift/Legal
 	cp NOTICE LICENSE App/NegSwift/Legal/
 	rm -rf App/NegSwift/Resources/engine
-	cd App && xcodebuild -scheme NegSwift-Python -configuration Release-Python -derivedDataPath build build
+	cd App && xcodebuild -scheme NegSwift-Python -configuration Release-Python -derivedDataPath build $(RELEASE_XCODE_ARGS) build
 	$(MAKE) stage-engine-in-release-app
 	$(MAKE) sign-release-app
 

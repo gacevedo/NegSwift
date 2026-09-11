@@ -455,7 +455,7 @@ S13a–m (slider reprints + one decode + Accelerate + splash/thumbs + progressiv
 - [x] S13f: `open(includeSplash: true)` returns embedded JPEG on RAW cold open; strip thumbs use ImageIO thumbnail or RAW embedded JPEG (not a full print) (`SplashThumbTests`)
 - [x] S13f human: folder of 20 frames fills thumbs without blocking the selected preview
 - [x] S13g: progressive first paint (512 or splash, then 1600/2400); `analysisOversample` deferred until Analysis Buffer or refine; settled frame matches S8 (`ProgressivePaintTests`)
-- [ ] S13g human: first paint appears quickly, then refine; settled canvas matches S8
+- [x] S13g human: first paint appears quickly, then refine; settled canvas matches S8
 - [x] S13h: GPU present with no full-buffer `getBytes`; slider reprint upload/download stays 0; CPU-vs-Metal MAE unchanged (`GPUPresentTests`)
 - [ ] S13h human: first present and slider reprints on the ~20 MP scan stay in the same class as Python GPU (no ColorSync hitch)
 - [x] S13i: X-Trans preview uses PPG (not AHD); one `libraw` handle per file (`RawDecodeTests`); S14 MAE on named NEF/ARW/RAF (`NEGSWIFT_S14_RAF`)
@@ -463,14 +463,14 @@ S13a–m (slider reprints + one decode + Accelerate + splash/thumbs + progressiv
 - [x] S13j: TIFF/JPEG decode in parallel; selected-frame preview outranks strip jobs; neighbor prefetch loads linear buffers (`QueuePrefetchTests`)
 - [x] S13j human: import 20+ TIFFs stays responsive; clicking frame B cancels queued thumbs
 - [x] S13k: processed-preview disk cache + longer-lived working sets (`ProcessedPreviewDiskCacheTests`); look unchanged vs S8 on cache hit
-- [ ] S13k human: quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged
+- [x] S13k human: quit/reopen same folder restores canvas without a full decode when the sidecar is unchanged; look unchanged
 - [x] S13m: `target_px` export prints at `export_target_long_edge_px` (not full-res then shrink); reuses preview linear / reprint cache when export edge ≤ preview edge; `native_export_ms` in `NEGSWIFT_PERF_LOG` (`make compare-s9-target` / `ExportPerfTests`)
-- [ ] S13m human: Quick Export / Instagram-sized export on the ~20 MP scan feels in the same class as preview-settled work (no multi-second full-res stall after editing)
+- [x] S13m human: Quick Export / Instagram-sized export on the ~20 MP scan feels in the same class as preview-settled work (no multi-second full-res stall after editing)
 - [ ] S13l: optional — Metal dust / autocrop / histograms only if Instruments still shows those CPU stages hot after S13d–h (profile first; UX knobs were tried and dropped)
 - [ ] Stage timers in `NEGSWIFT_PERF_LOG` / `PipelineStats`: detect, open-autocrop, LibRaw, `areaDownsampled`, Metal upload+download, ColorSync
-- [ ] Human: Swift backend, 16-bit TIFF ≥16 MP — first open in the same class as Python
-- [ ] Human: Swift backend, folder of 3+ RAF — thumbs fill; first preview auto-crops; clicking another frame leaves “Loading image…” and shows a preview
-- [ ] Still wrong until later phases: JXL / Coolscan NEF / Noritsu / FFF / Pakon special loaders (S14); export may stay CPU readback; Python IPC remains M12
+- [x] Human: Swift backend, 16-bit TIFF ≥16 MP — first open in the same class as Python
+- [x] Human: Swift backend, folder of 3+ RAF — thumbs fill; first preview auto-crops; clicking another frame leaves “Loading image…” and shows a preview
+- [x] Still wrong until later phases: JXL / Coolscan NEF / Noritsu / FFF / Pakon special loaders (S14); export may stay CPU readback; Python IPC remains M12
 
 ### S14 — Camera RAW (LibRaw)
 
@@ -482,7 +482,7 @@ S13a–m (slider reprints + one decode + Accelerate + splash/thumbs + progressiv
 - [x] S8 working-space MAE on those files at `--long-edge 256` (MAE ~1e-7)
 - [x] Human: Swift backend, NEF — orange mask still orange; A/B at app defaults vs Python
 - [x] Human: same for ARW (and any other camera RAW you have)
-- [ ] Human: Swift backend, Import Folder of 3+ RAWs — tracked under S13f / S13j (thumbs + first-open), not a closed S14 look gate
+- [x] Human: Swift backend, Import Folder of 3+ RAWs — tracked under S13f / S13j (thumbs + first-open), not a closed S14 look gate
 - [x] Still wrong: JXL, Coolscan NEF, Noritsu / FFF / Pakon special loaders, demosaic picker, IR sidecars
 
 ---

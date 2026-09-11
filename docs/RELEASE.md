@@ -17,21 +17,38 @@ make build-release
 This runs, in order:
 
 1. `xcodebuild -scheme NegSwift -configuration Release` (derived data under `App/build/`)
-2. **`Packaging/sign_app.sh`** — sign the app
+2. **`Packaging/bundle_libraw.sh`** — copy LibRaw + deps into `Contents/Frameworks/` (fails fast if the build used the LibRaw stub)
+3. **`Packaging/sign_app.sh`** — sign bundled dylibs and the app
 
-No `Contents/Resources/engine/` directory is staged. For LibRaw on end-user Macs, document or bundle the dylib as packaging evolves.
+No `Contents/Resources/engine/` directory is staged. When LibRaw is linked at build time, `make build-release` copies `libraw_r` and its Homebrew runtime deps into `Contents/Frameworks/` and rewrites load paths so Camera RAW works without `brew install libraw` on the target Mac.
 
 ### Release architecture (LibRaw)
 
-Debug builds already set `ONLY_ACTIVE_ARCH=YES`. Release defaults to a **universal** binary (arm64 + x86_64), which **fails to link** when Homebrew LibRaw is installed — Homebrew ships a **single-arch** `libraw_r` (`/opt/homebrew` on Apple Silicon, `/usr/local` on Intel).
+**Prerequisites on the build Mac:** `brew install libraw libomp` (LibRaw links OpenMP for demosaic).
 
-`make build-release` detects Homebrew LibRaw and passes **`ONLY_ACTIVE_ARCH=YES`** automatically, producing an **arm64-only** app on Apple Silicon (or **x86_64-only** on Intel) with camera RAW enabled.
+Debug builds already set `ONLY_ACTIVE_ARCH=YES`. Release defaults to a **universal** binary (arm64 + x86_64), which **cannot link** Homebrew LibRaw — Homebrew ships a **single-arch** `libraw_r` (`/opt/homebrew` on Apple Silicon, `/usr/local` on Intel). A universal Release build therefore compiles the **LibRaw stub** and Camera RAW fails at runtime with `Camera RAW requires LibRaw`.
+
+`make build-release` detects Homebrew LibRaw and passes **`ONLY_ACTIVE_ARCH=YES`** automatically, producing an **arm64-only** app on Apple Silicon (or **x86_64-only** on Intel) with Camera RAW enabled and bundled.
 
 | Goal | Command |
 |------|---------|
-| Release with RAW (default on a Mac with `brew install libraw`) | `make build-release` → single-arch for the build machine |
+| Release with Camera RAW (default when `brew install libraw`) | `make build-release` → single-arch for the build machine + bundled Frameworks |
 | Universal binary, **no** camera RAW | `NEGSWIFT_LIBRAW=0 make build-release` |
 | Universal binary **with** RAW | Build or install a **universal** LibRaw and link it from `Package.swift` (not Homebrew's default) |
+
+If you previously built without LibRaw, clean before rebuilding:
+
+```bash
+rm -rf App/build
+make build-release
+```
+
+Verify LibRaw is linked and bundled:
+
+```bash
+otool -L App/build/Build/Products/Release/NegSwift.app/Contents/MacOS/NegSwift | grep libraw
+ls App/build/Build/Products/Release/NegSwift.app/Contents/Frameworks/
+```
 
 Verify the built executable:
 
@@ -58,6 +75,8 @@ spctl -a -vv App/build/Build/Products/Release/NegSwift.app
 ```
 
 Ad-hoc builds pass `codesign --verify` but **`spctl` rejects** until notarized.
+
+**Local ad-hoc signing** (`NEGSWIFT_SIGN_IDENTITY` unset) omits hardened runtime so bundled LibRaw dylibs load. **Developer ID** release builds use hardened runtime on the app and every bundled dylib (same Team ID).
 
 ## Distribute to other Macs (Developer ID + notarization)
 

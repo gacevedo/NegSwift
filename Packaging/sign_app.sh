@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sign NegSwift.app for local testing or distribution.
+# Sign NegSwift.app after LibRaw bundling (or a plain Swift-only build).
 set -euo pipefail
 
 APP="${1:?Usage: sign_app.sh /path/to/NegSwift.app}"
@@ -8,10 +8,22 @@ ENTITLEMENTS="${NEGSWIFT_ENTITLEMENTS:-$(cd "$(dirname "$0")/.." && pwd)/App/Neg
 
 test -d "$APP" || { echo "App bundle not found: $APP" >&2; exit 1; }
 
+# Hardened runtime enforces library validation: bundled dylibs must share the
+# signing Team ID with the main executable. Ad-hoc (-) cannot satisfy that, so
+# local builds skip runtime. Developer ID release builds use runtime everywhere.
+USE_RUNTIME=0
+if [ "$IDENTITY" != "-" ]; then
+    USE_RUNTIME=1
+fi
+
 sign_macho() {
     local target="$1"
     local entitlements="${2:-}"
-    local args=(--force --sign "$IDENTITY" --options runtime)
+    local with_runtime="${3:-0}"
+    local args=(--force --sign "$IDENTITY")
+    if [ "$with_runtime" = "1" ]; then
+        args+=(--options runtime)
+    fi
     if [ "$IDENTITY" != "-" ]; then
         args+=(--timestamp)
     fi
@@ -24,11 +36,23 @@ sign_macho() {
 MAIN="$APP/Contents/MacOS/NegSwift"
 test -f "$MAIN" || { echo "Missing main executable: $MAIN" >&2; exit 1; }
 
+FRAMEWORKS="$APP/Contents/Frameworks"
+if [ -d "$FRAMEWORKS" ]; then
+    echo "Signing bundled Frameworks dylibs…"
+    find "$FRAMEWORKS" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' f; do
+        codesign --remove-signature "$f" 2>/dev/null || true
+        sign_macho "$f" "" "$USE_RUNTIME"
+    done
+fi
+
 echo "Signing $APP with identity: $IDENTITY"
+codesign --remove-signature "$MAIN" 2>/dev/null || true
 if [ -f "$ENTITLEMENTS" ]; then
-    sign_macho "$APP" "$ENTITLEMENTS"
+    sign_macho "$MAIN" "$ENTITLEMENTS" "$USE_RUNTIME"
+    sign_macho "$APP" "$ENTITLEMENTS" "$USE_RUNTIME"
 else
-    sign_macho "$APP"
+    sign_macho "$MAIN" "" "$USE_RUNTIME"
+    sign_macho "$APP" "" "$USE_RUNTIME"
 fi
 
 codesign --verify --deep "$APP"

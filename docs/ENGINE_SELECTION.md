@@ -33,4 +33,4 @@ Contributors who need in-app Python A/B use the **NegSwift-Python** scheme, not 
 
 ## LibRaw (Swift builds)
 
-Camera RAW in the Swift backend needs Homebrew `libraw` for local dev (`brew install libraw`). Release packaging may bundle the dylib separately; see [RELEASE.md](RELEASE.md).
+Camera RAW needs LibRaw at **build** time (`brew install libraw libomp`). `make build-release` bundles `libraw_r` and its runtime deps into `Contents/Frameworks/`. Debug builds link Homebrew directly; see [RELEASE.md](RELEASE.md).

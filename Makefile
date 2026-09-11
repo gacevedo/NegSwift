@@ -3,7 +3,7 @@
 	compare-s8 compare-s9 compare-s9-target compare-s10b compare-s11 compare-s12 compare-s13 compare-s14 \
 	compare-s13l-dust \
 	test-s7-stdio test-s9-stdio test-s10a-stdio test-s10b-stdio test-s11-stdio bench-engine bench-native \
-	build-app build-app-python build-release \
+	build-app build-app-python build-release bundle-libraw-in-release-app \
 	sign-release-app notarize-release-app all
 
 XCODE_DERIVED := App/build
@@ -142,6 +142,10 @@ bench-native:
 		NEGSWIFT_PERF_OUTPUT="$${NEGSWIFT_PERF_OUTPUT:-Tests/NegSwiftEngineTests/Fixtures/native_perf_baseline.json}" \
 		swift test --filter NativeStageTimingTests 2>&1 | tee /tmp/negswift_bench_native.log
 
+bundle-libraw-in-release-app:
+	chmod +x Packaging/bundle_libraw.sh
+	./Packaging/bundle_libraw.sh "$(RELEASE_APP)"
+
 sign-release-app:
 	chmod +x Packaging/sign_app.sh
 	./Packaging/sign_app.sh "$(RELEASE_APP)"
@@ -167,6 +171,7 @@ endif
 	mkdir -p App/NegSwift/Legal
 	cp NOTICE LICENSE App/NegSwift/Legal/
 	cd App && xcodebuild -scheme NegSwift -configuration Release -derivedDataPath build $(RELEASE_XCODE_ARGS) build
+	$(MAKE) bundle-libraw-in-release-app
 	$(MAKE) sign-release-app
 
 all: lint test build-app

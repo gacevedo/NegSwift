@@ -12,11 +12,12 @@ struct ScratchPanelView: View {
     var body: some View {
         SidebarSection(title: "Repair", isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Scratch Tool", isOn: scratchToolBinding)
-                    .controlSize(.small)
-                    .help("Click points along a scratch or hair on the preview (⇧S)")
-                    .accessibilityIdentifier("negSwift.scratchToolToggle")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                SidebarSwitchRow(
+                    title: "Scratch Tool",
+                    isOn: scratchToolBinding,
+                    help: "Click points along a scratch or hair on the preview (⇧S)",
+                    accessibilityIdentifier: "negSwift.scratchToolToggle"
+                )
 
                 if session.isScratchToolActive {
                     activeControls

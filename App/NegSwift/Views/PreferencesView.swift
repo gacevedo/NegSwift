@@ -20,12 +20,15 @@ struct PreferencesView: View {
                 .accessibilityIdentifier("negSwift.prefs.previewQuality")
 
                 Toggle("Use GPU for preview and export", isOn: $preferences.preferGPU)
+                    .toggleStyle(.switch)
                     .accessibilityIdentifier("negSwift.prefs.useGPU")
 
                 Toggle("Auto-detect C-41 / B&W on new scans", isOn: $preferences.autodetectProcessMode)
+                    .toggleStyle(.switch)
                     .accessibilityIdentifier("negSwift.prefs.autodetectProcessMode")
 
                 Toggle("Auto crop film borders", isOn: $preferences.autoCropEnabled)
+                    .toggleStyle(.switch)
                     .accessibilityIdentifier("negSwift.prefs.autoCropEnabled")
             } header: {
                 Text("Rendering")
@@ -39,6 +42,7 @@ struct PreferencesView: View {
 
             Section {
                 Toggle("Optical dust removal", isOn: $preferences.opticalDustRemovalEnabled)
+                    .toggleStyle(.switch)
                     .accessibilityIdentifier("negSwift.prefs.opticalDustRemoval")
 
                 if preferences.opticalDustRemovalEnabled {
